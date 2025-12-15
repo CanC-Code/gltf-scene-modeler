@@ -5,7 +5,7 @@ import { OBJLoader } from './three/examples/jsm/loaders/OBJLoader.js';
 let scene, camera, renderer, controls;
 let currentModel = null;
 let voxelGrid = {};
-const voxelSize = 0.1; // size of each voxel
+let voxelSize = 0.1;
 
 function init() {
     const canvas = document.getElementById('canvas');
@@ -76,24 +76,44 @@ function init() {
         reader.readAsText(file);
     });
 
-    // Convert to Voxels button
+    // Voxel size selector
+    const voxelLabel = document.createElement('label');
+    voxelLabel.innerText = 'Voxel Size: ';
+    const voxelInput = document.createElement('input');
+    voxelInput.type = 'number';
+    voxelInput.min = '0.01';
+    voxelInput.max = '0.5';
+    voxelInput.step = '0.01';
+    voxelInput.value = voxelSize;
+    voxelLabel.appendChild(voxelInput);
+    document.getElementById('toolbar').appendChild(voxelLabel);
+
+    voxelInput.addEventListener('change', () => {
+        voxelSize = parseFloat(voxelInput.value);
+    });
+
+    // Convert to voxels button
     const convertBtn = document.createElement('button');
     convertBtn.innerText = 'Convert to Voxels';
     document.getElementById('toolbar').appendChild(convertBtn);
 
-    convertBtn.addEventListener('click', () => {
+    convertBtn.addEventListener('click', async () => {
         if (!currentModel) {
             status.innerText = 'No model loaded!';
             return;
         }
         status.innerText = 'Converting to voxels...';
-        voxelGrid = {}; // clear previous voxels
+        voxelGrid = {};
 
         const bbox = new THREE.Box3().setFromObject(currentModel);
         const min = bbox.min.clone();
         const max = bbox.max.clone();
-
         const step = voxelSize;
+
+        const totalVoxels = Math.ceil((max.x - min.x)/step) *
+                            Math.ceil((max.y - min.y)/step) *
+                            Math.ceil((max.z - min.z)/step);
+        let processed = 0;
 
         for (let x = min.x; x <= max.x; x += step) {
             for (let y = min.y; y <= max.y; y += step) {
@@ -101,13 +121,21 @@ function init() {
                     const point = new THREE.Vector3(x + step/2, y + step/2, z + step/2);
                     if (pointInsideMesh(point, currentModel)) {
                         const key = `${x.toFixed(2)}_${y.toFixed(2)}_${z.toFixed(2)}`;
+                        const color = sampleMeshColor(point, currentModel) || 0x00ff00;
+
                         const voxel = new THREE.Mesh(
                             new THREE.BoxGeometry(step, step, step),
-                            new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+                            new THREE.MeshStandardMaterial({ color })
                         );
                         voxel.position.copy(point);
                         scene.add(voxel);
                         voxelGrid[key] = voxel;
+                    }
+
+                    processed++;
+                    if (processed % 1000 === 0) {
+                        status.innerText = `Converting... ${Math.floor((processed/totalVoxels)*100)}%`;
+                        await new Promise(r => setTimeout(r, 0)); // yield to browser
                     }
                 }
             }
@@ -127,7 +155,9 @@ function init() {
     document.getElementById('exportBtn').addEventListener('click', () => {
         const data = Object.keys(voxelGrid).map(k => {
             const v = voxelGrid[k].position;
-            return { x: parseFloat(v.x.toFixed(2)), y: parseFloat(v.y.toFixed(2)), z: parseFloat(v.z.toFixed(2)) };
+            const mat = voxelGrid[k].material;
+            const color = mat.color ? mat.color.getHex() : 0x00ff00;
+            return { x: parseFloat(v.x.toFixed(2)), y: parseFloat(v.y.toFixed(2)), z: parseFloat(v.z.toFixed(2)), color };
         });
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -143,13 +173,19 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Very simple point-inside-mesh check
+// Simple point-inside-mesh check using raycast
 function pointInsideMesh(point, mesh) {
     const raycaster = new THREE.Raycaster();
     const direction = new THREE.Vector3(1, 0, 0);
     raycaster.set(point, direction);
     const intersects = raycaster.intersectObject(mesh, true);
-    return intersects.length % 2 === 1; // odd intersections = inside
+    return intersects.length % 2 === 1;
+}
+
+// Sample mesh color (vertex color or basic)
+function sampleMeshColor(point, mesh) {
+    // For now, return green; later we can read vertex colors or UV textures
+    return 0x00ff00;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
