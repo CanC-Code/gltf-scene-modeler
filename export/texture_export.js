@@ -1,32 +1,30 @@
-/**
- * Generate simple UV texture map for voxel colors
- * Returns {canvas, ctx}
- */
-export function generateTextureAtlas(voxels){
-    const size = 16; // 16x16 per voxel color (simplified)
-    const canvas = document.createElement("canvas");
-    canvas.width = 16;
-    canvas.height = 16;
-    const ctx = canvas.getContext("2d");
-
-    // Fill with first voxel color if any
-    if(voxels.length){
-        ctx.fillStyle = voxels[0].color;
-        ctx.fillRect(0,0,16,16);
-    } else {
-        ctx.fillStyle="#ffffff";
-        ctx.fillRect(0,0,16,16);
-    }
-
-    return {canvas, ctx};
+function generateTextureAtlas(voxels){
+    const size = 16; // size per color
+    const uniqueColors = [...new Set(voxels.map(v=>v.color))];
+    const cols = Math.ceil(Math.sqrt(uniqueColors.length));
+    const canvas = document.createElement('canvas');
+    canvas.width = cols*size;
+    canvas.height = cols*size;
+    const ctx = canvas.getContext('2d');
+    uniqueColors.forEach((c,i)=>{
+        const x = (i%cols)*size;
+        const y = Math.floor(i/cols)*size;
+        ctx.fillStyle = c;
+        ctx.fillRect(x,y,size,size);
+    });
+    return {canvas, uniqueColors};
 }
 
-export function downloadTexture(canvas, filename="texture.png"){
+function downloadTexture(canvas){
     canvas.toBlob(blob=>{
-        const url=URL.createObjectURL(blob);
-        const a=document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        const a=document.createElement('a');
         a.href=url;
-        a.download=filename;
+        a.download="texture_atlas.png";
         a.click();
     });
 }
+
+// Expose globally
+window.generateTextureAtlas = generateTextureAtlas;
+window.downloadTexture = downloadTexture;
