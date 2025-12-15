@@ -1,8 +1,9 @@
 import * as THREE from './three/three.module.js';
-import { OrbitControls } from './three/examples/jsm/controls/OrbitControls.js';
-import { OBJLoader } from './three/examples/jsm/loaders/OBJLoader.js';
-import { MeshBVH, acceleratedRaycast } from './three-mesh-bvh.js';
+import { OrbitControls } from './three/OrbitControls.js';
+import { OBJLoader } from './OBJLoader.js';
 
+// Use the UMD BVH global
+const { MeshBVH, acceleratedRaycast } = window.MeshBVHLib;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 let scene, camera, renderer, controls;
@@ -58,19 +59,6 @@ function init() {
         reader.readAsText(file);
     });
 
-    // Voxel Size Input
-    const voxelLabel = document.createElement('label');
-    voxelLabel.innerText = 'Voxel Size: ';
-    const voxelInput = document.createElement('input');
-    voxelInput.type='number';
-    voxelInput.min='0.01';
-    voxelInput.max='0.2';
-    voxelInput.step='0.01';
-    voxelInput.value = voxelSize;
-    voxelLabel.appendChild(voxelInput);
-    document.getElementById('toolbar').appendChild(voxelLabel);
-    voxelInput.addEventListener('change', ()=> voxelSize=parseFloat(voxelInput.value));
-
     // Convert Button
     const convertBtn = document.createElement('button');
     convertBtn.innerText='Convert to Voxels';
@@ -81,7 +69,6 @@ function init() {
         voxelGrid={};
         skeleton={};
 
-        // Flatten all meshes in currentModel
         const meshes = [];
         currentModel.traverse(child=>{
             if(child.isMesh) meshes.push(child);
@@ -137,11 +124,9 @@ async function sdfVoxelize(meshes, step, status){
                 const pz = min.z + (k+0.5)*step;
                 const point = new THREE.Vector3(px,py,pz);
 
-                // check SDF distance to all meshes
                 let inside = false;
                 for(const m of meshes){
                     const dist = m.geometry.boundsTree.closestPointToPoint(point, {closestPoint:new THREE.Vector3()});
-                    // SDF approximation: if closest point < step/2 consider inside
                     if(point.distanceTo(dist.closestPoint) <= step/2){ inside=true; break; }
                 }
 
