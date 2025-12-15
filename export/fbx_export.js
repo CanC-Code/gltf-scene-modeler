@@ -1,31 +1,34 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
-import { FBXExporter } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/exporters/FBXExporter.js';
-
-/**
- * Convert voxel grid to FBX mesh
- */
-export function exportVoxelsToFBX(voxels){
-    const group = new THREE.Group();
-    const voxelSize = 1;
-
+function exportVoxelsToFBX(voxels){
+    let fbx = `; FBX 7.4.0 project file
+Objects:  {
+`;
+    let id = 1000;
     voxels.forEach(v=>{
-        const geo = new THREE.BoxGeometry(voxelSize,voxelSize,voxelSize);
-        const mat = new THREE.MeshStandardMaterial({color:v.color});
-        const mesh = new THREE.Mesh(geo,mat);
-        mesh.position.set(v.x+voxelSize/2, v.y+voxelSize/2, v.z+voxelSize/2);
-        group.add(mesh);
+        fbx += `    Model: ${id}, "Model::Voxel", "Mesh" {}\n`;
+        id++;
     });
-
-    const exporter = new FBXExporter();
-    const fbxData = exporter.parse(group);
-    return fbxData;
+    fbx += `}
+Connections:  {
+`;
+    id = 1000;
+    voxels.forEach(v=>{
+        fbx += `    C: "OO",${id},0\n`;
+        id++;
+    });
+    fbx += `}`;
+    const enc = new TextEncoder();
+    return enc.encode(fbx).buffer;
 }
 
-export function downloadFBX(arrayBuffer, filename="model.fbx"){
-    const blob = new Blob([arrayBuffer], {type:"application/octet-stream"});
+function downloadFBX(buffer){
+    const blob = new Blob([buffer], {type:"application/octet-stream"});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
+    const a = document.createElement('a');
+    a.href=url;
+    a.download="voxels.fbx";
     a.click();
 }
+
+// Expose globally
+window.exportVoxelsToFBX = exportVoxelsToFBX;
+window.downloadFBX = downloadFBX;
