@@ -1,33 +1,41 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
-import { OBJExporter } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/exporters/OBJExporter.js';
-
-/**
- * Convert voxel grid to OBJ mesh
- * voxels: array of {x,y,z,color}
- */
-export function exportVoxelsToOBJ(voxels){
-    const group = new THREE.Group();
-    const voxelSize = 1;
-
+function exportVoxelsToOBJ(voxels){
+    let obj = '';
+    let vertCount = 1;
     voxels.forEach(v=>{
-        const geo = new THREE.BoxGeometry(voxelSize,voxelSize,voxelSize);
-        const mat = new THREE.MeshStandardMaterial({color:v.color});
-        const mesh = new THREE.Mesh(geo,mat);
-        mesh.position.set(v.x+voxelSize/2, v.y+voxelSize/2, v.z+voxelSize/2);
-        group.add(mesh);
+        const x=v.x, y=v.y, z=v.z;
+        const s=1; // voxel cube size
+        obj += `
+v ${x} ${y} ${z}
+v ${x+s} ${y} ${z}
+v ${x+s} ${y+s} ${z}
+v ${x} ${y+s} ${z}
+v ${x} ${y} ${z+s}
+v ${x+s} ${y} ${z+s}
+v ${x+s} ${y+s} ${z+s}
+v ${x} ${y+s} ${z+s}
+`;
+        obj += `
+f ${vertCount} ${vertCount+1} ${vertCount+2} ${vertCount+3}
+f ${vertCount+5} ${vertCount+6} ${vertCount+7} ${vertCount+8}
+f ${vertCount} ${vertCount+1} ${vertCount+6} ${vertCount+5}
+f ${vertCount+1} ${vertCount+2} ${vertCount+7} ${vertCount+6}
+f ${vertCount+2} ${vertCount+3} ${vertCount+8} ${vertCount+7}
+f ${vertCount+3} ${vertCount} ${vertCount+5} ${vertCount+8}
+`;
+        vertCount += 8;
     });
-
-    const exporter = new OBJExporter();
-    const objData = exporter.parse(group);
-    return objData;
+    return obj;
 }
 
-/** Utility to download OBJ */
-export function downloadOBJ(objText, filename="model.obj"){
-    const blob = new Blob([objText],{type:"text/plain"});
+function downloadOBJ(text){
+    const blob = new Blob([text], {type:"text/plain"});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
+    const a = document.createElement('a');
+    a.href=url;
+    a.download="voxels.obj";
     a.click();
 }
+
+// Expose globally
+window.exportVoxelsToOBJ = exportVoxelsToOBJ;
+window.downloadOBJ = downloadOBJ;
