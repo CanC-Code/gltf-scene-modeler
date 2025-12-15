@@ -4,15 +4,14 @@ import { OBJLoader } from './three/examples/jsm/loaders/OBJLoader.js';
 
 let scene, camera, renderer, controls;
 let currentModel = null;
-let voxelGrid = {}; // Placeholder for voxel conversion later
+let voxelGrid = {};
+const voxelSize = 0.1; // size of each voxel
 
 function init() {
     const canvas = document.getElementById('canvas');
     const status = document.getElementById('status');
 
-    if (!canvas) {
-        throw new Error('Canvas element not found in DOM.');
-    }
+    if (!canvas) throw new Error('Canvas element not found.');
 
     // Scene
     scene = new THREE.Scene();
@@ -28,7 +27,7 @@ function init() {
     camera.position.set(5, 5, 5);
 
     // Renderer
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     // Controls
@@ -38,16 +37,7 @@ function init() {
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
     dirLight.position.set(10, 10, 10);
     scene.add(dirLight);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(ambientLight);
-
-    // Base cube as placeholder
-    const cube = new THREE.Mesh(
-        new THREE.BoxGeometry(),
-        new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-    );
-    scene.add(cube);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
     // OBJ Input
     const objInput = document.getElementById('objInput');
@@ -64,22 +54,19 @@ function init() {
                 const loader = new OBJLoader();
                 const object = loader.parse(contents);
 
-                // Remove previous model if exists
+                // Remove previous model
                 if (currentModel) scene.remove(currentModel);
 
-                // Compute bounding box for scaling and centering
+                // Scale and center
                 const box = new THREE.Box3().setFromObject(object);
                 const size = box.getSize(new THREE.Vector3()).length();
-                const scale = 2 / size; // normalize to roughly 2 units
+                const scale = 2 / size;
                 object.scale.set(scale, scale, scale);
-
-                // Center the object
                 const center = box.getCenter(new THREE.Vector3());
                 object.position.sub(center.multiplyScalar(scale));
 
                 scene.add(object);
                 currentModel = object;
-
                 status.innerText = 'OBJ loaded!';
             } catch (err) {
                 console.error('OBJ load error:', err);
@@ -89,24 +76,64 @@ function init() {
         reader.readAsText(file);
     });
 
-    // Handle window resize
+    // Convert to Voxels button
+    const convertBtn = document.createElement('button');
+    convertBtn.innerText = 'Convert to Voxels';
+    document.getElementById('toolbar').appendChild(convertBtn);
+
+    convertBtn.addEventListener('click', () => {
+        if (!currentModel) {
+            status.innerText = 'No model loaded!';
+            return;
+        }
+        status.innerText = 'Converting to voxels...';
+        voxelGrid = {}; // clear previous voxels
+
+        const bbox = new THREE.Box3().setFromObject(currentModel);
+        const min = bbox.min.clone();
+        const max = bbox.max.clone();
+
+        const step = voxelSize;
+
+        for (let x = min.x; x <= max.x; x += step) {
+            for (let y = min.y; y <= max.y; y += step) {
+                for (let z = min.z; z <= max.z; z += step) {
+                    const point = new THREE.Vector3(x + step/2, y + step/2, z + step/2);
+                    if (pointInsideMesh(point, currentModel)) {
+                        const key = `${x.toFixed(2)}_${y.toFixed(2)}_${z.toFixed(2)}`;
+                        const voxel = new THREE.Mesh(
+                            new THREE.BoxGeometry(step, step, step),
+                            new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+                        );
+                        voxel.position.copy(point);
+                        scene.add(voxel);
+                        voxelGrid[key] = voxel;
+                    }
+                }
+            }
+        }
+
+        status.innerText = `Conversion complete! Voxels: ${Object.keys(voxelGrid).length}`;
+    });
+
+    // Window resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Export JSON placeholder
+    // Export JSON
     document.getElementById('exportBtn').addEventListener('click', () => {
         const data = Object.keys(voxelGrid).map(k => {
             const v = voxelGrid[k].position;
-            return { x: Math.floor(v.x), y: Math.floor(v.y), z: Math.floor(v.z) };
+            return { x: parseFloat(v.x.toFixed(2)), y: parseFloat(v.y.toFixed(2)), z: parseFloat(v.z.toFixed(2)) };
         });
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "scene.json";
+        a.download = "voxels.json";
         a.click();
     });
 }
@@ -114,6 +141,15 @@ function init() {
 function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
+}
+
+// Very simple point-inside-mesh check
+function pointInsideMesh(point, mesh) {
+    const raycaster = new THREE.Raycaster();
+    const direction = new THREE.Vector3(1, 0, 0);
+    raycaster.set(point, direction);
+    const intersects = raycaster.intersectObject(mesh, true);
+    return intersects.length % 2 === 1; // odd intersections = inside
 }
 
 document.addEventListener('DOMContentLoaded', () => {
