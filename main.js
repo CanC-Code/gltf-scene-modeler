@@ -1,9 +1,17 @@
+import { buildBedrockGeometry } from "./export/bedrock_geometry.js";
+import { generateTextureAtlas, downloadTexture } from "./export/texture_export.js";
+import {
+    generateResourceEntity,
+    generateBehaviorEntity,
+    downloadJSON
+} from "./export/entity_export.js";
+
 let scene, camera, renderer, controls;
 let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
 
 let voxelSize = 1;
-let voxelGrid = new Map(); // key = "x,y,z" -> Mesh
+let voxelGrid = new Map(); // key -> mesh
 
 const canvas = document.getElementById("canvas");
 const objInput = document.getElementById("objInput");
@@ -14,7 +22,7 @@ const exportGeoBtn = document.getElementById("exportGeoBtn");
 init();
 animate();
 
-/* ---------- INIT ---------- */
+/* ---------------- INIT ---------------- */
 
 function init() {
     scene = new THREE.Scene();
@@ -34,10 +42,10 @@ function init() {
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
     const light = new THREE.DirectionalLight(0xffffff, 1);
     light.position.set(10, 20, 10);
     scene.add(light);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("resize", onResize);
@@ -52,7 +60,7 @@ function init() {
     addVoxel(0, 0, 0);
 }
 
-/* ---------- RENDER ---------- */
+/* ---------------- RENDER ---------------- */
 
 function animate() {
     requestAnimationFrame(animate);
@@ -68,18 +76,18 @@ function onResize() {
     renderer.setSize(w, h, false);
 }
 
-/* ---------- GRID ---------- */
+/* ---------------- GRID ---------------- */
 
-function gridKey(x, y, z) {
+function key(x, y, z) {
     return `${x},${y},${z}`;
 }
 
-function addVoxel(x, y, z) {
-    const key = gridKey(x, y, z);
-    if (voxelGrid.has(key)) return;
+function addVoxel(x, y, z, color = "#55ff55") {
+    const k = key(x, y, z);
+    if (voxelGrid.has(k)) return;
 
     const geo = new THREE.BoxGeometry(voxelSize, voxelSize, voxelSize);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x22cc55 });
+    const mat = new THREE.MeshStandardMaterial({ color });
     const mesh = new THREE.Mesh(geo, mat);
 
     mesh.position.set(
@@ -88,18 +96,18 @@ function addVoxel(x, y, z) {
         z * voxelSize + voxelSize / 2
     );
 
-    mesh.userData.grid = { x, y, z };
+    mesh.userData = { x, y, z, color };
 
-    voxelGrid.set(key, mesh);
+    voxelGrid.set(k, mesh);
     scene.add(mesh);
 }
 
 function removeVoxel(x, y, z) {
-    const key = gridKey(x, y, z);
-    const mesh = voxelGrid.get(key);
+    const k = key(x, y, z);
+    const mesh = voxelGrid.get(k);
     if (!mesh) return;
     scene.remove(mesh);
-    voxelGrid.delete(key);
+    voxelGrid.delete(k);
 }
 
 function clearVoxels() {
@@ -107,7 +115,7 @@ function clearVoxels() {
     voxelGrid.clear();
 }
 
-/* ---------- INTERACTION ---------- */
+/* ---------------- INTERACTION ---------------- */
 
 function onPointerDown(event) {
     const rect = canvas.getBoundingClientRect();
@@ -116,27 +124,25 @@ function onPointerDown(event) {
 
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects([...voxelGrid.values()]);
-
     if (!hits.length) return;
 
     const hit = hits[0];
-    const voxel = hit.object;
-    const { x, y, z } = voxel.userData.grid;
+    const v = hit.object.userData;
+    const n = hit.face.normal;
 
     if (event.shiftKey) {
-        removeVoxel(x, y, z);
-        return;
+        removeVoxel(v.x, v.y, v.z);
+    } else {
+        addVoxel(
+            v.x + Math.round(n.x),
+            v.y + Math.round(n.y),
+            v.z + Math.round(n.z),
+            v.color
+        );
     }
-
-    const n = hit.face.normal;
-    addVoxel(
-        x + Math.round(n.x),
-        y + Math.round(n.y),
-        z + Math.round(n.z)
-    );
 }
 
-/* ---------- OBJ IMPORT ---------- */
+/* ---------------- OBJ IMPORT ---------------- */
 
 function loadOBJ(event) {
     const file = event.target.files[0];
@@ -151,11 +157,10 @@ function loadOBJ(event) {
     reader.readAsText(file);
 }
 
-/* ---------- VOXELIZATION ---------- */
+/* ---------------- VOXELIZATION ---------------- */
 
 function voxelizeMesh(object) {
     clearVoxels();
-
     object.updateMatrixWorld(true);
 
     const box = new THREE.Box3().setFromObject(object);
@@ -189,18 +194,30 @@ function voxelizeMesh(object) {
     }
 }
 
-/* ---------- EXPORT (RAW GRID) ---------- */
+/* ---------------- EXPORTS ---------------- */
 
 exportGeoBtn.addEventListener("click", () => {
-    const data = [];
-    voxelGrid.forEach(v => data.push(v.userData.grid));
+    const voxels = [...voxelGrid.values()].map(v => ({
+        x: v.userData.x,
+        y: v.userData.y,
+        z: v.userData.z,
+        color: v.userData.color
+    }));
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json"
+    // Geometry
+    const geometry = buildBedrockGeometry(voxels, {
+        name: "geometry.voxel_model"
     });
+    downloadJSON(geometry, "voxel.geo.json");
 
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "voxels.json";
-    a.click();
+    // Texture
+    const atlas = generateTextureAtlas(voxels);
+    downloadTexture(atlas.canvas, "voxel.png");
+
+    // Entities
+    const res = generateResourceEntity();
+    const beh = generateBehaviorEntity();
+
+    downloadJSON(res, "voxel.entity.json");
+    downloadJSON(beh, "voxel.behavior.json");
 });
