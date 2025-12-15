@@ -310,7 +310,7 @@ class OBJLoader extends Loader {
 				mesh.name=object.name;
 				container.add(mesh);
 
-}
+			}
 
 		} else {
 
