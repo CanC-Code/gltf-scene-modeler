@@ -1,19 +1,19 @@
 import {
-	BufferGeometry,
-	FileLoader,
-	Float32BufferAttribute,
-	Group,
-	LineBasicMaterial,
-	LineSegments,
-	Loader,
-	Material,
-	Mesh,
-	MeshPhongMaterial,
-	Points,
-	PointsMaterial,
-	Vector3,
-	Color
-} from 'three';
+    BufferGeometry,
+    FileLoader,
+    Float32BufferAttribute,
+    Group,
+    LineBasicMaterial,
+    LineSegments,
+    Loader,
+    Material,
+    Mesh,
+    MeshPhongMaterial,
+    Points,
+    PointsMaterial,
+    Vector3,
+    Color
+} from './three.module.js';
 
 // o object_name | g group_name
 const _object_pattern = /^[og]\s*(.+)?/;
