@@ -3,7 +3,7 @@ import { OrbitControls } from './three/OrbitControls.js';
 import { OBJLoader } from './three/OBJLoader.js';
 import { MeshBVH, acceleratedRaycast } from './lib/index.module.js';
 
-// Enable BVH raycasting
+// Enable BVH accelerated raycasting
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 let scene, camera, renderer, controls;
@@ -38,16 +38,14 @@ function init() {
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
     // OBJ input
-    const objInput = document.getElementById('objInput');
-    objInput.addEventListener('change', e => {
+    document.getElementById('objInput').addEventListener('change', e => {
         const file = e.target.files[0];
         if(!file) return;
         const reader = new FileReader();
         reader.onload = function(ev){
             status.innerText = 'Loading OBJ...';
-            const contents = ev.target.result;
             const loader = new OBJLoader();
-            const object = loader.parse(contents);
+            const object = loader.parse(ev.target.result);
 
             if(currentModel) scene.remove(currentModel);
 
