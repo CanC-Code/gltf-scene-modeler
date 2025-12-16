@@ -2,27 +2,20 @@ import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { OBJLoader } from './three/OBJLoader.js';
 import { FBXLoader } from './three/FBXLoader.js';
-import { acceleratedRaycast, computeBoundsTree } from './lib/index.module.js';
+import { MeshBVH, acceleratedRaycast } from './lib/index.module.js';
 
-/* --------------------------
-   BVH PATCH
---------------------------- */
+// Enable BVH accelerated raycasting
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
-THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 
-/* --------------------------
-   GLOBALS
---------------------------- */
 let scene, camera, renderer, controls;
-let activeMesh = null;
-let voxelGroup = new THREE.Group();
+let currentMesh = null;
+let voxelGrid = {};
 let voxelSize = 0.1;
 
-/* --------------------------
-   INIT
---------------------------- */
 function init() {
     const canvas = document.getElementById('canvas');
+    const status = document.getElementById('status');
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
 
@@ -35,157 +28,131 @@ function init() {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
     dirLight.position.set(10,10,10);
     scene.add(dirLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-    scene.add(new THREE.GridHelper(10,10));
-    scene.add(new THREE.AxesHelper(2));
-    scene.add(voxelGroup);
-
-    bindUI();
+    // Default cube
     createCube();
 
-    window.addEventListener('resize', onResize);
+    // Handle window resize
+    window.addEventListener('resize', ()=>{
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // OBJ input
+    document.getElementById('objInput').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        status.innerText = 'Loading OBJ...';
+        const reader = new FileReader();
+        reader.onload = function(ev){
+            const loader = new OBJLoader();
+            const obj = loader.parse(ev.target.result);
+            loadMesh(obj);
+            status.innerText = 'OBJ loaded!';
+        };
+        reader.readAsText(file);
+    });
+
+    // Convert to voxels
+    document.getElementById('convertBtn').onclick = () => {
+        if(!currentMesh) return;
+        voxelize(currentMesh);
+        status.innerText = 'Voxelization done!';
+    };
+
+    // Export voxel JSON
+    document.getElementById('exportBtn').onclick = () => {
+        const data = { voxels: Object.values(voxelGrid) };
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'scene.json';
+        a.click();
+        status.innerText = 'Export complete!';
+    };
+
+    // Sphere / cube buttons (if added to HTML)
+    if(document.getElementById('createCube'))
+        document.getElementById('createCube').onclick = createCube;
+    if(document.getElementById('createSphere'))
+        document.getElementById('createSphere').onclick = createSphere;
 }
 
-/* --------------------------
-   UI
---------------------------- */
-function bindUI() {
-    document.getElementById('objInput').addEventListener('change', loadModel);
-    document.getElementById('fbxInput')?.addEventListener('change', loadModel);
-    document.getElementById('newCube')?.addEventListener('click', createCube);
-    document.getElementById('newSphere')?.addEventListener('click', createSphere);
-}
-
-/* --------------------------
-   CREATE PRIMITIVES
---------------------------- */
 function createCube() {
-    const geo = new THREE.BoxGeometry(1,1,1);
-    geo.computeBoundsTree();
-    const mat = new THREE.MeshStandardMaterial({color:0x4caf50});
-    setActiveMesh(new THREE.Mesh(geo, mat));
-    voxelizeMesh(activeMesh);
+    if(currentMesh) scene.remove(currentMesh);
+    currentMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1,1,1),
+        new THREE.MeshStandardMaterial({color:0x44aa88})
+    );
+    scene.add(currentMesh);
 }
 
 function createSphere() {
-    const geo = new THREE.SphereGeometry(0.75,32,32);
-    geo.computeBoundsTree();
-    const mat = new THREE.MeshStandardMaterial({color:0x2196f3});
-    setActiveMesh(new THREE.Mesh(geo, mat));
-    voxelizeMesh(activeMesh);
+    if(currentMesh) scene.remove(currentMesh);
+    currentMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.75, 32, 32),
+        new THREE.MeshStandardMaterial({color:0xaa8844})
+    );
+    scene.add(currentMesh);
 }
 
-/* --------------------------
-   SET ACTIVE MESH
---------------------------- */
-function setActiveMesh(mesh) {
-    if(activeMesh) scene.remove(activeMesh);
-    activeMesh = mesh;
-    scene.add(activeMesh);
-    voxelGroup.clear();
-}
+// Load and normalize mesh (OBJ/FBX)
+function loadMesh(mesh) {
+    if(currentMesh) scene.remove(currentMesh);
 
-/* --------------------------
-   LOAD OBJ / FBX
---------------------------- */
-function loadModel(e) {
-    const file = e.target.files[0];
-    if(!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-
-    const reader = new FileReader();
-    reader.onload = ev => {
-        let loader;
-        if(ext==='obj') loader = new OBJLoader();
-        else if(ext==='fbx') loader = new FBXLoader();
-        else { alert('Unsupported file'); return; }
-
-        let obj;
-        try { obj = loader.parse(ev.target.result); } 
-        catch(err){ console.error('Parse failed', err); return; }
-
-        // flatten to mesh for voxelization
-        const group = new THREE.Group();
-        obj.traverse(child=>{
-            if(child.isMesh){
-                if(!child.material) child.material = new THREE.MeshStandardMaterial({color:0xcccccc});
-                child.geometry.computeBoundsTree();
-                group.add(child);
-            }
-        });
-
-        if(group.children.length===0){ alert('No meshes found'); return; }
-
-        // scale & center
-        const box = new THREE.Box3().setFromObject(group);
-        const size = box.getSize(new THREE.Vector3()).length();
-        const scale = 2/Math.max(size,1);
-        group.scale.setScalar(scale);
-        const center = box.getCenter(new THREE.Vector3());
-        group.position.sub(center);
-
-        setActiveMesh(group);
-        voxelizeMesh(activeMesh);
-    };
-
-    reader.readAsText(file);
-}
-
-/* --------------------------
-   VOXELIZATION
---------------------------- */
-function voxelizeMesh(mesh) {
-    voxelGroup.clear();
-    if(!mesh) return;
-
+    // Compute bounding box
     const box = new THREE.Box3().setFromObject(mesh);
-    const min = box.min, max = box.max;
-    const size = new THREE.Vector3().subVectors(max,min);
-    const stepsX = Math.ceil(size.x/voxelSize);
-    const stepsY = Math.ceil(size.y/voxelSize);
-    const stepsZ = Math.ceil(size.z/voxelSize);
+    const size = box.getSize(new THREE.Vector3()).length();
+    const scale = 2 / size; // fit into 2 unit cube
+    mesh.scale.set(scale, scale, scale);
 
-    const voxelMat = new THREE.MeshStandardMaterial({color:0xffcc00});
+    const center = box.getCenter(new THREE.Vector3());
+    mesh.position.sub(center.multiplyScalar(scale));
 
-    for(let i=0;i<stepsX;i++){
-        for(let j=0;j<stepsY;j++){
-            for(let k=0;k<stepsZ;k++){
-                const cx = min.x + (i+0.5)*voxelSize;
-                const cy = min.y + (j+0.5)*voxelSize;
-                const cz = min.z + (k+0.5)*voxelSize;
+    scene.add(mesh);
+    currentMesh = mesh;
+}
 
-                // raycast to see if voxel intersects mesh
-                const voxelGeo = new THREE.BoxGeometry(voxelSize,voxelSize,voxelSize);
-                const voxel = new THREE.Mesh(voxelGeo, voxelMat);
-                voxel.position.set(cx,cy,cz);
+// Simple voxelization (cube-based)
+function voxelize(mesh) {
+    voxelGrid = {}; // reset
+    const geom = mesh.geometry;
+    geom.computeBoundingBox();
+    const bbox = geom.boundingBox;
 
-                // simple intersection test
-                const raycaster = new THREE.Raycaster();
-                raycaster.set(new THREE.Vector3(cx,cy,cz+voxelSize*2), new THREE.Vector3(0,0,-1));
-                const intersects = raycaster.intersectObject(mesh,true);
-                if(intersects.length%2===1) voxelGroup.add(voxel);
+    const min = bbox.min;
+    const max = bbox.max;
+
+    const step = voxelSize;
+
+    const positions = [];
+
+    for(let x = min.x; x <= max.x; x += step) {
+        for(let y = min.y; y <= max.y; y += step) {
+            for(let z = min.z; z <= max.z; z += step) {
+                const voxel = new THREE.Vector3(x, y, z);
+                // Simple inclusion test: is this voxel inside mesh bounding box
+                positions.push(voxel);
             }
         }
     }
+
+    // Store in voxelGrid
+    positions.forEach((v,i)=>{
+        voxelGrid[i] = {x:v.x, y:v.y, z:v.z};
+    });
 }
 
-/* --------------------------
-   RENDER LOOP
---------------------------- */
-function onResize(){
-    camera.aspect = window.innerWidth/window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth,window.innerHeight);
-}
-
-function animate(){
+function animate() {
     requestAnimationFrame(animate);
     controls.update();
-    renderer.render(scene,camera);
+    renderer.render(scene, camera);
 }
 
-document.addEventListener('DOMContentLoaded',()=>{ init(); animate(); });
+document.addEventListener('DOMContentLoaded', ()=>{ init(); animate(); });
