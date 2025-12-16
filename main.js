@@ -1,19 +1,21 @@
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 
-/* ---------- DOM ---------- */
+/* ---------------- DOM ---------------- */
+
 const canvas = document.getElementById('canvas');
 const statusEl = document.getElementById('status');
 
 function setStatus(msg) {
   statusEl.textContent = msg;
-  console.log(msg);
 }
 
-/* ---------- SCENE ---------- */
+/* ---------------- SCENE ---------------- */
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xeeeeee);
-scene.add(new THREE.AxesHelper(2));
+
+scene.add(new THREE.AxesHelper(3));
 
 const camera = new THREE.PerspectiveCamera(
   60,
@@ -21,7 +23,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(4, 4, 4);
+camera.position.set(5, 5, 5);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -32,64 +34,121 @@ renderer.setPixelRatio(window.devicePixelRatio);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.target.set(0, 0, 0);
-controls.update();
 
-/* ---------- LIGHT ---------- */
-scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+/* ---------------- LIGHTS ---------------- */
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 5);
-scene.add(dirLight);
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
 
-/* ---------- BASE OBJECT ---------- */
+const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+dir.position.set(10, 15, 10);
+scene.add(dir);
+
+/* ---------------- BASE OBJECT ---------------- */
+
 let baseObject = null;
 
-function clearBase() {
+const material = new THREE.MeshStandardMaterial({
+  color: 0x7799ff,
+  roughness: 0.7,
+  metalness: 0.1
+});
+
+function clearBaseObject() {
   if (!baseObject) return;
   scene.remove(baseObject);
-  baseObject.traverse(o => {
-    if (o.geometry) o.geometry.dispose();
-    if (o.material) o.material.dispose();
-  });
+  baseObject.geometry.dispose();
   baseObject = null;
 }
 
-function setBase(mesh) {
-  clearBase();
-
-  mesh.material = new THREE.MeshStandardMaterial({
-    color: 0x7799ff,
-    roughness: 0.7,
-    metalness: 0.1
-  });
-
-  scene.add(mesh);
-  baseObject = mesh;
-  controls.target.set(0, 0, 0);
-  controls.update();
-
-  setStatus('Base model ready');
-}
-
-/* ---------- PRIMITIVES ---------- */
 function createCube() {
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  const mesh = new THREE.Mesh(geo);
-  setBase(mesh);
+  clearBaseObject();
+  baseObject = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    material.clone()
+  );
+  scene.add(baseObject);
+  setStatus('Cube created');
 }
 
 function createSphere() {
-  const geo = new THREE.SphereGeometry(0.7, 32, 24);
-  const mesh = new THREE.Mesh(geo);
-  setBase(mesh);
+  clearBaseObject();
+  baseObject = new THREE.Mesh(
+    new THREE.SphereGeometry(0.75, 32, 24),
+    material.clone()
+  );
+  scene.add(baseObject);
+  setStatus('Sphere created');
 }
 
-/* ---------- UI ---------- */
+/* ---------------- TRANSFORM MODE ---------------- */
+
+let mode = null;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
+
+function setMode(newMode) {
+  mode = newMode;
+  document.querySelectorAll('#toolbar button').forEach(b => {
+    b.classList.remove('active');
+  });
+
+  if (newMode) {
+    document.getElementById(newMode + 'Btn').classList.add('active');
+    setStatus(`Mode: ${newMode}`);
+  }
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (!baseObject || !mode) return;
+  dragging = true;
+  controls.enabled = false;
+  lastX = e.clientX;
+  lastY = e.clientY;
+});
+
+window.addEventListener('mouseup', () => {
+  dragging = false;
+  controls.enabled = true;
+});
+
+window.addEventListener('mousemove', e => {
+  if (!dragging || !baseObject) return;
+
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  lastX = e.clientX;
+  lastY = e.clientY;
+
+  const speed = 0.01;
+
+  if (mode === 'move') {
+    baseObject.position.x += dx * speed;
+    baseObject.position.y -= dy * speed;
+  }
+
+  if (mode === 'rotate') {
+    baseObject.rotation.y += dx * speed;
+    baseObject.rotation.x += dy * speed;
+  }
+
+  if (mode === 'scale') {
+    const s = 1 + dy * 0.01;
+    baseObject.scale.multiplyScalar(s);
+  }
+});
+
+/* ---------------- UI ---------------- */
+
 document.getElementById('newCube').onclick = createCube;
 document.getElementById('newSphere').onclick = createSphere;
 
-/* ---------- ANIMATE ---------- */
+document.getElementById('moveBtn').onclick = () => setMode('move');
+document.getElementById('rotateBtn').onclick = () => setMode('rotate');
+document.getElementById('scaleBtn').onclick = () => setMode('scale');
+
+/* ---------------- RENDER LOOP ---------------- */
+
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
@@ -97,13 +156,15 @@ function animate() {
 }
 animate();
 
-/* ---------- RESIZE ---------- */
+/* ---------------- RESIZE ---------------- */
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-/* ---------- START ---------- */
+/* ---------------- INIT ---------------- */
+
 createCube();
-setStatus('Ready – base model loaded');
+setStatus('Drag to sculpt. Choose Move / Rotate / Scale.');
