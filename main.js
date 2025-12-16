@@ -1,8 +1,9 @@
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { OBJLoader } from './three/OBJLoader.js';
+import { FBXLoader } from './three/FBXLoader.js';
 
-// ---------------- DOM ----------------
+/* ---------------- DOM ---------------- */
 const canvas = document.getElementById('canvas');
 const statusEl = document.getElementById('status');
 
@@ -11,10 +12,10 @@ function setStatus(msg) {
     console.log('Status:', msg);
 }
 
-// ---------------- SCENE SETUP ----------------
+/* ---------------- SCENE SETUP ---------------- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xeeeeee);
-scene.add(new THREE.AxesHelper(2)); // Debug axes
+scene.add(new THREE.AxesHelper(2));
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(4, 4, 4);
@@ -23,20 +24,19 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
-// ---------------- CONTROLS ----------------
+/* ---------------- CONTROLS ---------------- */
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 0, 0);
 controls.update();
 
-// ---------------- LIGHTING ----------------
+/* ---------------- LIGHTING ---------------- */
 scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 
-// ---------------- CURRENT OBJECT ----------------
+/* ---------------- CURRENT OBJECT ---------------- */
 let currentObject = null;
 
 function removeCurrentObject() {
@@ -46,62 +46,59 @@ function removeCurrentObject() {
     }
 }
 
-// Collect all meshes recursively
 function collectMeshes(object) {
     const meshes = [];
-    object.traverse(child => {
+    object.traverse((child) => {
         if (child.isMesh) meshes.push(child);
     });
     return meshes;
 }
 
-// Place object, center and scale
 function placeObject(object) {
     removeCurrentObject();
 
-    const meshes = collectMeshes(object);
-    if (meshes.length === 0) {
-        setStatus('Error: No meshes found in model');
-        return;
-    }
-
-    let totalVertices = 0;
-    meshes.forEach(mesh => {
-        const pos = mesh.geometry.attributes.position;
-        totalVertices += pos ? pos.count : 0;
-
-        // Compute geometry
-        mesh.geometry.computeBoundingBox();
-        mesh.geometry.computeVertexNormals();
-
-        // Preserve original material if exists
-        if (!mesh.material) {
-            mesh.material = new THREE.MeshStandardMaterial({
-                color: 0x6688ff,
-                metalness: 0.1,
-                roughness: 0.9,
-                side: THREE.DoubleSide
-            });
-        }
-
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+    const meshes = collectMeshes(object).filter(m => {
+        const pos = m.geometry.attributes.position;
+        return pos && pos.count > 3;
     });
 
-    if (totalVertices === 0) {
-        setStatus('Error: Model has no vertices');
+    if (meshes.length === 0) {
+        setStatus('Error: No valid meshes found in model');
         return;
     }
 
-    // Center and scale
-    const box = new THREE.Box3().setFromObject(object);
+    // Override materials, compute normals, bounding boxes
+    meshes.forEach(m => {
+        m.geometry.computeBoundingBox();
+        m.geometry.computeVertexNormals();
+        m.material = new THREE.MeshStandardMaterial({
+            color: 0x6688ff,
+            metalness: 0.1,
+            roughness: 0.9,
+            side: THREE.DoubleSide
+        });
+        m.castShadow = true;
+        m.receiveShadow = true;
+    });
+
+    // Compute merged bounding box
+    const box = new THREE.Box3();
+    meshes.forEach(m => box.expandByObject(m));
+
     const size = new THREE.Vector3();
     box.getSize(size);
+    if (size.length() < 0.0001) {
+        setStatus('Error: Model degenerate (zero size)');
+        console.warn('Degenerate bounding box:', box);
+        return;
+    }
 
+    // Center object
     const center = new THREE.Vector3();
     box.getCenter(center);
-    object.position.sub(center); // center in scene
+    object.position.sub(center);
 
+    // Scale to fit view
     const maxDim = Math.max(size.x, size.y, size.z);
     const targetSize = 3;
     const scale = targetSize / maxDim;
@@ -110,16 +107,13 @@ function placeObject(object) {
     scene.add(object);
     currentObject = object;
 
-    controls.reset(); // recenter view
+    controls.reset();
     controls.update();
 
-    setStatus(`Loaded: ${meshes.length} mesh(es), ${totalVertices} vertices`);
-
-    // Optional: debug bounding boxes
-    // meshes.forEach(m => scene.add(new THREE.BoxHelper(m, 0xff0000)));
+    setStatus(`Loaded: ${meshes.length} mesh(es), ${meshes.reduce((a,m) => a + m.geometry.attributes.position.count,0)} vertices`);
 }
 
-// ---------------- PRIMITIVES ----------------
+/* ---------------- PRIMITIVES ---------------- */
 function createCube() {
     const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(1, 1, 1),
@@ -136,40 +130,46 @@ function createSphere() {
     placeObject(mesh);
 }
 
-// ---------------- OBJ LOADING ----------------
+/* ---------------- OBJ / FBX LOADING ---------------- */
 document.getElementById('objInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    setStatus('Loading OBJ...');
+    setStatus('Loading model...');
 
     const reader = new FileReader();
     reader.onload = (event) => {
         try {
-            const loader = new OBJLoader();
-            const object = loader.parse(event.target.result);
-
-            if (!object || object.children.length === 0) {
-                setStatus('Error: Empty OBJ file');
+            let object = null;
+            if (file.name.toLowerCase().endsWith('.obj')) {
+                const loader = new OBJLoader();
+                object = loader.parse(event.target.result);
+            } else if (file.name.toLowerCase().endsWith('.fbx')) {
+                const loader = new FBXLoader();
+                object = loader.parse(event.target.result, '');
+            } else {
+                setStatus('Unsupported file type');
                 return;
             }
 
             placeObject(object);
         } catch (err) {
-            setStatus('Failed to parse OBJ');
+            setStatus('Failed to parse model');
             console.error(err);
         }
     };
-
     reader.onerror = () => setStatus('File read error');
-    reader.readAsText(file);
+
+    // Use appropriate read method
+    if (file.name.toLowerCase().endsWith('.fbx')) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
 });
 
-// ---------------- UI BUTTONS ----------------
+/* ---------------- UI BUTTONS ---------------- */
 document.getElementById('newCube').onclick = createCube;
 document.getElementById('newSphere').onclick = createSphere;
 
-// ---------------- ANIMATION LOOP ----------------
+/* ---------------- ANIMATION LOOP ---------------- */
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
@@ -177,13 +177,13 @@ function animate() {
 }
 animate();
 
-// ---------------- RESIZE HANDLER ----------------
+/* ---------------- RESIZE HANDLER ---------------- */
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------------- INITIALIZE ----------------
+/* ---------------- INITIALIZE ---------------- */
 createCube();
-setStatus('Ready – Load an OBJ or create a primitive');
+setStatus('Ready – Load OBJ/FBX or create a primitive');
