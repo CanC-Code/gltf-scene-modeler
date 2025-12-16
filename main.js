@@ -1,60 +1,39 @@
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { OBJLoader } from './three/OBJLoader.js';
-import {
-    acceleratedRaycast,
-    computeBoundsTree,
-    disposeBoundsTree
-} from './lib/index.module.js';
+import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from './lib/index.module.js';
 
-/* =========================================================
-   BVH PATCHING
-   ========================================================= */
+/* --------------------------
+   BVH PATCH
+--------------------------- */
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 
-/* =========================================================
+/* --------------------------
    GLOBALS
-   ========================================================= */
+--------------------------- */
 let scene, camera, renderer, controls;
-let sourceGroup;
-let activeMesh = null;
+let activeObject = null;
 
-/* =========================================================
+/* --------------------------
    INIT
-   ========================================================= */
+--------------------------- */
 function init() {
     const canvas = document.getElementById('canvas');
-    if (!canvas) {
-        console.error('Canvas element not found');
-        return;
-    }
-
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
 
-    camera = new THREE.PerspectiveCamera(
-        70,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-    );
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(3, 3, 3);
-    camera.lookAt(0, 0, 0);
 
-    renderer = new THREE.WebGLRenderer({
-        canvas,
-        antialias: true
-    });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
 
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
     dirLight.position.set(10, 10, 10);
     scene.add(dirLight);
@@ -62,19 +41,15 @@ function init() {
     scene.add(new THREE.GridHelper(10, 10));
     scene.add(new THREE.AxesHelper(2));
 
-    sourceGroup = new THREE.Group();
-    scene.add(sourceGroup);
-
-    // Default mesh
+    bindUI();
     createCube();
 
-    bindUI();
     window.addEventListener('resize', onResize);
 }
 
-/* =========================================================
-   UI (SAFE)
-   ========================================================= */
+/* --------------------------
+   UI
+--------------------------- */
 function bindUI() {
     const cubeBtn = document.getElementById('newCube');
     if (cubeBtn) cubeBtn.onclick = createCube;
@@ -84,76 +59,90 @@ function bindUI() {
 
     const objInput = document.getElementById('objInput');
     if (objInput) objInput.addEventListener('change', loadOBJ);
+
+    const convertBtn = document.getElementById('convertBtn');
+    if (convertBtn) convertBtn.onclick = () => alert('Voxelization not implemented yet');
+
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.onclick = () => alert('Export not implemented yet');
 }
 
-/* =========================================================
-   MESH MANAGEMENT
-   ========================================================= */
-function setActiveMesh(mesh) {
-    if (activeMesh) {
-        activeMesh.geometry.disposeBoundsTree?.();
-        sourceGroup.remove(activeMesh);
+/* --------------------------
+   ACTIVE OBJECT HANDLING
+--------------------------- */
+function setActiveObject(obj) {
+    if (activeObject) {
+        if (activeObject.geometry?.disposeBoundsTree) activeObject.geometry.disposeBoundsTree();
+        scene.remove(activeObject);
     }
-    activeMesh = mesh;
-    sourceGroup.add(activeMesh);
+    activeObject = obj;
+    scene.add(activeObject);
 }
 
-/* =========================================================
+/* --------------------------
    PRIMITIVES
-   ========================================================= */
+--------------------------- */
 function createCube() {
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.computeBoundsTree();
-
     const mat = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
-    setActiveMesh(new THREE.Mesh(geo, mat));
+    setActiveObject(new THREE.Mesh(geo, mat));
 }
 
 function createSphere() {
     const geo = new THREE.SphereGeometry(0.75, 32, 32);
     geo.computeBoundsTree();
-
     const mat = new THREE.MeshStandardMaterial({ color: 0x2196f3 });
-    setActiveMesh(new THREE.Mesh(geo, mat));
+    setActiveObject(new THREE.Mesh(geo, mat));
 }
 
-/* =========================================================
+/* --------------------------
    OBJ LOADER
-   ========================================================= */
+--------------------------- */
 function loadOBJ(e) {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = ev => {
-        const loader = new OBJLoader();
-        const object = loader.parse(ev.target.result);
+        try {
+            const loader = new OBJLoader();
+            const obj = loader.parse(ev.target.result);
 
-        let mesh = null;
-        object.traverse(child => {
-            if (child.isMesh) mesh = child;
-        });
-        if (!mesh) return;
+            const group = new THREE.Group();
+            obj.traverse(child => {
+                if (child.isMesh) {
+                    if (!child.material) child.material = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+                    child.geometry.computeBoundsTree();
+                    group.add(child);
+                }
+            });
 
-        const box = new THREE.Box3().setFromObject(mesh);
-        const size = box.getSize(new THREE.Vector3());
-        const scale = 2 / Math.max(size.x, size.y, size.z, 1);
+            if (group.children.length === 0) {
+                console.warn('No meshes found in OBJ file.');
+                return;
+            }
 
-        mesh.scale.setScalar(scale);
-        box.setFromObject(mesh);
-        mesh.position.sub(box.getCenter(new THREE.Vector3()));
+            // Scale and center
+            const box = new THREE.Box3().setFromObject(group);
+            const size = box.getSize(new THREE.Vector3());
+            const scale = 2 / Math.max(size.x, size.y, size.z, 1);
+            group.scale.setScalar(scale);
+            const center = box.getCenter(new THREE.Vector3());
+            group.position.sub(center);
 
-        mesh.material = new THREE.MeshStandardMaterial({ color: 0xcccccc });
-        mesh.geometry.computeBoundsTree();
-
-        setActiveMesh(mesh);
+            setActiveObject(group);
+            console.log('OBJ loaded:', group);
+        } catch (err) {
+            console.error('Failed to parse OBJ:', err);
+        }
     };
     reader.readAsText(file);
 }
 
-/* =========================================================
-   RESIZE + LOOP
-   ========================================================= */
+/* --------------------------
+   RESIZE + ANIMATE
+--------------------------- */
 function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
