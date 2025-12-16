@@ -19,16 +19,16 @@
 <h1>MC Voxel Builder</h1>
 
 <div id="toolbar">
-    <!-- Primitive / model controls -->
+    <!-- Base model controls -->
     <button id="newCube">New Cube</button>
     <button id="newSphere">New Sphere</button>
-    <input type="file" id="objInput" accept=".glb,.gltf">
+    <input type="file" id="modelInput" accept=".glb,.gltf">
 
-    <!-- Voxelization / export controls -->
+    <!-- Tools -->
     <button id="convertBtn">Convert to Voxels</button>
     <button id="exportBtn">Export GLB</button>
 
-    <!-- Painting / manipulation placeholders -->
+    <!-- Placeholders -->
     <button id="paintBtn">Paint</button>
     <button id="scaleBtn">Scale</button>
     <button id="moveBtn">Move</button>
@@ -37,7 +37,6 @@
 <canvas id="canvas"></canvas>
 <div id="status">Ready</div>
 
-<!-- Main application script -->
 <script type="module" src="main.js"></script>
 
 </body>
