@@ -5,21 +5,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MC Voxel Builder</title>
 <link rel="stylesheet" href="style.css">
+<style>
+  body { margin: 0; font-family: sans-serif; }
+  h1 { margin: 10px; }
+  #toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; background: #eee; }
+  button, input { padding: 5px 10px; font-size: 14px; }
+  #canvas { display: block; width: 100vw; height: 80vh; background: #f0f0f0; }
+  #status { padding: 10px; }
+</style>
 </head>
 <body>
 
 <h1>MC Voxel Builder</h1>
 
 <div id="toolbar">
+    <!-- Primitive / model controls -->
+    <button id="newCube">New Cube</button>
+    <button id="newSphere">New Sphere</button>
     <input type="file" id="objInput" accept=".obj">
+
+    <!-- Voxelization / export controls -->
     <button id="convertBtn">Convert to Voxels</button>
     <button id="exportBtn">Export JSON</button>
+
+    <!-- Painting / manipulation placeholders -->
+    <button id="paintBtn">Paint</button>
+    <button id="scaleBtn">Scale</button>
+    <button id="moveBtn">Move</button>
 </div>
 
 <canvas id="canvas"></canvas>
-<div id="status" style="margin-top:10px;">Ready</div>
+<div id="status">Ready</div>
 
-<!-- IMPORTANT: import map MUST come before any module scripts -->
+<!-- Optional: import map for three.js modules -->
 <script type="importmap">
 {
   "imports": {
@@ -28,7 +46,7 @@
 }
 </script>
 
-<!-- Your app entry -->
+<!-- Main application script -->
 <script type="module" src="main.js"></script>
 
 </body>

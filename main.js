@@ -2,14 +2,13 @@ import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { OBJLoader } from './three/OBJLoader.js';
 import {
-    MeshBVH,
     acceleratedRaycast,
     computeBoundsTree,
     disposeBoundsTree
 } from './lib/index.module.js';
 
 /* =========================================================
-   REQUIRED BVH PATCHING
+   BVH PATCHING
    ========================================================= */
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -27,6 +26,10 @@ let activeMesh = null;
    ========================================================= */
 function init() {
     const canvas = document.getElementById('canvas');
+    if (!canvas) {
+        console.error('Canvas element not found');
+        return;
+    }
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
@@ -62,15 +65,25 @@ function init() {
     sourceGroup = new THREE.Group();
     scene.add(sourceGroup);
 
-    // Default object
+    // Default mesh
     createCube();
 
-    // UI hooks
-    document.getElementById('newCube').onclick = createCube;
-    document.getElementById('newSphere').onclick = createSphere;
-    document.getElementById('objInput').addEventListener('change', loadOBJ);
-
+    bindUI();
     window.addEventListener('resize', onResize);
+}
+
+/* =========================================================
+   UI (SAFE)
+   ========================================================= */
+function bindUI() {
+    const cubeBtn = document.getElementById('newCube');
+    if (cubeBtn) cubeBtn.onclick = createCube;
+
+    const sphereBtn = document.getElementById('newSphere');
+    if (sphereBtn) sphereBtn.onclick = createSphere;
+
+    const objInput = document.getElementById('objInput');
+    if (objInput) objInput.addEventListener('change', loadOBJ);
 }
 
 /* =========================================================
@@ -78,12 +91,9 @@ function init() {
    ========================================================= */
 function setActiveMesh(mesh) {
     if (activeMesh) {
-        if (activeMesh.geometry.disposeBoundsTree) {
-            activeMesh.geometry.disposeBoundsTree();
-        }
+        activeMesh.geometry.disposeBoundsTree?.();
         sourceGroup.remove(activeMesh);
     }
-
     activeMesh = mesh;
     sourceGroup.add(activeMesh);
 }
@@ -96,9 +106,7 @@ function createCube() {
     geo.computeBoundsTree();
 
     const mat = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
-    const mesh = new THREE.Mesh(geo, mat);
-
-    setActiveMesh(mesh);
+    setActiveMesh(new THREE.Mesh(geo, mat));
 }
 
 function createSphere() {
@@ -106,13 +114,11 @@ function createSphere() {
     geo.computeBoundsTree();
 
     const mat = new THREE.MeshStandardMaterial({ color: 0x2196f3 });
-    const mesh = new THREE.Mesh(geo, mat);
-
-    setActiveMesh(mesh);
+    setActiveMesh(new THREE.Mesh(geo, mat));
 }
 
 /* =========================================================
-   OBJ LOADING
+   OBJ LOADER
    ========================================================= */
 function loadOBJ(e) {
     const file = e.target.files[0];
@@ -127,35 +133,26 @@ function loadOBJ(e) {
         object.traverse(child => {
             if (child.isMesh) mesh = child;
         });
-
         if (!mesh) return;
 
-        // Normalize size
         const box = new THREE.Box3().setFromObject(mesh);
         const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const scale = 2 / Math.max(size.x, size.y, size.z, 1);
 
-        const scale = 2 / maxDim;
         mesh.scale.setScalar(scale);
-
         box.setFromObject(mesh);
-        const center = box.getCenter(new THREE.Vector3());
-        mesh.position.sub(center);
+        mesh.position.sub(box.getCenter(new THREE.Vector3()));
 
-        mesh.material = new THREE.MeshStandardMaterial({
-            color: 0xcccccc
-        });
-
+        mesh.material = new THREE.MeshStandardMaterial({ color: 0xcccccc });
         mesh.geometry.computeBoundsTree();
 
         setActiveMesh(mesh);
     };
-
     reader.readAsText(file);
 }
 
 /* =========================================================
-   RESIZE
+   RESIZE + LOOP
    ========================================================= */
 function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -163,9 +160,6 @@ function onResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-/* =========================================================
-   LOOP
-   ========================================================= */
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
