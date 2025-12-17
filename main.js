@@ -1,27 +1,29 @@
+// main.js – MC Voxel Builder (DOM-safe, cache-safe)
+
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
+import { GLTFLoader } from './three/GLTFLoader.js';
 import { GLTFExporter } from './three/GLTFExporter.js';
-import GUI from './three/lil-gui.module.min.js'; // lil-gui for controls
+import { TransformControls } from './three/TransformControls.js';
 
-let scene, camera, renderer, orbitControls;
-let object;
+let scene, camera, renderer, orbitControls, transformControls;
+let currentObject = null;
 let started = false;
 
-// Sculpting variables
-let brushSize = 0.1;
-let brushIntensity = 0.05;
-let sculptMode = 'inflate'; // 'inflate', 'deflate', 'drag'
-let mouse = new THREE.Vector2();
-let raycaster = new THREE.Raycaster();
-let isDragging = false;
-
+/**
+ * Entry point – guaranteed single execution
+ */
 function startApp() {
     if (started) return;
     started = true;
+
     init();
     animate();
 }
 
+/**
+ * DOM-ready handling
+ */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startApp);
 } else {
@@ -29,8 +31,6 @@ if (document.readyState === 'loading') {
 }
 
 function init() {
-    const container = document.getElementById('canvas-container');
-
     // --- SCENE ---
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202025);
@@ -38,7 +38,7 @@ function init() {
     // --- CAMERA ---
     camera = new THREE.PerspectiveCamera(
         60,
-        container.clientWidth / container.clientHeight,
+        window.innerWidth / window.innerHeight,
         0.1,
         1000
     );
@@ -46,9 +46,9 @@ function init() {
 
     // --- RENDERER ---
     renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
+    document.body.appendChild(renderer.domElement);
 
     // --- ORBIT CONTROLS ---
     orbitControls = new OrbitControls(camera, renderer.domElement);
@@ -68,23 +68,20 @@ function init() {
     // --- INITIAL OBJECT ---
     addObject('cube');
 
-    // --- GUI ---
-    const gui = new GUI();
-    gui.add(window, 'sculptMode', ['inflate', 'deflate', 'drag']).name('Tool');
-    gui.add(window, 'brushSize', 0.01, 0.5).name('Brush Size');
-    gui.add(window, 'brushIntensity', 0.01, 0.2).name('Intensity');
+    // --- TRANSFORM CONTROLS ---
+    transformControls = new TransformControls(camera, renderer.domElement);
+    transformControls.addEventListener('dragging-changed', function (event) {
+        orbitControls.enabled = !event.value;
+    });
+    scene.add(transformControls);
 
     // --- UI HOOKS ---
-    bindButton('exportGLTF', exportScene);
+    bindButton('exportBtn', exportScene);
     bindButton('resetScene', resetScene);
     bindButton('newCube', () => switchObject('cube'));
     bindButton('newSphere', () => switchObject('sphere'));
 
-    // --- MOUSE EVENTS ---
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
-
+    // --- RESIZE ---
     window.addEventListener('resize', onWindowResize);
 }
 
@@ -98,21 +95,26 @@ function bindButton(id, handler) {
 }
 
 function addObject(type) {
-    if (object) scene.remove(object);
+    if (currentObject) {
+        transformControls.detach(currentObject);
+        scene.remove(currentObject);
+    }
 
     if (type === 'cube') {
-        object = new THREE.Mesh(
-            new THREE.BoxGeometry(2, 2, 2, 20, 20, 20),
-            new THREE.MeshStandardMaterial({ color: 0x44aa88, flatShading: true })
+        currentObject = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.MeshStandardMaterial({ color: 0x44aa88 })
         );
     } else if (type === 'sphere') {
-        object = new THREE.Mesh(
-            new THREE.SphereGeometry(1, 40, 40),
-            new THREE.MeshStandardMaterial({ color: 0xaa4444, flatShading: true })
+        currentObject = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 32, 32),
+            new THREE.MeshStandardMaterial({ color: 0xaa4444 })
         );
     }
-    object.position.y = 1;
-    scene.add(object);
+
+    currentObject.position.y = 0.5;
+    scene.add(currentObject);
+    transformControls.attach(currentObject);
 }
 
 function switchObject(type) {
@@ -120,76 +122,34 @@ function switchObject(type) {
 }
 
 function exportScene() {
+    if (!currentObject) return;
     const exporter = new GLTFExporter();
-    exporter.parse(scene, (gltf) => {
-        const blob = new Blob([JSON.stringify(gltf, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'scene.gltf';
-        a.click();
-        URL.revokeObjectURL(url);
-    });
+    exporter.parse(
+        currentObject,
+        (gltf) => {
+            const output = JSON.stringify(gltf, null, 2);
+            const blob = new Blob([output], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'scene.gltf';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        { binary: false }
+    );
 }
 
 function resetScene() {
-    if (!object) return;
-    object.rotation.set(0, 0, 0);
+    if (currentObject) currentObject.rotation.set(0, 0, 0);
+    transformControls.attach(currentObject);
     orbitControls.reset();
 }
 
 function onWindowResize() {
-    const container = document.getElementById('canvas-container');
-    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-}
-
-function getIntersect(event) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    return raycaster.intersectObject(object);
-}
-
-function onPointerDown(event) {
-    isDragging = true;
-    sculpt(event);
-}
-
-function onPointerMove(event) {
-    if (isDragging) sculpt(event);
-}
-
-function onPointerUp(event) {
-    isDragging = false;
-}
-
-function sculpt(event) {
-    if (!object) return;
-    const intersects = getIntersect(event);
-    if (intersects.length === 0) return;
-
-    const geom = object.geometry;
-    geom.attributes.position.needsUpdate = true;
-
-    const point = intersects[0].point;
-    const positions = geom.attributes.position;
-    for (let i = 0; i < positions.count; i++) {
-        const vertex = new THREE.Vector3().fromBufferAttribute(positions, i);
-        const dist = vertex.distanceTo(point);
-        if (dist < brushSize) {
-            const factor = (1 - dist / brushSize) * brushIntensity;
-            if (sculptMode === 'inflate') vertex.add(new THREE.Vector3(0, factor, 0));
-            if (sculptMode === 'deflate') vertex.add(new THREE.Vector3(0, -factor, 0));
-            if (sculptMode === 'drag') vertex.add(new THREE.Vector3((point.x - vertex.x) * factor, (point.y - vertex.y) * factor, (point.z - vertex.z) * factor));
-            positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
-        }
-    }
-    geom.computeVertexNormals();
-    positions.needsUpdate = true;
+    renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 function animate() {
