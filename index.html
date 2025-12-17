@@ -10,6 +10,7 @@
 
 <h1>MC Voxel Builder</h1>
 
+<!-- Toolbar for all actions -->
 <div id="toolbar">
   <button id="newCube">New Cube</button>
   <button id="newSphere">New Sphere</button>
@@ -22,12 +23,16 @@
   <button id="deflateBtn">Deflate</button>
 </div>
 
-<div id="canvasContainer">
+<!-- Canvas container -->
+<div id="canvas-container">
   <canvas id="canvas"></canvas>
+  <!-- Gizmo viewport -->
+  <div id="gizmo-container"></div>
 </div>
 
 <div id="status">Ready</div>
 
 <script type="module" src="main.js"></script>
+
 </body>
 </html>
