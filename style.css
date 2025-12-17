@@ -1,39 +1,32 @@
 body {
     margin: 0;
-    font-family: sans-serif;
     overflow: hidden;
+    background-color: #202025;
+    font-family: sans-serif;
 }
 
 #menu {
     position: absolute;
-    top: 0;
-    left: 0;
-    background: rgba(50,50,50,0.95);
-    color: #fff;
-    padding: 8px;
-    z-index: 100;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    background: rgba(0,0,0,0.7);
+    padding: 10px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
-.tab-btn {
-    margin: 2px;
-    padding: 4px 8px;
-    cursor: pointer;
-    background: #333;
+#menu button {
+    background: #444;
+    color: #fff;
     border: none;
-    color: #fff;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 3px;
 }
 
-.tab-btn.active {
-    background: #555;
-}
-
-.tab-panel {
-    margin-top: 6px;
-}
-
-canvas {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
+#menu button:hover {
+    background: #666;
 }
