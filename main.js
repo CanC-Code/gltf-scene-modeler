@@ -1,4 +1,4 @@
-// main.js – MC Voxel Builder (DOM-safe, mobile + desktop compatible)
+// main.js – MC Voxel Builder (DOM-safe, cache-safe)
 
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
@@ -22,7 +22,7 @@ function startApp() {
 }
 
 /**
- * DOM-ready handling (all browsers)
+ * DOM-ready handling
  */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startApp);
@@ -30,12 +30,7 @@ if (document.readyState === 'loading') {
     startApp();
 }
 
-/**
- * Initialize scene, camera, renderer, controls, lights, grid, and objects
- */
 function init() {
-    const container = document.getElementById('viewport-container') || document.body;
-
     // --- SCENE ---
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202025);
@@ -43,17 +38,17 @@ function init() {
     // --- CAMERA ---
     camera = new THREE.PerspectiveCamera(
         60,
-        container.clientWidth / container.clientHeight,
+        window.innerWidth / window.innerHeight,
         0.1,
         1000
     );
     camera.position.set(5, 5, 5);
 
     // --- RENDERER ---
-    const canvas = document.getElementById('canvas');
-    renderer = new THREE.WebGLRenderer({ antialias: true, canvas: canvas });
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
 
     // --- ORBIT CONTROLS ---
     orbitControls = new OrbitControls(camera, renderer.domElement);
@@ -73,37 +68,30 @@ function init() {
     // --- INITIAL OBJECT ---
     addObject('cube');
 
-    // --- TRANSFORM CONTROLS ---
-    if (TransformControls) {
+    // --- TRANSFORM CONTROLS (Gizmo) ---
+    if (typeof TransformControls !== 'undefined') {
         transformControls = new TransformControls(camera, renderer.domElement);
-        transformControls.attach(activeObject);
+        if (activeObject) transformControls.attach(activeObject);
         transformControls.addEventListener('dragging-changed', function (event) {
             orbitControls.enabled = !event.value;
         });
         scene.add(transformControls);
     } else {
-        console.error('TransformControls module is missing!');
+        console.warn('TransformControls module is missing or failed to load.');
     }
 
     // --- UI HOOKS ---
     bindButton('exportGLTF', exportScene);
     bindButton('resetScene', resetScene);
-    bindButton('newCube', () => switchObject('cube'));
-    bindButton('newSphere', () => switchObject('sphere'));
-
-    const modeSelect = document.getElementById('modeSelect');
-    if (modeSelect && transformControls) {
-        modeSelect.addEventListener('change', () => {
-            transformControls.setMode(modeSelect.value);
-        });
-    }
+    bindButton('newCube', () => addObject('cube'));
+    bindButton('newSphere', () => addObject('sphere'));
 
     // --- RESIZE ---
     window.addEventListener('resize', onWindowResize);
 }
 
 /**
- * Safe button binder – never throws
+ * Safe button binder
  */
 function bindButton(id, handler) {
     const el = document.getElementById(id);
@@ -115,7 +103,7 @@ function bindButton(id, handler) {
 }
 
 /**
- * Add an object to the scene (cube or sphere)
+ * Add or switch object in scene
  */
 function addObject(type) {
     if (activeObject) scene.remove(activeObject);
@@ -135,19 +123,11 @@ function addObject(type) {
     activeObject.position.y = 0.5;
     scene.add(activeObject);
 
-    if (transformControls) transformControls.attach(activeObject);
+    if (typeof transformControls !== 'undefined' && transformControls) {
+        transformControls.attach(activeObject);
+    }
 }
 
-/**
- * Switch the displayed object
- */
-function switchObject(type) {
-    addObject(type);
-}
-
-/**
- * Export the current scene to glTF
- */
 function exportScene() {
     const exporter = new GLTFExporter();
     exporter.parse(scene, (gltf) => {
@@ -161,29 +141,18 @@ function exportScene() {
     });
 }
 
-/**
- * Reset scene to initial state
- */
 function resetScene() {
-    if (!activeObject) return;
-    activeObject.rotation.set(0, 0, 0);
-    if (transformControls) transformControls.attach(activeObject);
+    if (activeObject) activeObject.rotation.set(0, 0, 0);
+    if (transformControls && activeObject) transformControls.attach(activeObject);
     orbitControls.reset();
 }
 
-/**
- * Handle window resize
- */
 function onWindowResize() {
-    const container = document.getElementById('viewport-container') || document.body;
-    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-/**
- * Animation loop
- */
 function animate() {
     requestAnimationFrame(animate);
     orbitControls.update();
