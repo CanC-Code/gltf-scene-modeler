@@ -1,47 +1,39 @@
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: #dcdcdc;
-  font-family: sans-serif;
+body {
+    margin: 0;
+    font-family: sans-serif;
+    overflow: hidden;
 }
 
-#viewport {
-  width: 100vw;
-  height: 100vh;
-  display: block;
+#menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: rgba(50,50,50,0.95);
+    color: #fff;
+    padding: 8px;
+    z-index: 100;
 }
 
-#ui {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(240,240,240,0.95);
-  padding: 8px;
-  border-radius: 8px;
-  width: 220px;
+.tab-btn {
+    margin: 2px;
+    padding: 4px 8px;
+    cursor: pointer;
+    background: #333;
+    border: none;
+    color: #fff;
 }
 
-#tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
+.tab-btn.active {
+    background: #555;
 }
 
-#tabs button {
-  flex: 1;
-  cursor: pointer;
+.tab-panel {
+    margin-top: 6px;
 }
 
-.tab {
-  display: none;
-}
-
-.tab.active {
-  display: block;
-}
-
-label {
-  display: block;
-  margin-top: 6px;
+canvas {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
 }
