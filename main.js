@@ -1,167 +1,145 @@
-// main.js – MC Voxel Builder (DOM-safe, ViewCube, single object)
-
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { GLTFLoader } from './three/GLTFLoader.js';
 import { GLTFExporter } from './three/GLTFExporter.js';
-import { ViewCube } from './three/ViewCube.js'; // assume we added this
+import { TransformControls } from './three/TransformControls.js';
+import { CSS2DRenderer, CSS2DObject } from './three/CSS2DRenderer.js'; // for gizmo labels if needed
 
-let scene, camera, renderer, controls;
-let gizmoScene, gizmoCamera, gizmoRenderer;
-let currentObject = null; // cube, sphere, or loaded model
+let scene, camera, renderer, controls, transformControls;
+let cube = null;
+let currentObject = null;
+
 let started = false;
 
-// --- ENTRY POINT ---
 function startApp() {
-    if (started) return;
-    started = true;
+  if (started) return;
+  started = true;
 
-    init();
-    animate();
+  init();
+  animate();
 }
 
-// --- DOM READY ---
+// DOM-ready handling
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startApp);
+  document.addEventListener('DOMContentLoaded', startApp);
 } else {
-    startApp();
+  startApp();
 }
 
-// --- INIT SCENE ---
 function init() {
-    // --- SCENE ---
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x202025);
+  const container = document.getElementById('canvas-container');
 
-    // --- CAMERA ---
-    camera = new THREE.PerspectiveCamera(
-        60,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-    );
-    camera.position.set(5, 5, 5);
+  // Scene
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x202025);
 
-    // --- RENDERER ---
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    document.getElementById('canvas')?.appendChild(renderer.domElement);
+  // Camera
+  camera = new THREE.PerspectiveCamera(
+    60,
+    container.clientWidth / container.clientHeight,
+    0.1,
+    1000
+  );
+  camera.position.set(5, 5, 5);
 
-    // --- CONTROLS ---
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.target.set(0, 0.5, 0);
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('canvas') });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
 
-    // --- LIGHTS ---
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
-    const dir = new THREE.DirectionalLight(0xffffff, 1);
-    dir.position.set(5, 10, 7);
-    scene.add(dir);
+  // Controls
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0.5, 0);
 
-    // --- GRID ---
-    scene.add(new THREE.GridHelper(20, 20));
+  // Transform controls (optional for gizmo)
+  transformControls = new TransformControls(camera, renderer.domElement);
+  transformControls.addEventListener('change', () => renderer.render(scene, camera));
+  scene.add(transformControls);
 
-    // --- INITIAL OBJECT ---
-    addCube(); // start with cube
+  // Lights
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+  scene.add(hemiLight);
 
-    // --- VIEWCUBE ---
-    initGizmo();
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(5, 10, 7);
+  scene.add(dirLight);
 
-    // --- SAFE BUTTON BINDINGS ---
-    bindButton('newCube', addCube);
-    bindButton('newSphere', addSphere);
-    bindButton('exportBtn', exportScene);
-    bindButton('resetScene', resetScene);
+  // Grid
+  scene.add(new THREE.GridHelper(20, 20));
 
-    // --- RESIZE ---
-    window.addEventListener('resize', onWindowResize);
+  // Initial cube
+  cube = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x44aa88 })
+  );
+  cube.position.y = 0.5;
+  addObject(cube);
+
+  // UI Hooks
+  bindButton('newCube', () => addObject(new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x44aa88 })
+  )));
+  bindButton('newSphere', () => addObject(new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xaa4444 })
+  )));
+  bindButton('exportBtn', exportScene);
+  bindButton('resetScene', resetScene);
+
+  // Window resize
+  window.addEventListener('resize', onWindowResize);
 }
 
-// --- VIEWCUBE INIT ---
-function initGizmo() {
-    gizmoScene = new THREE.Scene();
-    gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    gizmoRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    gizmoRenderer.setSize(100, 100);
-    document.body.appendChild(gizmoRenderer.domElement);
-
-    const cubeGizmo = new ViewCube();
-    gizmoScene.add(cubeGizmo.mesh);
-
-    // Rotate camera in gizmo
-    cubeGizmo.onChange((quat) => {
-        if (currentObject) currentObject.quaternion.copy(quat);
-    });
+function addObject(obj) {
+  if (currentObject) {
+    scene.remove(currentObject);
+    transformControls.detach();
+  }
+  obj.position.y = 0.5;
+  scene.add(obj);
+  currentObject = obj;
+  transformControls.attach(obj);
 }
 
-// --- BUTTON SAFETY ---
 function bindButton(id, handler) {
-    const el = document.getElementById(id);
-    if (!el) {
-        console.warn(`UI element not found #${id}`);
-        return;
-    }
-    el.addEventListener('click', handler);
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn(`UI element not found #${id}`);
+    return;
+  }
+  el.addEventListener('click', handler);
 }
 
-// --- ADD / REPLACE OBJECT ---
-function addCube() {
-    if (currentObject) scene.remove(currentObject);
-    currentObject = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ color: 0x44aa88 })
-    );
-    currentObject.position.y = 0.5;
-    scene.add(currentObject);
-}
-
-function addSphere() {
-    if (currentObject) scene.remove(currentObject);
-    currentObject = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 32, 32),
-        new THREE.MeshStandardMaterial({ color: 0xaa4444 })
-    );
-    currentObject.position.y = 0.5;
-    scene.add(currentObject);
-}
-
-// --- EXPORT SCENE ---
 function exportScene() {
-    const exporter = new GLTFExporter();
-    exporter.parse(scene, (gltf) => {
-        const blob = new Blob([JSON.stringify(gltf, null, 2)], {
-            type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'scene.gltf';
-        a.click();
-        URL.revokeObjectURL(url);
-    });
+  const exporter = new GLTFExporter();
+  exporter.parse(scene, (gltf) => {
+    const blob = new Blob([JSON.stringify(gltf, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scene.gltf';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 }
 
-// --- RESET ---
 function resetScene() {
-    if (currentObject) currentObject.rotation.set(0, 0, 0);
-    controls.reset();
+  if (currentObject) currentObject.rotation.set(0, 0, 0);
+  controls.reset();
 }
 
-// --- RESIZE HANDLER ---
 function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+  const container = document.getElementById('canvas-container');
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
 }
 
-// --- ANIMATE LOOP ---
 function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-
-    // Render gizmo separately
-    if (gizmoRenderer) gizmoRenderer.render(gizmoScene, gizmoCamera);
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
 }
