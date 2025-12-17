@@ -65,20 +65,15 @@ function init() {
     // --- GRID ---
     scene.add(new THREE.GridHelper(20, 20));
 
-    // --- INITIAL OBJECT ---
-    addObject('cube');
-
     // --- TRANSFORM CONTROLS (Gizmo) ---
-    if (typeof TransformControls !== 'undefined') {
-        transformControls = new TransformControls(camera, renderer.domElement);
-        if (activeObject) transformControls.attach(activeObject);
-        transformControls.addEventListener('dragging-changed', function (event) {
-            orbitControls.enabled = !event.value;
-        });
-        scene.add(transformControls);
-    } else {
-        console.warn('TransformControls module is missing or failed to load.');
-    }
+    transformControls = new TransformControls(camera, renderer.domElement);
+    transformControls.addEventListener('dragging-changed', function (event) {
+        orbitControls.enabled = !event.value;
+    });
+    scene.add(transformControls);
+
+    // --- INITIAL OBJECT (after transformControls exists) ---
+    addObject('cube');
 
     // --- UI HOOKS ---
     bindButton('exportGLTF', exportScene);
@@ -123,9 +118,7 @@ function addObject(type) {
     activeObject.position.y = 0.5;
     scene.add(activeObject);
 
-    if (typeof transformControls !== 'undefined' && transformControls) {
-        transformControls.attach(activeObject);
-    }
+    if (transformControls) transformControls.attach(activeObject);
 }
 
 function exportScene() {
