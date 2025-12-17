@@ -32,18 +32,18 @@ button.active {
 
 #canvasContainer {
   width: 90vw;
+  max-width: 1200px;
   height: 60vh;
   border: 1px solid #ccc;
   background: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  margin-bottom: 10px;
 }
 
 canvas {
   width: 100%;
   height: 100%;
   touch-action: none; /* prevent default mobile gestures */
+  display: block;
 }
 
 #status {
