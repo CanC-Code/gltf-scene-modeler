@@ -17,16 +17,48 @@ html, body {
   position: fixed;
   top: 10px;
   left: 10px;
-  background: rgba(30, 30, 30, 0.9);
-  padding: 10px;
+  background: rgba(30, 30, 30, 0.95);
   border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  width: 240px;
   z-index: 10;
+  transition: transform 0.25s ease;
 }
 
-#toolbar button {
+#toolbar.collapsed {
+  transform: translateX(-200px);
+}
+
+#toolbar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: #222;
+  cursor: pointer;
+}
+
+#toolbar-header button {
+  background: none;
+  color: #eee;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+#toolbar-content {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+button {
   background: #333;
   color: #eee;
   border: none;
@@ -35,12 +67,10 @@ html, body {
   border-radius: 4px;
 }
 
-#toolbar button.active {
+button.active {
   background: #5a8dee;
 }
 
-#toolbar label {
+label {
   font-size: 12px;
-  display: flex;
-  flex-direction: column;
 }
