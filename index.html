@@ -8,52 +8,68 @@
 </head>
 <body>
 
-  <div id="toolbar" class="collapsed">
-    <div id="toolbar-header">
-      <span>Tools</span>
-      <button id="toggleToolbar">☰</button>
-    </div>
+<div id="panel" class="collapsed">
 
-    <div id="toolbar-content">
-      <div class="section">
-        <button id="orbitBtn">Orbit</button>
-        <button id="sculptBtn">Sculpt</button>
-        <button id="paintBtn">Paint</button>
-      </div>
-
-      <div class="section">
-        <button id="addSphere">Add Sphere</button>
-        <button id="addCube">Add Cube</button>
-      </div>
-
-      <div class="section">
-        <label>Brush Size
-          <input id="brushSize" type="range" min="0.02" max="0.5" step="0.01" value="0.15">
-        </label>
-
-        <label>Strength
-          <input id="brushStrength" type="range" min="0.1" max="5" step="0.1" value="1">
-        </label>
-      </div>
-
-      <div class="section">
-        <button id="inflateBtn">Inflate</button>
-        <button id="smoothBtn">Smooth</button>
-      </div>
-
-      <div class="section">
-        <input type="color" id="paintColor" value="#ff0000">
-      </div>
-
-      <div class="section">
-        <input type="file" id="fileInput" accept=".gltf,.glb">
-        <button id="exportBtn">Export GLTF</button>
-      </div>
-    </div>
+  <div id="panel-header">
+    <span>MC Builder</span>
+    <button id="togglePanel">☰</button>
   </div>
 
-  <canvas id="canvas"></canvas>
+  <div id="tabs">
+    <button data-tab="model" class="active">Model</button>
+    <button data-tab="sculpt">Sculpt</button>
+    <button data-tab="paint">Paint</button>
+    <button data-tab="voxel">Voxel</button>
+    <button data-tab="file">File</button>
+  </div>
 
-  <script type="module" src="main.js"></script>
+  <div id="tab-content">
+
+    <div class="tab active" id="tab-model">
+      <button id="addCube">Add Cube</button>
+      <button id="addSphere">Add Sphere</button>
+
+      <hr>
+
+      <button id="orbitBtn">Orbit</button>
+      <button id="sculptBtn">Sculpt</button>
+      <button id="paintBtn">Paint</button>
+    </div>
+
+    <div class="tab" id="tab-sculpt">
+      <label>
+        Brush Size
+        <input id="brushSize" type="range" min="0.02" max="0.5" step="0.01" value="0.15">
+      </label>
+
+      <label>
+        Strength
+        <input id="brushStrength" type="range" min="0.1" max="5" step="0.1" value="1">
+      </label>
+
+      <button id="inflateBtn">Inflate</button>
+      <button id="smoothBtn">Smooth</button>
+    </div>
+
+    <div class="tab" id="tab-paint">
+      <input type="color" id="paintColor" value="#ff0000">
+      <p>Vertex paint</p>
+    </div>
+
+    <div class="tab" id="tab-voxel">
+      <p>Voxelization coming next.</p>
+    </div>
+
+    <div class="tab" id="tab-file">
+      <input type="file" id="fileInput" accept=".gltf,.glb">
+      <button id="exportBtn">Export GLTF</button>
+    </div>
+
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script type="module" src="main.js"></script>
 </body>
 </html>
