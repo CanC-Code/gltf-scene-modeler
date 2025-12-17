@@ -16,14 +16,12 @@
   <input type="file" id="modelInput" accept=".glb,.gltf">
   <button id="convertBtn">Convert to Voxels</button>
   <button id="exportBtn">Export GLB</button>
-  <button id="rotateBtn">Rotate</button>
-  <button id="scaleBtn">Scale</button>
-  <button id="inflateBtn">Inflate</button>
-  <button id="deflateBtn">Deflate</button>
+  <button id="resetScene">Reset Scene</button>
 </div>
 
-<div id="canvas-container">
-  <canvas id="canvas"></canvas>
+<div id="canvasContainer">
+  <canvas id="mainCanvas"></canvas>
+  <canvas id="viewCubeCanvas"></canvas>
 </div>
 
 <div id="status">Ready</div>
