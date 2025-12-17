@@ -1,193 +1,128 @@
+// main.js
+// MC Voxel Builder – stable bootstrap
+
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { GLTFLoader } from './three/GLTFLoader.js';
 import { GLTFExporter } from './three/GLTFExporter.js';
 
-/* ---------------- DOM ELEMENTS ---------------- */
-const canvas = document.getElementById('canvas');
-const statusEl = document.getElementById('status');
+let scene, camera, renderer, controls;
+let cube, sphere;
 
-function setStatus(msg) {
-  statusEl.textContent = msg;
-  console.log('Status:', msg);
-}
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    animate();
+});
 
-/* ---------------- SCENE ---------------- */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xeeeeee);
-scene.add(new THREE.AxesHelper(3));
+function init() {
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(5, 5, 5);
+    // --- SCENE ---
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x202025);
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.shadowMap.enabled = true;
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.target.set(0, 0, 0);
-controls.update();
-
-scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-dirLight.position.set(10, 15, 10);
-dirLight.castShadow = true;
-scene.add(dirLight);
-
-/* ---------------- BASE OBJECT ---------------- */
-let baseObject = null;
-
-function removeBaseObject() {
-  if (baseObject) {
-    scene.remove(baseObject);
-    disposeHierarchy(baseObject);
-    baseObject = null;
-  }
-}
-
-function disposeHierarchy(node) {
-  node.traverse(child => {
-    if (child.geometry) child.geometry.dispose();
-    if (child.material) {
-      if (Array.isArray(child.material)) {
-        child.material.forEach(m => m.dispose());
-      } else {
-        child.material.dispose();
-      }
-    }
-  });
-}
-
-function setupBaseObject(object) {
-  removeBaseObject();
-
-  // Center
-  const box = new THREE.Box3().setFromObject(object);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  object.position.sub(center);
-
-  // Scale to fit view
-  const maxDim = Math.max(size.x, size.y, size.z);
-  const scale = 4 / maxDim;
-  object.scale.setScalar(scale);
-
-  // Apply material & shadows
-  object.traverse(child => {
-    if (child.isMesh) {
-      child.material = new THREE.MeshStandardMaterial({
-        color: 0x7799ff,
-        metalness: 0.1,
-        roughness: 0.8,
-        side: THREE.DoubleSide
-      });
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
-  });
-
-  scene.add(object);
-  baseObject = object;
-  controls.target.set(0, 0, 0);
-  controls.reset();
-  controls.update();
-
-  const verts = object.isMesh
-    ? object.geometry.attributes.position.count
-    : object.children.reduce((sum, c) => sum + (c.geometry?.attributes.position.count || 0), 0);
-
-  setStatus(`Base model ready: ${verts} vertices`);
-}
-
-/* ---------------- PRIMITIVES ---------------- */
-function createCube() {
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  setupBaseObject(new THREE.Mesh(geo));
-}
-
-function createSphere() {
-  const geo = new THREE.SphereGeometry(0.8, 32, 24);
-  setupBaseObject(new THREE.Mesh(geo));
-}
-
-/* ---------------- MODEL LOADING ---------------- */
-document.getElementById('modelInput').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  setStatus('Loading model...');
-  const url = URL.createObjectURL(file);
-  const ext = file.name.toLowerCase().split('.').pop();
-
-  if (ext === 'glb' || ext === 'gltf') {
-    const loader = new GLTFLoader();
-    loader.load(
-      url,
-      gltf => {
-        setupBaseObject(gltf.scene);
-        URL.revokeObjectURL(url);
-      },
-      undefined,
-      err => {
-        setStatus('Failed to load model');
-        console.error(err);
-        URL.revokeObjectURL(url);
-      }
+    // --- CAMERA ---
+    camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
     );
-  } else {
-    setStatus('Unsupported format. Use .glb or .gltf');
-    URL.revokeObjectURL(url);
-  }
-});
+    camera.position.set(5, 5, 5);
 
-/* ---------------- UI BUTTONS ---------------- */
-document.getElementById('newCube').onclick = createCube;
-document.getElementById('newSphere').onclick = createSphere;
+    // --- RENDERER ---
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
 
-document.getElementById('exportBtn').onclick = () => {
-  if (!baseObject) {
-    setStatus('No object to export');
-    return;
-  }
-  setStatus('Exporting GLB...');
-  const exporter = new GLTFExporter();
-  exporter.parse(
-    baseObject,
-    gltf => {
-      const blob = new Blob([gltf], { type: 'model/gltf-binary' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'model.glb';
-      link.click();
-      setStatus('Exported GLB');
-    },
-    { binary: true }
-  );
-};
+    // --- CONTROLS ---
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0.5, 0);
 
-document.getElementById('convertBtn').onclick = () => setStatus('Voxelize: Not implemented');
-document.getElementById('rotateBtn').onclick = () => setStatus('Rotate: Coming soon');
-document.getElementById('scaleBtn').onclick = () => setStatus('Scale: Coming soon');
-document.getElementById('inflateBtn').onclick = () => setStatus('Inflate: Coming soon');
-document.getElementById('deflateBtn').onclick = () => setStatus('Deflate: Coming soon');
+    // --- LIGHTS ---
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
 
-/* ---------------- ANIMATION ---------------- */
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+
+    // --- GRID ---
+    const grid = new THREE.GridHelper(20, 20);
+    scene.add(grid);
+
+    // --- TEST OBJECTS ---
+    const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+    const cubeMat = new THREE.MeshStandardMaterial({ color: 0x44aa88 });
+    cube = new THREE.Mesh(cubeGeo, cubeMat);
+    cube.position.set(0, 0.5, 0);
+    scene.add(cube);
+
+    const sphereGeo = new THREE.SphereGeometry(0.5, 32, 32);
+    const sphereMat = new THREE.MeshStandardMaterial({ color: 0xaa4444 });
+    sphere = new THREE.Mesh(sphereGeo, sphereMat);
+    sphere.position.set(2, 0.5, 0);
+    scene.add(sphere);
+
+    // --- OPTIONAL UI HOOKS (SAFE) ---
+    hookButton('exportGLTF', exportScene);
+    hookButton('resetScene', resetScene);
+
+    // --- RESIZE ---
+    window.addEventListener('resize', onWindowResize);
 }
-animate();
 
-/* ---------------- RESIZE ---------------- */
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+function hookButton(id, handler) {
+    const el = document.getElementById(id);
+    if (!el) {
+        console.warn(`UI element #${id} not found (skipped)`);
+        return;
+    }
+    el.onclick = handler;
+}
 
-/* ---------------- INITIALIZE ---------------- */
-createCube();
-setStatus('Ready – Create a base model or load a GLTF/GLB');
+function exportScene() {
+    const exporter = new GLTFExporter();
+    exporter.parse(
+        scene,
+        (gltf) => {
+            const blob = new Blob([JSON.stringify(gltf, null, 2)], {
+                type: 'application/json'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'scene.gltf';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        (error) => {
+            console.error('GLTF export error:', error);
+        }
+    );
+}
+
+function resetScene() {
+    cube.rotation.set(0, 0, 0);
+    sphere.rotation.set(0, 0, 0);
+    controls.reset();
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    cube.rotation.y += 0.01;
+    sphere.rotation.x += 0.01;
+
+    controls.update();
+    renderer.render(scene, camera);
+}
