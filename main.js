@@ -1,4 +1,4 @@
-// main.js – MC Voxel Builder (DOM-safe, cache-safe)
+// main.js – MC Voxel Builder
 
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
@@ -7,23 +7,16 @@ import { GLTFExporter } from './three/GLTFExporter.js';
 import { TransformControls } from './three/TransformControls.js';
 
 let scene, camera, renderer, orbitControls, transformControls;
-let activeObject;
+let cube;
 let started = false;
 
-/**
- * Entry point – guaranteed single execution
- */
 function startApp() {
     if (started) return;
     started = true;
-
     init();
     animate();
 }
 
-/**
- * DOM-ready handling
- */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startApp);
 } else {
@@ -31,6 +24,8 @@ if (document.readyState === 'loading') {
 }
 
 function init() {
+    const container = document.getElementById('canvas-container');
+
     // --- SCENE ---
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202025);
@@ -38,7 +33,7 @@ function init() {
     // --- CAMERA ---
     camera = new THREE.PerspectiveCamera(
         60,
-        window.innerWidth / window.innerHeight,
+        container.clientWidth / container.clientHeight,
         0.1,
         1000
     );
@@ -46,9 +41,9 @@ function init() {
 
     // --- RENDERER ---
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    document.body.appendChild(renderer.domElement);
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
 
     // --- ORBIT CONTROLS ---
     orbitControls = new OrbitControls(camera, renderer.domElement);
@@ -65,29 +60,26 @@ function init() {
     // --- GRID ---
     scene.add(new THREE.GridHelper(20, 20));
 
-    // --- TRANSFORM CONTROLS (Gizmo) ---
+    // --- INITIAL OBJECT ---
+    addObject('cube');
+
+    // --- TRANSFORM CONTROLS ---
     transformControls = new TransformControls(camera, renderer.domElement);
+    transformControls.attach(cube);
     transformControls.addEventListener('dragging-changed', function (event) {
         orbitControls.enabled = !event.value;
     });
     scene.add(transformControls);
 
-    // --- INITIAL OBJECT (after transformControls exists) ---
-    addObject('cube');
-
     // --- UI HOOKS ---
     bindButton('exportGLTF', exportScene);
     bindButton('resetScene', resetScene);
-    bindButton('newCube', () => addObject('cube'));
-    bindButton('newSphere', () => addObject('sphere'));
+    bindButton('newCube', () => switchObject('cube'));
+    bindButton('newSphere', () => switchObject('sphere'));
 
-    // --- RESIZE ---
     window.addEventListener('resize', onWindowResize);
 }
 
-/**
- * Safe button binder
- */
 function bindButton(id, handler) {
     const el = document.getElementById(id);
     if (!el) {
@@ -97,28 +89,28 @@ function bindButton(id, handler) {
     el.addEventListener('click', handler);
 }
 
-/**
- * Add or switch object in scene
- */
 function addObject(type) {
-    if (activeObject) scene.remove(activeObject);
+    if (cube) scene.remove(cube);
 
     if (type === 'cube') {
-        activeObject = new THREE.Mesh(
+        cube = new THREE.Mesh(
             new THREE.BoxGeometry(1, 1, 1),
             new THREE.MeshStandardMaterial({ color: 0x44aa88 })
         );
     } else if (type === 'sphere') {
-        activeObject = new THREE.Mesh(
+        cube = new THREE.Mesh(
             new THREE.SphereGeometry(0.5, 32, 32),
             new THREE.MeshStandardMaterial({ color: 0xaa4444 })
         );
     }
+    cube.position.y = 0.5;
+    scene.add(cube);
 
-    activeObject.position.y = 0.5;
-    scene.add(activeObject);
+    if (transformControls) transformControls.attach(cube);
+}
 
-    if (transformControls) transformControls.attach(activeObject);
+function switchObject(type) {
+    addObject(type);
 }
 
 function exportScene() {
@@ -135,15 +127,17 @@ function exportScene() {
 }
 
 function resetScene() {
-    if (activeObject) activeObject.rotation.set(0, 0, 0);
-    if (transformControls && activeObject) transformControls.attach(activeObject);
+    if (!cube) return;
+    cube.rotation.set(0, 0, 0);
+    if (transformControls) transformControls.attach(cube);
     orbitControls.reset();
 }
 
 function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    const container = document.getElementById('canvas-container');
+    camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(container.clientWidth, container.clientHeight);
 }
 
 function animate() {
