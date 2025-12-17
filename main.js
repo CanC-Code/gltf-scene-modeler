@@ -5,7 +5,7 @@ import { GLTFLoader } from './three/GLTFLoader.js';
 
 let scene, camera, renderer, orbitControls;
 let mesh;
-let sculptMode=false, brushMode='drag', showMesh=true;
+let sculptMode=false, brushMode='drag', showMesh=true, mirror=false, lockRotation=false;
 let brush={size:0.5,strength:0.1};
 let raycaster=new THREE.Raycaster();
 let mouse=new THREE.Vector2();
@@ -22,30 +22,38 @@ if(document.readyState==='loading'){
 }
 
 function init(){
+    // Scene
     scene=new THREE.Scene();
     scene.background=new THREE.Color(0x444455);
 
+    // Camera
     camera=new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,0.1,1000);
     camera.position.set(3,3,5);
 
+    // Renderer
     renderer=new THREE.WebGLRenderer({antialias:true});
     renderer.setSize(window.innerWidth,window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
+    // Orbit Controls
     orbitControls=new OrbitControls(camera,renderer.domElement);
     orbitControls.enableDamping=true;
     orbitControls.dampingFactor=0.08;
     orbitControls.target.set(0,0.5,0);
 
+    // Lights
     scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1.2));
     const dir=new THREE.DirectionalLight(0xffffff,1);
     dir.position.set(5,10,7);
     scene.add(dir);
+
     scene.add(new THREE.GridHelper(10,10));
 
+    // Initial mesh
     addMesh('cube');
 
+    // Events
     window.addEventListener('resize',onWindowResize);
     renderer.domElement.addEventListener('pointerdown',onPointerDown);
 
@@ -67,7 +75,6 @@ function setupMenu(){
             document.getElementById(tabId).style.display='flex';
         });
     });
-    tabs[0].click();
 
     document.getElementById('newCube').addEventListener('click',()=>addMesh('cube'));
     document.getElementById('newSphere').addEventListener('click',()=>addMesh('sphere'));
@@ -75,6 +82,9 @@ function setupMenu(){
         showMesh=!showMesh;
         if(mesh) mesh.material.wireframe=!showMesh;
     });
+
+    document.getElementById('mirrorToggle').addEventListener('change',e=>mirror=e.target.checked);
+    document.getElementById('lockRotationToggle').addEventListener('change',e=>lockRotation=e.target.checked);
 
     document.querySelectorAll('#sculptTab button').forEach(btn=>{
         btn.addEventListener('click',()=>{brushMode=btn.dataset.mode; sculptMode=true;});
@@ -85,6 +95,9 @@ function setupMenu(){
     document.getElementById('exportGLTF').addEventListener('click',exportScene);
     document.getElementById('resetScene').addEventListener('click',()=>{if(mesh) mesh.rotation.set(0,0,0);});
     document.getElementById('loadGLTF').addEventListener('click',loadScene);
+
+    // Show initial tab
+    tabs[0].click();
 }
 
 function addMesh(type){
@@ -98,12 +111,12 @@ function addMesh(type){
 }
 
 function onPointerDown(event){
-    if(!mesh) return;
+    if(!mesh || !sculptMode) return;
     const rect=renderer.domElement.getBoundingClientRect();
     mouse.x=((event.clientX-rect.left)/rect.width)*2-1;
     mouse.y=-((event.clientY-rect.top)/rect.height)*2+1;
     raycaster.setFromCamera(mouse,camera);
-    if(sculptMode) sculptMesh();
+    sculptMesh();
 }
 
 function sculptMesh(){
@@ -117,7 +130,12 @@ function sculptMesh(){
             if(brushMode==='inflate') vertex.addScaledVector(normal,brush.strength);
             else if(brushMode==='deflate') vertex.addScaledVector(normal,-brush.strength);
             else if(brushMode==='smooth') vertex.multiplyScalar(1-brush.strength);
+            else if(brushMode==='drag') vertex.addScaledVector(normal,0); // placeholder for future precise drag
             pos.setXYZ(i,vertex.x,vertex.y,vertex.z);
+            if(mirror){
+                const mirroredX=-vertex.x;
+                pos.setXYZ(i,mirroredX,vertex.y,vertex.z);
+            }
         }
     }
     pos.needsUpdate=true;
@@ -148,6 +166,6 @@ function onWindowResize(){
 
 function animate(){
     requestAnimationFrame(animate);
-    orbitControls.update();
+    if(!lockRotation) orbitControls.update();
     renderer.render(scene,camera);
 }
