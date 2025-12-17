@@ -4,67 +4,81 @@ import { GLTFLoader } from './three/GLTFLoader.js';
 import { GLTFExporter } from './three/GLTFExporter.js';
 
 const canvas = document.getElementById('canvas');
+
+/* ---------- Scene ---------- */
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.01, 100);
 camera.position.set(0, 1, 3);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(2, 5, 3);
-scene.add(dirLight);
+const light = new THREE.DirectionalLight(0xffffff, 0.8);
+light.position.set(2, 5, 3);
+scene.add(light);
+
+/* ---------- State ---------- */
 
 let activeMesh;
 let mode = 'orbit';
 let tool = 'inflate';
+let isDragging = false;
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const clock = new THREE.Clock();
 
-const brushSize = document.getElementById('brushSize');
-const brushStrength = document.getElementById('brushStrength');
-const paintColor = document.getElementById('paintColor');
+/* ---------- UI ---------- */
+
+document.getElementById('togglePanel').onclick = () =>
+  document.getElementById('panel').classList.toggle('collapsed');
+
+/* Tabs */
+document.querySelectorAll('#tabs button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  };
+});
+
+/* Modes */
 
 function setMode(m) {
   mode = m;
-  controls.enabled = m === 'orbit';
+  controls.enabled = (m === 'orbit');
 }
 
-document.getElementById('orbitBtn').onclick = () => setMode('orbit');
-document.getElementById('sculptBtn').onclick = () => setMode('sculpt');
-document.getElementById('paintBtn').onclick = () => setMode('paint');
+orbitBtn.onclick = () => setMode('orbit');
+sculptBtn.onclick = () => setMode('sculpt');
+paintBtn.onclick = () => setMode('paint');
 
-document.getElementById('inflateBtn').onclick = () => tool = 'inflate';
-document.getElementById('smoothBtn').onclick = () => tool = 'smooth';
+inflateBtn.onclick = () => tool = 'inflate';
+smoothBtn.onclick = () => tool = 'smooth';
 
-document.getElementById('toggleToolbar').onclick = () => {
-  document.getElementById('toolbar').classList.toggle('collapsed');
-};
+/* ---------- Mesh ---------- */
 
-function addMesh(geometry) {
+function addMesh(geo) {
   if (activeMesh) scene.remove(activeMesh);
   const mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, vertexColors: true });
-  activeMesh = new THREE.Mesh(geometry, mat);
-  geometry.computeVertexNormals();
+  activeMesh = new THREE.Mesh(geo, mat);
+  geo.computeVertexNormals();
   scene.add(activeMesh);
 }
 
-document.getElementById('addSphere').onclick = () =>
-  addMesh(new THREE.SphereGeometry(0.6, 64, 64));
+addCube.onclick = () => addMesh(new THREE.BoxGeometry(1, 1, 1, 32, 32, 32));
+addSphere.onclick = () => addMesh(new THREE.SphereGeometry(0.6, 64, 64));
 
-document.getElementById('addCube').onclick = () =>
-  addMesh(new THREE.BoxGeometry(1, 1, 1, 32, 32, 32));
-
-let isDragging = false;
+/* ---------- Input ---------- */
 
 canvas.addEventListener('pointerdown', () => {
   if (mode !== 'orbit') isDragging = true;
@@ -77,49 +91,39 @@ canvas.addEventListener('pointermove', e => {
   mouse.y = -(e.clientY / innerHeight) * 2 + 1;
 });
 
-function applyPaint(hit) {
-  const geom = activeMesh.geometry;
-  const pos = geom.attributes.position;
-  let colorAttr = geom.attributes.color;
+/* ---------- Sculpt / Paint ---------- */
 
-  if (!colorAttr) {
-    const colors = new Float32Array(pos.count * 3);
-    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    colorAttr = geom.attributes.color;
-  }
-
-  const hitPoint = hit.point;
-  const radius = +brushSize.value;
-  const c = new THREE.Color(paintColor.value);
-
-  for (let i = 0; i < pos.count; i++) {
-    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
-    if (v.distanceTo(hitPoint) > radius) continue;
-    colorAttr.setXYZ(i, c.r, c.g, c.b);
-  }
-
-  colorAttr.needsUpdate = true;
-}
-
-function sculpt() {
-  if (!isDragging || !activeMesh || mode === 'orbit') return;
+function applyBrush() {
+  if (!activeMesh || !isDragging || mode === 'orbit') return;
 
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(activeMesh)[0];
   if (!hit) return;
 
-  if (mode === 'paint') {
-    applyPaint(hit);
-    return;
-  }
+  const geo = activeMesh.geometry;
+  const pos = geo.attributes.position;
+  const normal = geo.attributes.normal;
 
-  const geom = activeMesh.geometry;
-  const pos = geom.attributes.position;
-  const normal = geom.attributes.normal;
-
-  const hitPoint = hit.point;
   const radius = +brushSize.value;
   const strength = +brushStrength.value * clock.getDelta();
+  const hitPoint = hit.point;
+
+  if (mode === 'paint') {
+    let color = geo.attributes.color;
+    if (!color) {
+      color = new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3);
+      geo.setAttribute('color', color);
+    }
+    const c = new THREE.Color(paintColor.value);
+
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+      if (v.distanceTo(hitPoint) > radius) continue;
+      color.setXYZ(i, c.r, c.g, c.b);
+    }
+    color.needsUpdate = true;
+    return;
+  }
 
   for (let i = 0; i < pos.count; i++) {
     const v = new THREE.Vector3().fromBufferAttribute(pos, i);
@@ -132,35 +136,33 @@ function sculpt() {
       const n = new THREE.Vector3().fromBufferAttribute(normal, i);
       v.addScaledVector(n, strength * falloff);
     } else {
-      const dir = hitPoint.clone().sub(v);
-      v.addScaledVector(dir, strength * falloff * 0.3);
+      v.lerp(hitPoint, strength * falloff * 0.3);
     }
 
     pos.setXYZ(i, v.x, v.y, v.z);
   }
 
   pos.needsUpdate = true;
-  geom.computeVertexNormals();
+  geo.computeVertexNormals();
 }
 
+/* ---------- Load / Export ---------- */
+
 const loader = new GLTFLoader();
-document.getElementById('fileInput').onchange = e => {
+
+fileInput.onchange = e => {
   const file = e.target.files[0];
   if (!file) return;
-  const url = URL.createObjectURL(file);
-
-  loader.load(url, gltf => {
+  loader.load(URL.createObjectURL(file), gltf => {
     const mesh = gltf.scene.children.find(o => o.isMesh);
-    if (!mesh) return;
-    addMesh(mesh.geometry.clone());
-    URL.revokeObjectURL(url);
+    if (mesh) addMesh(mesh.geometry.clone());
   });
 };
 
-document.getElementById('exportBtn').onclick = () => {
+exportBtn.onclick = () => {
   const exporter = new GLTFExporter();
-  exporter.parse(activeMesh, gltf => {
-    const blob = new Blob([JSON.stringify(gltf)], { type: 'application/json' });
+  exporter.parse(activeMesh, data => {
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'model.gltf';
@@ -168,16 +170,18 @@ document.getElementById('exportBtn').onclick = () => {
   });
 };
 
+/* ---------- Loop ---------- */
+
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  sculpt();
+  applyBrush();
   renderer.render(scene, camera);
 }
 
 animate();
 
-window.addEventListener('resize', () => {
+addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
