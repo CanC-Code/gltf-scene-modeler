@@ -2,93 +2,35 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #1e1e1e;
-  color: #eee;
+  background: #dcdcdc;
   font-family: sans-serif;
 }
 
-/* VIEWPORT */
 #viewport {
-  position: fixed;
-  inset: 0;
   width: 100vw;
   height: 100vh;
   display: block;
 }
 
-/* STATUS */
-#status {
-  position: fixed;
-  bottom: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 13px;
-  opacity: 0.8;
-  pointer-events: none;
-}
-
-/* PANEL */
-#panel {
-  position: fixed;
+#ui {
+  position: absolute;
   top: 10px;
   left: 10px;
-  width: 260px;
-  background: rgba(30, 30, 30, 0.96);
-  border-radius: 6px;
-  z-index: 10;
-  transition: transform 0.25s ease;
-}
-
-#panel.collapsed {
-  transform: translateX(-230px);
-}
-
-/* HEADER */
-#panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  background: #222;
-  cursor: pointer;
-  user-select: none;
-}
-
-/* BODY */
-#panel-body {
+  background: rgba(240,240,240,0.95);
   padding: 8px;
+  border-radius: 8px;
+  width: 220px;
 }
 
-/* SECTIONS */
-.section {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-/* BUTTONS */
-button {
-  background: #333;
-  color: #eee;
-  border: none;
-  padding: 6px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-button:hover {
-  background: #444;
-}
-
-button.active {
-  background: #4a90e2;
-}
-
-/* TABS */
 #tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 6px;
+}
+
+#tabs button {
+  flex: 1;
+  cursor: pointer;
 }
 
 .tab {
@@ -99,13 +41,7 @@ button.active {
   display: block;
 }
 
-/* INPUTS */
 label {
   display: block;
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-
-input[type="range"] {
-  width: 100%;
+  margin-top: 6px;
 }
