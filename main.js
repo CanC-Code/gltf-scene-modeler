@@ -1,135 +1,139 @@
+// main.js – MC Voxel Builder (mobile & desktop safe)
+
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 import { GLTFLoader } from './three/GLTFLoader.js';
 import { GLTFExporter } from './three/GLTFExporter.js';
 
 let scene, camera, renderer, controls;
-let viewCubeScene, viewCubeCamera, viewCubeRenderer, viewCubeControls;
-let currentObject = null;
+let cube, sphere;
+let started = false;
 
-/** Entry point */
+// --- Entry point ---
 function startApp() {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
+    if (started) return;
+    started = true;
     init();
-  }
+    animate();
 }
 
-startApp();
+// --- DOM ready handling ---
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    startApp();
+}
 
+// --- Safe container size ---
+function getContainerSize() {
+    const container = document.getElementById('canvasContainer');
+    if (container && container.clientWidth && container.clientHeight) {
+        return { width: container.clientWidth, height: container.clientHeight };
+    } else {
+        return { width: window.innerWidth, height: window.innerHeight * 0.6 };
+    }
+}
+
+// --- Initialize scene ---
 function init() {
-  // --- MAIN SCENE ---
-  const container = document.getElementById('canvasContainer');
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x202025);
+    const size = getContainerSize();
 
-  camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-  camera.position.set(5, 5, 5);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x202025);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('mainCanvas') });
-  renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
+    camera = new THREE.PerspectiveCamera(60, size.width / size.height, 0.1, 1000);
+    camera.position.set(5, 5, 5);
 
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.target.set(0, 0.5, 0);
+    renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('canvas') });
+    renderer.setSize(size.width, size.height);
+    renderer.setPixelRatio(window.devicePixelRatio);
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-  dirLight.position.set(5, 10, 7);
-  scene.add(dirLight);
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0.5, 0);
 
-  scene.add(new THREE.GridHelper(20, 20));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+    const dir = new THREE.DirectionalLight(0xffffff, 1);
+    dir.position.set(5, 10, 7);
+    scene.add(dir);
 
-  // --- VIEW CUBE SCENE ---
-  const viewCanvas = document.getElementById('viewCubeCanvas');
-  viewCubeScene = new THREE.Scene();
-  viewCubeCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
-  viewCubeCamera.position.set(2, 2, 2);
-  viewCubeRenderer = new THREE.WebGLRenderer({ canvas: viewCanvas, alpha: true });
-  viewCubeRenderer.setSize(viewCanvas.clientWidth, viewCanvas.clientHeight);
+    scene.add(new THREE.GridHelper(20, 20));
 
-  viewCubeControls = new OrbitControls(viewCubeCamera, viewCanvas);
-  viewCubeControls.enableRotate = true;
-  viewCubeControls.enableZoom = false;
-  viewCubeControls.enablePan = false;
+    // UI hooks
+    bindButton('exportBtn', exportScene);
+    bindButton('resetScene', resetScene);
+    bindButton('newCube', () => createShape('cube'));
+    bindButton('newSphere', () => createShape('sphere'));
 
-  const axes = new THREE.AxesHelper(1);
-  viewCubeScene.add(axes);
-
-  // --- UI BINDING ---
-  bindButton('newCube', () => createObject('cube'));
-  bindButton('newSphere', () => createObject('sphere'));
-  bindButton('exportBtn', exportScene);
-  bindButton('resetScene', resetScene);
-
-  window.addEventListener('resize', onWindowResize);
-
-  animate();
+    window.addEventListener('resize', onWindowResize);
 }
 
+// --- Safe button binder ---
 function bindButton(id, handler) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener('click', handler);
+    const el = document.getElementById(id);
+    if (!el) {
+        console.warn(`UI element not found #${id}`);
+        return;
+    }
+    el.addEventListener('click', handler);
 }
 
-function createObject(type) {
-  if (currentObject) scene.remove(currentObject);
-  if (type === 'cube') {
-    currentObject = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0x44aa88 })
-    );
-  } else if (type === 'sphere') {
-    currentObject = new THREE.Mesh(
-      new THREE.SphereGeometry(0.5, 32, 32),
-      new THREE.MeshStandardMaterial({ color: 0xaa4444 })
-    );
-  }
-  currentObject.position.y = 0.5;
-  scene.add(currentObject);
-  document.getElementById('status').textContent = `Created ${type}`;
+// --- Shape creation ---
+function createShape(type) {
+    // Remove previous objects
+    if (cube) scene.remove(cube);
+    if (sphere) scene.remove(sphere);
+
+    if (type === 'cube') {
+        cube = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.MeshStandardMaterial({ color: 0x44aa88 })
+        );
+        cube.position.y = 0.5;
+        scene.add(cube);
+    } else if (type === 'sphere') {
+        sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 32, 32),
+            new THREE.MeshStandardMaterial({ color: 0xaa4444 })
+        );
+        sphere.position.y = 0.5;
+        scene.add(sphere);
+    }
 }
 
+// --- Export ---
 function exportScene() {
-  const exporter = new GLTFExporter();
-  exporter.parse(scene, (gltf) => {
-    const blob = new Blob([JSON.stringify(gltf, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'scene.gltf';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
+    const exporter = new GLTFExporter();
+    exporter.parse(scene, (gltf) => {
+        const blob = new Blob([JSON.stringify(gltf, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'scene.gltf';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
 }
 
+// --- Reset ---
 function resetScene() {
-  if (currentObject) {
-    currentObject.rotation.set(0, 0, 0);
-    currentObject.position.set(0, 0.5, 0);
-  }
-  controls.reset();
-  document.getElementById('status').textContent = 'Ready';
+    if (cube) cube.rotation.set(0, 0, 0);
+    if (sphere) sphere.rotation.set(0, 0, 0);
+    controls.reset();
 }
 
+// --- Resize handler ---
 function onWindowResize() {
-  const container = document.getElementById('canvasContainer');
-  camera.aspect = container.clientWidth / container.clientHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(container.clientWidth, container.clientHeight);
-  viewCubeRenderer.setSize(document.getElementById('viewCubeCanvas').clientWidth, document.getElementById('viewCubeCanvas').clientHeight);
+    const size = getContainerSize();
+    camera.aspect = size.width / size.height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(size.width, size.height);
 }
 
+// --- Animation loop ---
 function animate() {
-  requestAnimationFrame(animate);
-
-  controls.update();
-  viewCubeControls.update();
-
-  renderer.render(scene, camera);
-  viewCubeRenderer.render(viewCubeScene, viewCubeCamera);
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
 }
