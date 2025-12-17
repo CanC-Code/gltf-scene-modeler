@@ -8,34 +8,22 @@
 </head>
 <body>
 <div id="menu">
-  <button id="collapseMenu">☰ Menu</button>
-  <div id="menuContent">
-    <div class="tab">
-      <button class="tabButton active" data-tab="object">Object</button>
-      <button class="tabButton" data-tab="sculpt">Sculpt</button>
-      <button class="tabButton" data-tab="export">Export/Load</button>
-    </div>
-    <div class="tabContent" id="objectTab">
-      <button id="newCube">New Cube</button>
-      <button id="newSphere">New Sphere</button>
-      <button id="toggleMeshView">Toggle Mesh View</button>
-      <label><input type="checkbox" id="mirrorToggle"> Mirror Mode</label>
-      <label><input type="checkbox" id="lockRotationToggle"> Lock Camera Rotation</label>
-    </div>
-    <div class="tabContent" id="sculptTab">
-      <button data-mode="drag">Drag</button>
-      <button data-mode="inflate">Inflate</button>
-      <button data-mode="deflate">Deflate</button>
-      <button data-mode="smooth">Smooth</button>
-      <label>Brush Size <input type="range" id="brushSize" min="0.1" max="2" step="0.01" value="0.5"></label>
-      <label>Strength <input type="range" id="brushStrength" min="0.01" max="1" step="0.01" value="0.1"></label>
-    </div>
-    <div class="tabContent" id="exportTab">
-      <button id="exportGLTF">Export GLTF</button>
-      <button id="loadGLTF">Load GLTF</button>
-      <button id="resetScene">Reset Scene</button>
-    </div>
-  </div>
+    <button id="newCube">Cube</button>
+    <button id="newSphere">Sphere</button>
+    <button id="toggleMeshView">Toggle Mesh</button>
+    <button id="lockCamera">Lock Camera</button>
+    <button id="exportGLTF">Export GLTF</button>
+    <label>Brush Size: <input type="range" id="brushSize" min="0.05" max="1" step="0.01" value="0.2"></label>
+    <label>Brush Strength: <input type="range" id="brushStrength" min="0.01" max="0.2" step="0.01" value="0.05"></label>
+    <label>Mode:
+        <select id="brushMode">
+            <option value="drag">Drag</option>
+            <option value="inflate">Inflate</option>
+            <option value="deflate">Deflate</option>
+            <option value="smooth">Smooth</option>
+        </select>
+    </label>
+    <label>Mirror: <input type="checkbox" id="mirror"></label>
 </div>
 <script type="module" src="main.js"></script>
 </body>
