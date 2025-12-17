@@ -1,68 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MC Voxel Builder</title>
-<link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <title>MC Voxel Builder</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-
-<!-- UI PANEL -->
-<div id="panel" class="collapsed">
-  <div id="panel-header">
-    <span>Tools</span>
-    <span>☰</span>
-  </div>
-
-  <div id="panel-body">
-
-    <!-- MODE BUTTONS -->
-    <div class="section">
-      <button id="mode-orbit">Orbit</button>
-      <button id="mode-sculpt">Sculpt</button>
-      <button id="mode-paint">Paint</button>
-    </div>
-
-    <!-- TABS -->
+  <div id="ui">
     <div id="tabs">
-      <button data-tab="model" class="active">Model</button>
       <button data-tab="sculpt">Sculpt</button>
       <button data-tab="paint">Paint</button>
+      <button data-tab="objects">Objects</button>
+      <button data-tab="io">Load / Export</button>
     </div>
 
-    <!-- TAB CONTENT -->
-    <div id="tab-model" class="tab active">
-      <button id="newCube">New Cube</button>
-      <button id="newSphere">New Sphere</button>
-      <input type="file" id="loadModel" accept=".gltf,.glb" />
+    <div class="tab" id="sculpt">
+      <label>Tool</label>
+      <select id="sculptTool">
+        <option value="inflate">Inflate</option>
+        <option value="deflate">Deflate</option>
+        <option value="smooth">Smooth</option>
+      </select>
+
+      <label>Strength</label>
+      <input type="range" id="strength" min="0.001" max="0.05" step="0.001" value="0.01">
+
+      <label>
+        <input type="checkbox" id="lockCamera"> Lock Camera
+      </label>
+    </div>
+
+    <div class="tab" id="paint">
+      <input type="color" id="paintColor" value="#ff0000">
+    </div>
+
+    <div class="tab" id="objects">
+      <button id="addCube">Add Cube</button>
+      <button id="addSphere">Add Sphere</button>
+      <button id="toggleWire">Toggle Wireframe</button>
+    </div>
+
+    <div class="tab" id="io">
+      <input type="file" id="loadGLTF">
       <button id="exportGLTF">Export GLTF</button>
     </div>
-
-    <div id="tab-sculpt" class="tab">
-      <label>
-        Brush Size
-        <input type="range" id="brushSize" min="0.05" max="1.0" step="0.05" value="0.25">
-      </label>
-      <label>
-        Strength
-        <input type="range" id="brushStrength" min="0.01" max="0.5" step="0.01" value="0.1">
-      </label>
-    </div>
-
-    <div id="tab-paint" class="tab">
-      <p>Paint tools coming next.</p>
-    </div>
-
   </div>
-</div>
 
-<!-- VIEWPORT -->
-<canvas id="viewport"></canvas>
-
-<div id="status">Ready</div>
-
-<script type="module" src="main.js"></script>
+  <canvas id="viewport"></canvas>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
