@@ -1,3 +1,4 @@
+/* Basic reset and body styling */
 body {
   font-family: sans-serif;
   margin: 0;
@@ -8,10 +9,12 @@ body {
   background: #f0f0f0;
 }
 
+/* Page heading */
 h1 {
   margin: 10px 0;
 }
 
+/* Toolbar layout */
 #toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -19,7 +22,7 @@ h1 {
   margin: 10px;
 }
 
-button {
+button, input {
   padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
@@ -30,9 +33,11 @@ button.active {
   color: white;
 }
 
-#canvasContainer {
+/* Canvas and container */
+#canvas-container {
+  position: relative;
   width: 90vw;
-  max-width: 1000px;
+  max-width: 1200px;
   height: 60vh;
   border: 1px solid #ccc;
   background: #fff;
@@ -41,14 +46,37 @@ button.active {
   align-items: center;
 }
 
-canvas {
+/* Main Three.js canvas */
+canvas#canvas {
   width: 100%;
   height: 100%;
   display: block;
-  touch-action: none;
 }
 
+/* Gizmo container (top-right corner) */
+#gizmo-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 100px;
+  height: 100px;
+  pointer-events: all; /* allow interaction */
+}
+
+/* Status text */
 #status {
   margin: 8px;
   font-size: 14px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  #canvas-container {
+    width: 95vw;
+    height: 50vh;
+  }
+
+  #toolbar {
+    justify-content: center;
+  }
 }
