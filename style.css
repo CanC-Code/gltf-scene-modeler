@@ -6,7 +6,6 @@ body {
   flex-direction: column;
   align-items: center;
   background: #f0f0f0;
-  height: 100vh;
 }
 
 h1 {
@@ -20,29 +19,24 @@ h1 {
   margin: 10px;
 }
 
-button, input {
+button, select {
   padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
 }
 
-button.active {
-  background: #4a90e2;
-  color: white;
-}
-
-#viewportContainer {
-  flex: 1 1 auto;
-  width: 100%;
-  position: relative;
-  touch-action: none; /* required for mobile TransformControls */
-}
-
 canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  touch-action: none;
+  width: 90vw;
+  height: 60vh;
+  border: 1px solid #ccc;
+  background: #fff;
+  touch-action: none; /* important for mobile TransformControls */
+}
+
+#viewport-container {
+  position: relative;
+  width: 90vw;
+  height: 60vh;
 }
 
 #status {
