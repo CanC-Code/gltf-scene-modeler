@@ -1,13 +1,9 @@
-// main.js – MC Voxel Builder
-
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
-import { GLTFLoader } from './three/GLTFLoader.js';
 import { GLTFExporter } from './three/GLTFExporter.js';
 
 let scene, camera, renderer, controls;
 let currentObject = null;
-let overlayScene, overlayCamera;
 let started = false;
 
 function startApp() {
@@ -26,53 +22,34 @@ if (document.readyState === 'loading') {
 function init() {
     const container = document.getElementById('canvas-container');
 
-    // --- SCENE ---
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202025);
 
-    // --- CAMERA ---
     camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(5, 5, 5);
 
-    // --- RENDERER ---
     renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('canvas') });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
 
-    // --- CONTROLS ---
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.target.set(0, 0.5, 0);
 
-    // --- LIGHTS ---
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
     const dir = new THREE.DirectionalLight(0xffffff, 1);
     dir.position.set(5, 10, 7);
     scene.add(dir);
 
-    // --- GRID ---
     scene.add(new THREE.GridHelper(20, 20));
 
-    // --- VIEW CUBE / GIZMO ---
-    overlayScene = new THREE.Scene();
-    overlayCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
-    overlayCamera.position.set(2, 2, 2);
-    const viewCube = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshNormalMaterial()
-    );
-    overlayScene.add(viewCube);
-
-    // --- UI HOOKS ---
     bindButton('newCube', () => spawnObject('cube'));
     bindButton('newSphere', () => spawnObject('sphere'));
     bindButton('exportBtn', exportScene);
 
-    // --- RESIZE ---
     window.addEventListener('resize', onWindowResize);
 
-    // --- INITIAL OBJECT ---
     spawnObject('cube');
 }
 
@@ -128,17 +105,6 @@ function onWindowResize() {
 
 function animate() {
     requestAnimationFrame(animate);
-
     controls.update();
-    renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
     renderer.render(scene, camera);
-
-    // --- OVERLAY VIEW CUBE ---
-    const size = 80;
-    renderer.clearDepth();
-    renderer.setScissorTest(true);
-    renderer.setScissor(renderer.domElement.width - size - 10, renderer.domElement.height - size - 10, size, size);
-    renderer.setViewport(renderer.domElement.width - size - 10, renderer.domElement.height - size - 10, size, size);
-    renderer.render(overlayScene, overlayCamera);
-    renderer.setScissorTest(false);
 }
