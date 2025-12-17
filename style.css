@@ -1,51 +1,55 @@
-* {
-  box-sizing: border-box;
-}
-
-body {
+html, body {
   margin: 0;
-  font-family: sans-serif;
-  background: #f0f0f0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  font-family: sans-serif;
+  overflow: hidden;
+  background: #f0f0f0;
 }
 
 h1 {
   margin: 8px 0;
+  text-align: center;
 }
 
 #toolbar {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
+  padding: 4px;
+  justify-content: center;
 }
 
-button {
+button, input {
   padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
 }
 
-#canvas-container {
-  width: 100%;
-  max-width: 100vw;
-  height: 60vh;          /* critical: single source of truth */
-  display: flex;
-  justify-content: center;
-  align-items: stretch;
+button.active {
+  background: #4a90e2;
+  color: white;
 }
 
-canvas {
+#viewportContainer {
+  flex: 1 1 auto;
+  width: 100%;
+  position: relative;
+}
+
+#canvas {
   width: 100%;
   height: 100%;
   display: block;
-  background: #202025;
-  touch-action: none;    /* fixes mobile orbit + gizmo */
 }
 
 #status {
-  margin: 6px;
+  flex: 0 0 auto;
+  text-align: center;
+  margin: 4px;
   font-size: 14px;
 }
