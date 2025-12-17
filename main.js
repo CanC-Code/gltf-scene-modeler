@@ -77,7 +77,7 @@ function init() {
     brushSettings = {
         brushSize: 0.5,
         brushIntensity: 0.2,
-        brushMode: 'add', // add, remove, inflate, deflate
+        brushMode: 'add', // add, remove, inflate, deflate, smooth
     };
     gui = new GUI();
     gui.add(brushSettings, 'brushSize', 0.1, 2).name('Brush Size');
