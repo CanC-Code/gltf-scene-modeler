@@ -95,7 +95,6 @@ function setActiveObject(obj) {
 
 function resetView() {
     camera.position.set(5, 5, 5);
-    camera.up.set(0, 1, 0);
     camera.lookAt(controls.target);
     controls.update();
 }
@@ -108,7 +107,11 @@ function onPointerDown(e) {
     const y = (rect.bottom - e.clientY) * dpr;
 
     const size = GIZMO_SIZE * dpr;
-    const gx = rect.width * dpr - size - GIZMO_MARGIN * dpr;
+
+    const buffer = new THREE.Vector2();
+    renderer.getDrawingBufferSize(buffer);
+
+    const gx = buffer.x - size - GIZMO_MARGIN * dpr;
     const gy = size + GIZMO_MARGIN * dpr;
 
     if (x < gx || y > gy) return;
@@ -122,9 +125,10 @@ function animate() {
     controls.update();
     renderer.clear();
 
-    const canvas = renderer.domElement;
+    const buffer = new THREE.Vector2();
+    renderer.getDrawingBufferSize(buffer);
 
-    renderer.setViewport(0, 0, canvas.width, canvas.height);
+    renderer.setViewport(0, 0, buffer.x, buffer.y);
     renderer.render(scene, camera);
 
     gizmoCube.quaternion.copy(camera.quaternion).invert();
@@ -134,7 +138,7 @@ function animate() {
     const size = GIZMO_SIZE * dpr;
 
     renderer.setViewport(
-        canvas.width - size - GIZMO_MARGIN * dpr,
+        buffer.x - size - GIZMO_MARGIN * dpr,
         GIZMO_MARGIN * dpr,
         size,
         size
@@ -145,10 +149,8 @@ function animate() {
 
 function onResize() {
     const canvas = renderer.domElement;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
 
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
+    camera.aspect = canvas.clientWidth / canvas.clientHeight;
     camera.updateProjectionMatrix();
 }
