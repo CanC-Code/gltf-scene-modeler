@@ -6,6 +6,7 @@
 <title>MC Voxel Builder</title>
 <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
 <h1>MC Voxel Builder</h1>
@@ -13,18 +14,17 @@
 <div id="toolbar">
   <button id="newCube">New Cube</button>
   <button id="newSphere">New Sphere</button>
-  <input type="file" id="modelInput" accept=".glb,.gltf">
-  <button id="exportGLTF">Export GLTF</button>
-  <button id="resetScene">Reset Scene</button>
+  <button id="exportGLTF">Export GLB</button>
+  <button id="resetScene">Reset View</button>
 </div>
 
-<div id="canvasContainer">
+<div id="canvas-container">
   <canvas id="canvas"></canvas>
 </div>
 
 <div id="status">Ready</div>
 
-<!-- Load Three.js as a module from the local folder -->
-<script type="module" src="./main.js"></script>
+<script type="module" src="main.js"></script>
+
 </body>
 </html>
