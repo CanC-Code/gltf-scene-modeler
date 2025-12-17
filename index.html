@@ -1,28 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MC Voxel Builder</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>MC Voxel Builder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div id="ui-panel">
-        <button id="newCube">New Cube</button>
-        <button id="newSphere">New Sphere</button>
-        <button id="exportGLTF">Export GLTF</button>
-        <button id="resetScene">Reset Scene</button>
-        <div id="status">Ready</div>
-    </div>
 
-    <!-- Three.js and dependencies -->
-    <script type="module" src="three/three.module.js"></script>
-    <script type="module" src="three/OrbitControls.js"></script>
-    <script type="module" src="three/GLTFLoader.js"></script>
-    <script type="module" src="three/GLTFExporter.js"></script>
-    <script type="module" src="lil-gui.esm.min.js"></script>
+  <div id="toolbar">
+    <button id="orbitBtn">Orbit</button>
+    <button id="sculptBtn">Sculpt</button>
 
-    <!-- Main application -->
-    <script type="module" src="main.js"></script>
+    <label>
+      Brush Size
+      <input id="brushSize" type="range" min="0.02" max="0.5" step="0.01" value="0.15">
+    </label>
+
+    <label>
+      Strength
+      <input id="brushStrength" type="range" min="0.1" max="5" step="0.1" value="1">
+    </label>
+
+    <button id="inflateBtn">Inflate</button>
+    <button id="smoothBtn">Smooth</button>
+
+    <input type="file" id="fileInput" accept=".gltf,.glb" />
+    <button id="exportBtn">Export GLTF</button>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script type="module" src="main.js"></script>
 </body>
 </html>
