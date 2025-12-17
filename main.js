@@ -1,5 +1,4 @@
-// main.js
-// MC Voxel Builder – stable bootstrap
+// main.js – MC Voxel Builder (DOM-safe, cache-safe)
 
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
@@ -8,11 +7,27 @@ import { GLTFExporter } from './three/GLTFExporter.js';
 
 let scene, camera, renderer, controls;
 let cube, sphere;
+let started = false;
 
-document.addEventListener('DOMContentLoaded', () => {
+/**
+ * Entry point – guaranteed single execution
+ */
+function startApp() {
+    if (started) return;
+    started = true;
+
     init();
     animate();
-});
+}
+
+/**
+ * DOM-ready handling (covers all browsers)
+ */
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    startApp();
+}
 
 function init() {
 
@@ -42,67 +57,64 @@ function init() {
     controls.target.set(0, 0.5, 0);
 
     // --- LIGHTS ---
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
-    hemiLight.position.set(0, 20, 0);
-    scene.add(hemiLight);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-    dirLight.position.set(5, 10, 7);
-    scene.add(dirLight);
+    const dir = new THREE.DirectionalLight(0xffffff, 1);
+    dir.position.set(5, 10, 7);
+    scene.add(dir);
 
     // --- GRID ---
-    const grid = new THREE.GridHelper(20, 20);
-    scene.add(grid);
+    scene.add(new THREE.GridHelper(20, 20));
 
     // --- TEST OBJECTS ---
-    const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-    const cubeMat = new THREE.MeshStandardMaterial({ color: 0x44aa88 });
-    cube = new THREE.Mesh(cubeGeo, cubeMat);
-    cube.position.set(0, 0.5, 0);
+    cube = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial({ color: 0x44aa88 })
+    );
+    cube.position.y = 0.5;
     scene.add(cube);
 
-    const sphereGeo = new THREE.SphereGeometry(0.5, 32, 32);
-    const sphereMat = new THREE.MeshStandardMaterial({ color: 0xaa4444 });
-    sphere = new THREE.Mesh(sphereGeo, sphereMat);
+    sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 32, 32),
+        new THREE.MeshStandardMaterial({ color: 0xaa4444 })
+    );
     sphere.position.set(2, 0.5, 0);
     scene.add(sphere);
 
-    // --- OPTIONAL UI HOOKS (SAFE) ---
-    hookButton('exportGLTF', exportScene);
-    hookButton('resetScene', resetScene);
+    // --- UI HOOKS (ABSOLUTELY SAFE) ---
+    bindButton('exportGLTF', exportScene);
+    bindButton('resetScene', resetScene);
 
     // --- RESIZE ---
     window.addEventListener('resize', onWindowResize);
 }
 
-function hookButton(id, handler) {
+/**
+ * Safe button binder – NEVER throws
+ */
+function bindButton(id, handler) {
     const el = document.getElementById(id);
     if (!el) {
-        console.warn(`UI element #${id} not found (skipped)`);
+        console.warn(`UI element not found #${id}`);
         return;
     }
-    el.onclick = handler;
+    el.addEventListener('click', handler);
 }
 
 function exportScene() {
     const exporter = new GLTFExporter();
-    exporter.parse(
-        scene,
-        (gltf) => {
-            const blob = new Blob([JSON.stringify(gltf, null, 2)], {
-                type: 'application/json'
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'scene.gltf';
-            a.click();
-            URL.revokeObjectURL(url);
-        },
-        (error) => {
-            console.error('GLTF export error:', error);
-        }
-    );
+    exporter.parse(scene, (gltf) => {
+        const blob = new Blob(
+            [JSON.stringify(gltf, null, 2)],
+            { type: 'application/json' }
+        );
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'scene.gltf';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
 }
 
 function resetScene() {
