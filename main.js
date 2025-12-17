@@ -1,4 +1,4 @@
-// main.js – MC Voxel Builder (Compass rotation, no autorotation)
+// main.js – MC Voxel Builder
 
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
@@ -7,22 +7,16 @@ import { GLTFExporter } from './three/GLTFExporter.js';
 
 let scene, camera, renderer, controls;
 let currentObject = null;
+let overlayScene, overlayCamera;
 let started = false;
 
-/**
- * Entry point – guaranteed single execution
- */
 function startApp() {
     if (started) return;
     started = true;
-
     init();
     animate();
 }
 
-/**
- * DOM-ready handling
- */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startApp);
 } else {
@@ -30,23 +24,14 @@ if (document.readyState === 'loading') {
 }
 
 function init() {
-    const container = document.getElementById('canvasContainer');
-    if (!container) {
-        console.error('Canvas container not found');
-        return;
-    }
+    const container = document.getElementById('canvas-container');
 
     // --- SCENE ---
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202025);
 
     // --- CAMERA ---
-    camera = new THREE.PerspectiveCamera(
-        60,
-        container.clientWidth / container.clientHeight,
-        0.1,
-        1000
-    );
+    camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(5, 5, 5);
 
     // --- RENDERER ---
@@ -69,21 +54,37 @@ function init() {
     // --- GRID ---
     scene.add(new THREE.GridHelper(20, 20));
 
-    // --- UI HOOKS ---
-    bindButton('exportBtn', exportScene);
-    bindButton('resetScene', resetScene);
+    // --- VIEW CUBE / GIZMO ---
+    overlayScene = new THREE.Scene();
+    overlayCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+    overlayCamera.position.set(2, 2, 2);
+    const viewCube = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshNormalMaterial()
+    );
+    overlayScene.add(viewCube);
 
+    // --- UI HOOKS ---
     bindButton('newCube', () => spawnObject('cube'));
     bindButton('newSphere', () => spawnObject('sphere'));
-
-    // --- COMPASS ---
-    setupCompass();
+    bindButton('exportBtn', exportScene);
 
     // --- RESIZE ---
     window.addEventListener('resize', onWindowResize);
+
+    // --- INITIAL OBJECT ---
+    spawnObject('cube');
 }
 
-// --- OBJECT SPAWNING ---
+function bindButton(id, handler) {
+    const el = document.getElementById(id);
+    if (!el) {
+        console.warn(`UI element not found #${id}`);
+        return;
+    }
+    el.addEventListener('click', handler);
+}
+
 function spawnObject(type) {
     if (currentObject) scene.remove(currentObject);
 
@@ -99,32 +100,16 @@ function spawnObject(type) {
         );
     }
 
-    if (currentObject) {
-        currentObject.position.y = 0.5;
-        scene.add(currentObject);
-    }
+    currentObject.position.y = 0.5;
+    scene.add(currentObject);
 
-    document.getElementById('status').textContent = `${type} added`;
+    document.getElementById('status').textContent = `Showing: ${type}`;
 }
 
-// --- UI SAFE BINDER ---
-function bindButton(id, handler) {
-    const el = document.getElementById(id);
-    if (!el) {
-        console.warn(`UI element not found #${id}`);
-        return;
-    }
-    el.addEventListener('click', handler);
-}
-
-// --- EXPORT SCENE ---
 function exportScene() {
     const exporter = new GLTFExporter();
     exporter.parse(scene, (gltf) => {
-        const blob = new Blob(
-            [JSON.stringify(gltf, null, 2)],
-            { type: 'application/json' }
-        );
+        const blob = new Blob([JSON.stringify(gltf, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -134,47 +119,26 @@ function exportScene() {
     });
 }
 
-// --- RESET SCENE ---
-function resetScene() {
-    if (currentObject) currentObject.rotation.set(0, 0, 0);
-    controls.reset();
-}
-
-// --- WINDOW RESIZE ---
 function onWindowResize() {
-    const container = document.getElementById('canvasContainer');
+    const container = document.getElementById('canvas-container');
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
 }
 
-// --- ANIMATE ---
 function animate() {
     requestAnimationFrame(animate);
+
     controls.update();
+    renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
     renderer.render(scene, camera);
-}
 
-// --- COMPASS CONTROL ---
-function setupCompass() {
-    const compass = document.getElementById('compass');
-    if (!compass) return;
-
-    let dragging = false;
-    compass.addEventListener('mousedown', () => dragging = true);
-    window.addEventListener('mouseup', () => dragging = false);
-    window.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
-        const deltaX = e.movementX;
-        controls.rotateLeft(deltaX * 0.005);
-    });
-
-    // Touch support
-    compass.addEventListener('touchstart', (e) => { dragging = true; e.preventDefault(); });
-    window.addEventListener('touchend', () => dragging = false);
-    window.addEventListener('touchmove', (e) => {
-        if (!dragging) return;
-        const touch = e.touches[0];
-        controls.rotateLeft(touch.movementX * 0.005);
-    }, { passive: false });
+    // --- OVERLAY VIEW CUBE ---
+    const size = 80;
+    renderer.clearDepth();
+    renderer.setScissorTest(true);
+    renderer.setScissor(renderer.domElement.width - size - 10, renderer.domElement.height - size - 10, size, size);
+    renderer.setViewport(renderer.domElement.width - size - 10, renderer.domElement.height - size - 10, size, size);
+    renderer.render(overlayScene, overlayCamera);
+    renderer.setScissorTest(false);
 }
