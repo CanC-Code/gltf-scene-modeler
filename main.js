@@ -1,5 +1,3 @@
-// main.js — MC Voxel Builder (stable gizmo + mobile-safe)
-
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
 
@@ -8,24 +6,13 @@ let activeObject;
 
 let gizmoScene, gizmoCamera, gizmoCube;
 
-const GIZMO_SIZE = 90;
+const GIZMO_SIZE = 80;
 const GIZMO_MARGIN = 10;
 
-let started = false;
-
-function startApp() {
-    if (started) return;
-    started = true;
-    init();
-    animate();
-}
-
-document.readyState === 'loading'
-    ? document.addEventListener('DOMContentLoaded', startApp)
-    : startApp();
+init();
+animate();
 
 function init() {
-
     const canvas = document.getElementById('canvas');
 
     scene = new THREE.Scene();
@@ -51,8 +38,7 @@ function init() {
 
     setActiveObject(createCube());
 
-    /* ---------- GIZMO ---------- */
-
+    // ---------- Gizmo ----------
     gizmoScene = new THREE.Scene();
 
     gizmoCamera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
@@ -75,17 +61,12 @@ function init() {
 
     canvas.addEventListener('pointerdown', onPointerDown);
 
-    bindButton('newCube', () => setActiveObject(createCube()));
-    bindButton('newSphere', () => setActiveObject(createSphere()));
-    bindButton('resetScene', resetView);
+    document.getElementById('newCube').onclick = () => setActiveObject(createCube());
+    document.getElementById('newSphere').onclick = () => setActiveObject(createSphere());
+    document.getElementById('resetScene').onclick = resetView;
 
     onResize();
     window.addEventListener('resize', onResize);
-}
-
-function bindButton(id, fn) {
-    const el = document.getElementById(id);
-    if (el) el.onclick = fn;
 }
 
 function createCube() {
@@ -132,9 +113,7 @@ function onPointerDown(e) {
 
     if (x < gx || y > gy) return;
 
-    camera.position.set(5, 5, 5);
-    camera.lookAt(0, 0, 0);
-    controls.update();
+    resetView();
 }
 
 function animate() {
@@ -143,7 +122,9 @@ function animate() {
     controls.update();
     renderer.clear();
 
-    renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
+    const canvas = renderer.domElement;
+
+    renderer.setViewport(0, 0, canvas.width, canvas.height);
     renderer.render(scene, camera);
 
     gizmoCube.quaternion.copy(camera.quaternion).invert();
@@ -153,7 +134,7 @@ function animate() {
     const size = GIZMO_SIZE * dpr;
 
     renderer.setViewport(
-        renderer.domElement.width - size - GIZMO_MARGIN * dpr,
+        canvas.width - size - GIZMO_MARGIN * dpr,
         GIZMO_MARGIN * dpr,
         size,
         size
