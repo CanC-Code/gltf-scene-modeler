@@ -1,21 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MC Voxel Builder</title>
+<link rel="stylesheet" href="style.css">
+
+<!-- Three.js global -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.min.js"></script>
+
+</head>
 <body>
-  <h1>MC Voxel Builder</h1>
-  <main id="mainContainer">
-    <div id="toolbar">
-      <button id="newCube">New Cube</button>
-      <button id="newSphere">New Sphere</button>
-      <input type="file" id="modelInput" accept=".glb,.gltf">
-      <button id="convertBtn">Convert to Voxels</button>
-      <button id="exportBtn">Export GLB</button>
-      <button id="rotateBtn">Rotate</button>
-      <button id="scaleBtn">Scale</button>
-      <button id="inflateBtn">Inflate</button>
-      <button id="deflateBtn">Deflate</button>
-    </div>
-    <div id="canvasContainer">
-      <canvas id="canvas"></canvas>
-    </div>
-  </main>
-  <div id="status">Ready</div>
-  <script type="module" src="main.js"></script>
+
+<h1>MC Voxel Builder</h1>
+
+<div id="toolbar">
+  <button id="newCube">New Cube</button>
+  <button id="newSphere">New Sphere</button>
+  <input type="file" id="modelInput" accept=".glb,.gltf">
+  <button id="convertBtn">Convert to Voxels</button>
+  <button id="exportBtn">Export GLB</button>
+  <button id="rotateBtn">Rotate</button>
+  <button id="scaleBtn">Scale</button>
+  <button id="inflateBtn">Inflate</button>
+  <button id="deflateBtn">Deflate</button>
+</div>
+
+<div id="canvasContainer">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="status">Ready</div>
+
+<!-- Your main script -->
+<script type="module" src="main.js"></script>
+
 </body>
+</html>
