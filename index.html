@@ -18,41 +18,43 @@
     margin-top: 10px;
   }
   #toolbar {
-    margin: 10px;
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    justify-content: center;
+    margin: 10px;
+    gap: 5px;
   }
-  button, input {
-    padding: 5px 10px;
+  button, input[type="file"] {
+    padding: 8px 12px;
     font-size: 14px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background: #f0f0f0;
   }
   canvas {
     width: 90vw;
     height: 60vh;
     border: 1px solid #ccc;
-    touch-action: none; /* important for mobile */
+    touch-action: none; /* prevent default gestures */
   }
   #status {
-    padding: 10px;
+    margin: 5px;
+    font-size: 14px;
   }
 </style>
 </head>
 <body>
-
 <h1>MC Voxel Builder</h1>
 
 <div id="toolbar">
-    <button id="cubeBtn">New Cube</button>
-    <button id="sphereBtn">New Sphere</button>
-    <input type="file" id="modelInput" accept=".glb,.gltf">
-
-    <button id="convertBtn">Convert to Voxels</button>
-    <button id="exportBtn">Export GLB</button>
-
-    <button id="paintBtn">Paint</button>
-    <button id="scaleBtn">Scale</button>
-    <button id="moveBtn">Move</button>
+  <button id="newCube">New Cube</button>
+  <button id="newSphere">New Sphere</button>
+  <button id="exportBtn">Export GLB</button>
+  <button id="convertBtn">Voxelize</button>
+  <button id="paintBtn">Paint</button>
+  <button id="scaleBtn">Scale</button>
+  <button id="moveBtn">Move</button>
+  <input type="file" id="modelInput" accept=".glb,.gltf">
 </div>
 
 <canvas id="canvas"></canvas>
