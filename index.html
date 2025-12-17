@@ -14,22 +14,17 @@
   <button id="newCube">New Cube</button>
   <button id="newSphere">New Sphere</button>
   <input type="file" id="modelInput" accept=".glb,.gltf">
-  <button id="convertBtn">Convert to Voxels</button>
-  <button id="exportBtn">Export GLB</button>
-  <button id="rotateBtn">Rotate</button>
-  <button id="scaleBtn">Scale</button>
-  <button id="inflateBtn">Inflate</button>
-  <button id="deflateBtn">Deflate</button>
+  <button id="exportGLTF">Export GLTF</button>
+  <button id="resetScene">Reset Scene</button>
 </div>
 
-<div id="canvas-container">
+<div id="canvasContainer">
   <canvas id="canvas"></canvas>
-  <div id="gizmo-container"></div>
 </div>
 
 <div id="status">Ready</div>
 
-<script type="module" src="main.js"></script>
-
+<!-- Load Three.js as a module from the local folder -->
+<script type="module" src="./main.js"></script>
 </body>
 </html>
