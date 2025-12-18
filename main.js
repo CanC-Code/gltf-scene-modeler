@@ -1,134 +1,203 @@
 import * as THREE from './three/three.module.js';
 import { OrbitControls } from './three/OrbitControls.js';
-import { GLTFExporter } from './three/GLTFExporter.js';
 import { GLTFLoader } from './three/GLTFLoader.js';
+import { GLTFExporter } from './three/GLTFExporter.js';
 
 let scene, camera, renderer, orbitControls;
-let mesh, originalMesh;
-let started = false;
+let sculptMesh, brushSphere;
+let cameraLocked = false;
 
-// Sculpting parameters
-let brushSize = 0.5;
-let brushStrength = 0.2;
-let brushMode = 'inflate';
-let mirrorX=false, mirrorY=false, mirrorZ=false;
-let lockCamera=false;
-
-// Brush helper
-let brushHelper;
+const state = {
+    brushSize: 0.5,
+    brushStrength: 0.2,
+    brushMode: 'inflate',
+    mirrorX: false,
+    mirrorY: false,
+    mirrorZ: false,
+    meshView: true,
+};
 
 // --- ENTRY ---
-function startApp(){
-    if(started) return;
-    started=true;
+function startApp() {
     init();
     animate();
 }
 
-// DOM ready
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', startApp);
-else startApp();
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    startApp();
+}
 
 // --- INIT ---
-function init(){
+function init() {
+    // Scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x444455);
+    scene.background = new THREE.Color(0x606060);
 
-    camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1,1000);
-    camera.position.set(3,3,5);
+    // Camera
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(5,5,5);
 
-    renderer = new THREE.WebGLRenderer({antialias:true});
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
+    // Controls
     orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
     orbitControls.dampingFactor = 0.08;
 
-    const hemi = new THREE.HemisphereLight(0xffffff,0x444444,1.2);
-    scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff,1);
+    // Lights
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+    const dir = new THREE.DirectionalLight(0xffffff, 1);
     dir.position.set(5,10,7);
     scene.add(dir);
 
-    scene.add(new THREE.GridHelper(10,10));
+    // Grid
+    scene.add(new THREE.GridHelper(20,20));
 
-    // Add initial cube
-    addObject('cube');
+    // Initial Cube
+    sculptMesh = createCube();
+    scene.add(sculptMesh);
 
-    // Brush helper (dynamic)
-    const geo = new THREE.SphereGeometry(1,16,16);
-    const mat = new THREE.MeshBasicMaterial({color:0xff0000, wireframe:true, opacity:0.5, transparent:true});
-    brushHelper = new THREE.Mesh(geo, mat);
-    brushHelper.visible=false;
-    scene.add(brushHelper);
+    // Brush visual
+    brushSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(1,16,16),
+        new THREE.MeshBasicMaterial({ color: 0xffff00, opacity:0.2, transparent:true })
+    );
+    scene.add(brushSphere);
 
+    // Event bindings
+    bindUI();
     window.addEventListener('resize', onWindowResize);
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
+}
 
+// --- UI BINDINGS ---
+function bindUI() {
     // Tab switching
-    document.querySelectorAll('.tabButton').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-            document.querySelectorAll('.tabButton').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
             btn.classList.add('active');
-            const tab = btn.dataset.tab;
-            document.querySelectorAll('.tabContent').forEach(c=>{
-                c.classList.toggle('hidden', c.id!==tab);
-            });
+            document.getElementById(btn.dataset.tab).classList.add('active');
         });
     });
 
-    // UI bindings
-    bindButton('newCube', ()=>addObject('cube'));
-    bindButton('newSphere', ()=>addObject('sphere'));
-    bindButton('toggleMeshView', toggleMeshView);
-    bindButton('resetScene', resetScene);
-    bindButton('exportGLTF', exportScene);
-    bindButton('importGLTF', importScene);
+    // Brush controls
+    document.getElementById('brushSize').addEventListener('input', e => state.brushSize = parseFloat(e.target.value));
+    document.getElementById('brushStrength').addEventListener('input', e => state.brushStrength = parseFloat(e.target.value));
+    document.getElementById('brushMode').addEventListener('change', e => state.brushMode = e.target.value);
+    document.getElementById('mirrorX').addEventListener('change', e => state.mirrorX = e.target.checked);
+    document.getElementById('mirrorY').addEventListener('change', e => state.mirrorY = e.target.checked);
+    document.getElementById('mirrorZ').addEventListener('change', e => state.mirrorZ = e.target.checked);
+    document.getElementById('meshView').addEventListener('change', e => {
+        state.meshView = e.target.checked;
+        sculptMesh.material.wireframe = !state.meshView;
+    });
 
-    document.getElementById('brushSize').addEventListener('input', e=>brushSize=parseFloat(e.target.value));
-    document.getElementById('brushStrength').addEventListener('input', e=>brushStrength=parseFloat(e.target.value));
-    document.getElementById('brushMode').addEventListener('change', e=>brushMode=e.target.value);
-    document.getElementById('mirrorX').addEventListener('change', e=>mirrorX=e.target.checked);
-    document.getElementById('mirrorY').addEventListener('change', e=>mirrorY=e.target.checked);
-    document.getElementById('mirrorZ').addEventListener('change', e=>mirrorZ=e.target.checked);
-    document.getElementById('lockCamera').addEventListener('change', e=>{
-        lockCamera=e.target.checked;
-        orbitControls.enableRotate=!lockCamera;
-        orbitControls.enableZoom=!lockCamera;
+    // Shapes
+    document.getElementById('newCube').addEventListener('click', () => switchObject('cube'));
+    document.getElementById('newSphere').addEventListener('click', () => switchObject('sphere'));
+
+    // Export / Load
+    document.getElementById('exportGLTF').addEventListener('click', exportScene);
+    document.getElementById('loadGLTF').addEventListener('change', loadScene);
+
+    // Camera lock
+    document.getElementById('toggleCameraLock').addEventListener('click', () => {
+        cameraLocked = !cameraLocked;
+        orbitControls.enabled = !cameraLocked;
     });
 }
 
-// --- UI helper ---
-function bindButton(id, handler){
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('click', handler);
-}
-
 // --- OBJECTS ---
-function addObject(type){
-    if(mesh) scene.remove(mesh);
-
-    let geometry;
-    if(type==='cube') geometry = new THREE.BoxGeometry(1,1,1,32,32,32);
-    else if(type==='sphere') geometry = new THREE.SphereGeometry(0.75,32,32);
-
-    const material = new THREE.MeshStandardMaterial({color:0x44aa88, flatShading:false, roughness:0.5, metalness:0.1});
-    mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-    originalMesh = mesh.clone();
+function createCube() {
+    return new THREE.Mesh(
+        new THREE.BoxGeometry(1,1,1,16,16,16),
+        new THREE.MeshStandardMaterial({ color:0x44aa88, vertexColors: true })
+    );
 }
 
-function toggleMeshView(){ if(mesh) mesh.material.wireframe = !mesh.material.wireframe; }
-function resetScene(){ if(mesh) { scene.remove(mesh); addObject('cube'); } }
+function createSphere() {
+    return new THREE.Mesh(
+        new THREE.SphereGeometry(0.5,32,32),
+        new THREE.MeshStandardMaterial({ color:0xaa4444, vertexColors: true })
+    );
+}
 
-// --- EXPORT/IMPORT ---
-function exportScene(){
+function switchObject(type) {
+    scene.remove(sculptMesh);
+    sculptMesh = type==='cube'? createCube() : createSphere();
+    scene.add(sculptMesh);
+}
+
+// --- SCULPTING ---
+let isSculpting = false;
+
+function onPointerMove(event) {
+    if(!sculptMesh) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width)*2 -1,
+        -((event.clientY - rect.top)/rect.height)*2 +1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(sculptMesh);
+
+    if(intersects.length>0){
+        const p = intersects[0].point;
+        brushSphere.position.copy(p);
+        brushSphere.scale.setScalar(state.brushSize);
+
+        if(isSculpting) applyBrush(intersects[0]);
+    }
+}
+
+function onPointerDown(event) {
+    isSculpting = true;
+    renderer.domElement.addEventListener('pointerup', ()=>{isSculpting=false},{once:true});
+}
+
+function applyBrush(intersect) {
+    const geom = sculptMesh.geometry;
+    geom.computeVertexNormals();
+    const position = geom.attributes.position;
+    for(let i=0;i<position.count;i++){
+        const v = new THREE.Vector3().fromBufferAttribute(position,i);
+        const dist = v.distanceTo(brushSphere.position);
+        if(dist < state.brushSize){
+            let effect = (1 - dist/state.brushSize)*state.brushStrength;
+            const normal = new THREE.Vector3().fromBufferAttribute(geom.attributes.normal,i);
+            switch(state.brushMode){
+                case 'inflate': v.addScaledVector(normal,effect); break;
+                case 'deflate': v.addScaledVector(normal,-effect); break;
+                case 'flatten': v.lerp(brushSphere.position,effect); break;
+                case 'smooth':
+                    // Simple Laplacian-like smoothing
+                    v.lerp(v.clone().addScaledVector(normal,0), effect*0.5);
+                    break;
+            }
+            position.setXYZ(i,v.x,v.y,v.z);
+        }
+    }
+    position.needsUpdate = true;
+    geom.computeVertexNormals();
+}
+
+// --- EXPORT / LOAD ---
+function exportScene() {
     const exporter = new GLTFExporter();
     exporter.parse(scene, gltf=>{
-        const blob = new Blob([JSON.stringify(gltf,null,2)], {type:'application/json'});
+        const blob = new Blob([JSON.stringify(gltf,null,2)],{type:'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href=url; a.download='scene.gltf'; a.click();
@@ -136,103 +205,30 @@ function exportScene(){
     });
 }
 
-function importScene(){
-    const input=document.createElement('input');
-    input.type='file';
-    input.accept='.gltf,.glb';
-    input.onchange=e=>{
-        const file=e.target.files[0];
-        if(!file) return;
-        const reader=new FileReader();
-        reader.onload=ev=>{
-            const loader = new GLTFLoader();
-            loader.parse(ev.target.result,'', gltf=>{
-                if(mesh) scene.remove(mesh);
-                mesh=gltf.scene.children[0];
-                scene.add(mesh);
-            });
-        };
-        reader.readAsArrayBuffer(file);
+function loadScene(event){
+    const file = event.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const contents = e.target.result;
+        const loader = new GLTFLoader();
+        loader.parse(contents,'',gltf=>{
+            scene.add(gltf.scene);
+        });
     };
-    input.click();
-}
-
-// --- SCULPTING ---
-let pointer=new THREE.Vector2();
-let raycaster=new THREE.Raycaster();
-let isPointerDown=false;
-
-function onPointerMove(event){
-    pointer.x=(event.clientX/window.innerWidth)*2-1;
-    pointer.y=-(event.clientY/window.innerHeight)*2+1;
-
-    if(mesh){
-        raycaster.setFromCamera(pointer, camera);
-        const intersects=raycaster.intersectObject(mesh,true);
-        if(intersects.length>0){
-            brushHelper.position.copy(intersects[0].point);
-            brushHelper.scale.setScalar(brushSize);
-            brushHelper.visible=true;
-
-            if(isPointerDown) applyBrush(intersects[0].point);
-        } else brushHelper.visible=false;
-    }
-}
-
-function onPointerDown(event){
-    isPointerDown=true;
-    onPointerMove(event);
-    window.addEventListener('pointerup',()=>isPointerDown=false,{once:true});
-}
-
-function applyBrush(point){
-    if(!mesh) return;
-    const pos=mesh.geometry.attributes.position;
-    const v=new THREE.Vector3();
-    for(let i=0;i<pos.count;i++){
-        v.fromBufferAttribute(pos,i);
-        const dist=v.distanceTo(point);
-        if(dist<brushSize){
-            const falloff=1-dist/brushSize;
-            const dir=new THREE.Vector3().subVectors(v, point).normalize();
-
-            if(brushMode==='inflate') v.addScaledVector(dir, brushStrength*falloff);
-            else if(brushMode==='deflate') v.addScaledVector(dir, -brushStrength*falloff);
-            else if(brushMode==='smooth'){
-                const neighbors=[];
-                for(let j=0;j<pos.count;j++){
-                    const v2=new THREE.Vector3().fromBufferAttribute(pos,j);
-                    if(v2.distanceTo(v)<brushSize) neighbors.push(v2);
-                }
-                const avg=new THREE.Vector3();
-                neighbors.forEach(n=>avg.add(n));
-                avg.divideScalar(neighbors.length||1);
-                v.lerp(avg, brushStrength*falloff);
-            } else if(brushMode==='flatten'){
-                const planeY=point.y;
-                v.y+=(planeY-v.y)*brushStrength*falloff;
-            }
-
-            if(mirrorX) v.x=-v.x;
-            if(mirrorY) v.y=-v.y;
-            if(mirrorZ) v.z=-v.z;
-
-            pos.setXYZ(i,v.x,v.y,v.z);
-        }
-    }
-    pos.needsUpdate=true;
+    reader.readAsArrayBuffer(file);
 }
 
 // --- RESIZE ---
 function onWindowResize(){
-    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth,window.innerHeight);
 }
 
 // --- ANIMATE ---
 function animate(){
     requestAnimationFrame(animate);
-    if(!lockCamera) orbitControls.update();
+    if(!cameraLocked) orbitControls.update();
     renderer.render(scene,camera);
 }
