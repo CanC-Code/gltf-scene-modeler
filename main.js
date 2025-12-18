@@ -7,12 +7,12 @@ let scene, camera, renderer, orbitControls;
 let mesh, originalMesh;
 let started = false;
 
-// Sculpting
+// Sculpting parameters
 let brushSize = 0.5;
 let brushStrength = 0.2;
 let brushMode = 'inflate';
-let mirrorX = false, mirrorY = false, mirrorZ = false;
-let lockCamera = false;
+let mirrorX=false, mirrorY=false, mirrorZ=false;
+let lockCamera=false;
 
 // Brush helper
 let brushHelper;
@@ -20,7 +20,7 @@ let brushHelper;
 // --- ENTRY ---
 function startApp(){
     if(started) return;
-    started = true;
+    started=true;
     init();
     animate();
 }
@@ -54,13 +54,14 @@ function init(){
 
     scene.add(new THREE.GridHelper(10,10));
 
+    // Add initial cube
     addObject('cube');
 
-    const geo = new THREE.RingGeometry(1,1.02,32);
-    const mat = new THREE.MeshBasicMaterial({color:0xff0000, side:THREE.DoubleSide});
+    // Brush helper (dynamic)
+    const geo = new THREE.SphereGeometry(1,16,16);
+    const mat = new THREE.MeshBasicMaterial({color:0xff0000, wireframe:true, opacity:0.5, transparent:true});
     brushHelper = new THREE.Mesh(geo, mat);
-    brushHelper.rotation.x = -Math.PI/2;
-    brushHelper.visible = false;
+    brushHelper.visible=false;
     scene.add(brushHelper);
 
     window.addEventListener('resize', onWindowResize);
@@ -93,7 +94,11 @@ function init(){
     document.getElementById('mirrorX').addEventListener('change', e=>mirrorX=e.target.checked);
     document.getElementById('mirrorY').addEventListener('change', e=>mirrorY=e.target.checked);
     document.getElementById('mirrorZ').addEventListener('change', e=>mirrorZ=e.target.checked);
-    document.getElementById('lockCamera').addEventListener('change', e=>lockCamera=e.target.checked);
+    document.getElementById('lockCamera').addEventListener('change', e=>{
+        lockCamera=e.target.checked;
+        orbitControls.enableRotate=!lockCamera;
+        orbitControls.enableZoom=!lockCamera;
+    });
 }
 
 // --- UI helper ---
@@ -107,7 +112,7 @@ function addObject(type){
     if(mesh) scene.remove(mesh);
 
     let geometry;
-    if(type==='cube') geometry = new THREE.BoxGeometry(1,1,1,16,16,16);
+    if(type==='cube') geometry = new THREE.BoxGeometry(1,1,1,32,32,32);
     else if(type==='sphere') geometry = new THREE.SphereGeometry(0.75,32,32);
 
     const material = new THREE.MeshStandardMaterial({color:0x44aa88, flatShading:false, roughness:0.5, metalness:0.1});
@@ -126,24 +131,24 @@ function exportScene(){
         const blob = new Blob([JSON.stringify(gltf,null,2)], {type:'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download='scene.gltf'; a.click();
+        a.href=url; a.download='scene.gltf'; a.click();
         URL.revokeObjectURL(url);
     });
 }
 
 function importScene(){
-    const input = document.createElement('input');
+    const input=document.createElement('input');
     input.type='file';
     input.accept='.gltf,.glb';
-    input.onchange = e=>{
-        const file = e.target.files[0];
+    input.onchange=e=>{
+        const file=e.target.files[0];
         if(!file) return;
-        const reader = new FileReader();
-        reader.onload = ev=>{
+        const reader=new FileReader();
+        reader.onload=ev=>{
             const loader = new GLTFLoader();
             loader.parse(ev.target.result,'', gltf=>{
                 if(mesh) scene.remove(mesh);
-                mesh = gltf.scene.children[0];
+                mesh=gltf.scene.children[0];
                 scene.add(mesh);
             });
         };
@@ -153,17 +158,17 @@ function importScene(){
 }
 
 // --- SCULPTING ---
-let pointer = new THREE.Vector2();
-let raycaster = new THREE.Raycaster();
+let pointer=new THREE.Vector2();
+let raycaster=new THREE.Raycaster();
 let isPointerDown=false;
 
 function onPointerMove(event){
-    pointer.x = (event.clientX / window.innerWidth)*2 -1;
-    pointer.y = -(event.clientY / window.innerHeight)*2 +1;
+    pointer.x=(event.clientX/window.innerWidth)*2-1;
+    pointer.y=-(event.clientY/window.innerHeight)*2+1;
 
     if(mesh){
         raycaster.setFromCamera(pointer, camera);
-        const intersects = raycaster.intersectObject(mesh);
+        const intersects=raycaster.intersectObject(mesh,true);
         if(intersects.length>0){
             brushHelper.position.copy(intersects[0].point);
             brushHelper.scale.setScalar(brushSize);
@@ -182,28 +187,30 @@ function onPointerDown(event){
 
 function applyBrush(point){
     if(!mesh) return;
-    const pos = mesh.geometry.attributes.position;
-    const v = new THREE.Vector3();
+    const pos=mesh.geometry.attributes.position;
+    const v=new THREE.Vector3();
     for(let i=0;i<pos.count;i++){
         v.fromBufferAttribute(pos,i);
-        const dist = v.distanceTo(point);
+        const dist=v.distanceTo(point);
         if(dist<brushSize){
-            const falloff = 1 - dist/brushSize;
-            if(brushMode==='inflate') v.addScaledVector(v.clone().sub(point).normalize(), brushStrength*falloff);
-            else if(brushMode==='deflate') v.addScaledVector(v.clone().sub(point).normalize(), -brushStrength*falloff);
+            const falloff=1-dist/brushSize;
+            const dir=new THREE.Vector3().subVectors(v, point).normalize();
+
+            if(brushMode==='inflate') v.addScaledVector(dir, brushStrength*falloff);
+            else if(brushMode==='deflate') v.addScaledVector(dir, -brushStrength*falloff);
             else if(brushMode==='smooth'){
                 const neighbors=[];
                 for(let j=0;j<pos.count;j++){
-                    const v2 = new THREE.Vector3().fromBufferAttribute(pos,j);
+                    const v2=new THREE.Vector3().fromBufferAttribute(pos,j);
                     if(v2.distanceTo(v)<brushSize) neighbors.push(v2);
                 }
-                const avg = new THREE.Vector3();
+                const avg=new THREE.Vector3();
                 neighbors.forEach(n=>avg.add(n));
                 avg.divideScalar(neighbors.length||1);
                 v.lerp(avg, brushStrength*falloff);
             } else if(brushMode==='flatten'){
-                const planeY = point.y;
-                v.y += (planeY - v.y)*brushStrength*falloff;
+                const planeY=point.y;
+                v.y+=(planeY-v.y)*brushStrength*falloff;
             }
 
             if(mirrorX) v.x=-v.x;
@@ -218,7 +225,7 @@ function applyBrush(point){
 
 // --- RESIZE ---
 function onWindowResize(){
-    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.aspect=window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
