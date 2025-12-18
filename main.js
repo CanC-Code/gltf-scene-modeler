@@ -7,7 +7,8 @@ import GUI from './three/lil-gui.esm.min.js';
 
 let scene, camera, renderer, orbitControls, transformControls;
 let mesh, gui, viewCube;
-let cameraLocked = false;
+let cameraLocked = false; // Camera lock state
+let cameraLockBtn;
 
 init();
 animate();
@@ -50,7 +51,7 @@ function init() {
     transformControls = new TransformControls(camera, renderer.domElement);
     transformControls.attach(mesh);
     transformControls.addEventListener('dragging-changed', function(event){
-        orbitControls.enabled = !event.value;
+        orbitControls.enabled = !event.value && !cameraLocked; // Respect camera lock
     });
     scene.add(transformControls);
 
@@ -63,12 +64,24 @@ function init() {
     document.body.appendChild(viewCube.dom);
 
     // Camera Lock Button
-    document.getElementById('cameraLock').addEventListener('click', () => {
-        cameraLocked = !cameraLocked;
-        orbitControls.enabled = !cameraLocked;
-    });
+    cameraLockBtn = document.getElementById('cameraLock');
+    cameraLockBtn.addEventListener('click', toggleCameraLock);
 
     window.addEventListener('resize', onWindowResize);
+}
+
+// Toggle camera lock state
+function toggleCameraLock() {
+    cameraLocked = !cameraLocked;
+    orbitControls.enabled = !cameraLocked;
+
+    if(cameraLocked){
+        cameraLockBtn.style.backgroundColor = 'red';
+        cameraLockBtn.textContent = 'Camera Locked';
+    } else {
+        cameraLockBtn.style.backgroundColor = '';
+        cameraLockBtn.textContent = 'Toggle Camera Lock';
+    }
 }
 
 function setupGUI() {
@@ -129,8 +142,8 @@ function toggleGizmo() {
 
 function applyBrush(type) {
     if(!mesh) return;
-    // Placeholder: Implement sculpting logic per vertex
     console.log(`Applying brush ${type}`);
+    // TODO: per-vertex sculpting logic
 }
 
 function exportGLTF() {
