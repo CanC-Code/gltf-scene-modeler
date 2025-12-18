@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MC Voxel Builder</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
 <body>
   <div id="topbar">
     <button id="toggleMenu">☰</button>
-    <button id="lockCamera">Camera Free</button>
+    <button id="lockCamera" class="inactive">Camera Free</button>
     <button id="toggleWire">▦ Wire</button>
   </div>
 
@@ -29,9 +29,8 @@
   </div>
 
   <div id="cursorBrush"></div>
-
   <canvas id="viewport"></canvas>
 
-  <script type="module" src="./main.js"></script>
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>
