@@ -14,7 +14,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x3a3a3a);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(4, 4, 6);
+camera.position.set(6, 6, 6);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -43,45 +43,19 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-/* ---------- Geometry Utilities ---------- */
-function subdivideGeometry(geometry, iterations = 2) {
-  // Convert to non-indexed
-  let geo = geometry.index ? geometry.toNonIndexed() : geometry;
-  for (let it = 0; it < iterations; it++) {
-    const pos = geo.attributes.position;
-    const newVerts = [];
-    for (let i = 0; i < pos.count; i += 3) {
-      const a = new THREE.Vector3().fromBufferAttribute(pos, i);
-      const b = new THREE.Vector3().fromBufferAttribute(pos, i + 1);
-      const c = new THREE.Vector3().fromBufferAttribute(pos, i + 2);
-
-      const ab = a.clone().add(b).multiplyScalar(0.5);
-      const bc = b.clone().add(c).multiplyScalar(0.5);
-      const ca = c.clone().add(a).multiplyScalar(0.5);
-
-      // 4 triangles
-      newVerts.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca);
-    }
-
-    const flat = new Float32Array(newVerts.length * 3);
-    newVerts.forEach((v, i) => {
-      flat[i * 3] = v.x;
-      flat[i * 3 + 1] = v.y;
-      flat[i * 3 + 2] = v.z;
-    });
-
-    geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(flat, 3));
-    geo.computeVertexNormals();
-  }
-  return geo;
+/* ---------- Mesh Utilities ---------- */
+function createLatticeCube(size = 2, segments = 24, color = 0x88ccff) {
+  const geo = new THREE.BoxGeometry(size, size, size, segments, segments, segments);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color, wireframe });
+  return new THREE.Mesh(geo, mat);
 }
 
-function prepareGeometry(mesh) {
-  let geo = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
-  geo = subdivideGeometry(geo, 2); // adjust subdivision for smoothness
+function createLatticeSphere(radius = 1.5, segments = 32, color = 0x88ff88) {
+  const geo = new THREE.SphereGeometry(radius, segments, segments);
   geo.computeVertexNormals();
-  mesh.geometry = geo;
+  const mat = new THREE.MeshStandardMaterial({ color, wireframe });
+  return new THREE.Mesh(geo, mat);
 }
 
 /* ---------- Active Mesh Handling ---------- */
@@ -96,32 +70,16 @@ function clearActiveMesh() {
 
 function setActive(mesh) {
   clearActiveMesh();
-  prepareGeometry(mesh);
   activeMesh = mesh;
   scene.add(mesh);
   transform.attach(mesh);
 }
 
-/* ---------- Mesh Creation ---------- */
-function createCube() {
-  const geo = new THREE.BoxGeometry(2, 2, 2, 6, 6, 6);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe });
-  setActive(new THREE.Mesh(geo, mat));
-}
-
-function createSphere() {
-  const geo = new THREE.SphereGeometry(1.5, 24, 24);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe });
-  setActive(new THREE.Mesh(geo, mat));
-}
-
 /* ---------- Default ---------- */
-createCube();
+setActive(createLatticeCube());
 
 /* ---------- UI ---------- */
-document.getElementById("toggleMenu").onclick = () => {
-  document.getElementById("menu").classList.toggle("collapsed");
-};
+document.getElementById("toggleMenu").onclick = () => document.getElementById("menu").classList.toggle("collapsed");
 document.getElementById("lockCamera").onclick = () => {
   cameraLocked = !cameraLocked;
   controls.enabled = !cameraLocked;
@@ -130,8 +88,8 @@ document.getElementById("toggleWire").onclick = () => {
   wireframe = !wireframe;
   if (activeMesh) activeMesh.material.wireframe = wireframe;
 };
-document.getElementById("newCube").onclick = createCube;
-document.getElementById("newSphere").onclick = createSphere;
+document.getElementById("newCube").onclick = () => setActive(createLatticeCube());
+document.getElementById("newSphere").onclick = () => setActive(createLatticeSphere());
 
 /* ---------- Export ---------- */
 document.getElementById("exportGLTF").onclick = () => {
@@ -180,6 +138,7 @@ function updateMouse(event) {
 }
 
 function sculptInflate(hit) {
+  if (!activeMesh) return;
   const geo = activeMesh.geometry;
   const pos = geo.attributes.position;
   const normal = geo.attributes.normal;
@@ -194,25 +153,9 @@ function sculptInflate(hit) {
     const dist = worldPos.distanceTo(hit.point);
     if (dist > radius) continue;
     const falloff = 1 - dist / radius;
-    let dn = new THREE.Vector3(normal.getX(i), normal.getY(i), normal.getZ(i)).multiplyScalar(strength * falloff);
-
-    // Laplacian smoothing: move slightly toward neighbors
-    // Find neighbors via faces
-    const neighbors = [];
-    for (let j = 0; j < pos.count; j += 3) {
-      if (j <= i && i <= j + 2) {
-        for (let k = j; k < j + 3; k++) {
-          if (k !== i) neighbors.push(k);
-        }
-        break;
-      }
-    }
-    const avg = new THREE.Vector3(0, 0, 0);
-    neighbors.forEach(n => avg.add(new THREE.Vector3(pos.getX(n), pos.getY(n), pos.getZ(n))));
-    if (neighbors.length > 0) avg.multiplyScalar(1 / neighbors.length);
-    dn.add(avg.sub(new THREE.Vector3(vx, vy, vz)).multiplyScalar(0.25));
-
-    pos.setXYZ(i, vx + dn.x, vy + dn.y, vz + dn.z);
+    const move = new THREE.Vector3(normal.getX(i), normal.getY(i), normal.getZ(i))
+      .multiplyScalar(strength * falloff);
+    pos.setXYZ(i, vx + move.x, vy + move.y, vz + move.z);
   }
 
   pos.needsUpdate = true;
@@ -229,7 +172,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculpting = true;
   savedControlsEnabled = controls.enabled;
   controls.enabled = false;
-  transform.enabled = false; // fully disable TransformControls during sculpt
+  transform.enabled = false;
 });
 
 renderer.domElement.addEventListener("pointermove", e => {
@@ -245,9 +188,7 @@ renderer.domElement.addEventListener("pointermove", e => {
     brushRing.lookAt(hit.point.clone().add(hit.face.normal));
 
     if (sculpting) sculptInflate(hit);
-  } else {
-    brushRing.visible = false;
-  }
+  } else brushRing.visible = false;
 });
 
 window.addEventListener("pointerup", () => {
