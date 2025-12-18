@@ -44,14 +44,14 @@ window.addEventListener("resize", () => {
 });
 
 /* ---------- Mesh Utilities ---------- */
-function createLatticeCube(size = 2, segments = 24, color = 0x88ccff) {
+function createLatticeCube(size = 2, segments = 32, color = 0x88ccff) {
   const geo = new THREE.BoxGeometry(size, size, size, segments, segments, segments);
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ color, wireframe });
   return new THREE.Mesh(geo, mat);
 }
 
-function createLatticeSphere(radius = 1.5, segments = 32, color = 0x88ff88) {
+function createLatticeSphere(radius = 1.5, segments = 64, color = 0x88ff88) {
   const geo = new THREE.SphereGeometry(radius, segments, segments);
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ color, wireframe });
@@ -143,23 +143,54 @@ function sculptInflate(hit) {
   const pos = geo.attributes.position;
   const normal = geo.attributes.normal;
   const radius = parseFloat(document.getElementById("brushSize").value);
-  const strength = 0.12;
+  const strength = 0.15;
+
+  const tmp = new THREE.Vector3();
+  const offset = new THREE.Vector3();
 
   for (let i = 0; i < pos.count; i++) {
-    const vx = pos.getX(i);
-    const vy = pos.getY(i);
-    const vz = pos.getZ(i);
-    const worldPos = new THREE.Vector3(vx, vy, vz).applyMatrix4(activeMesh.matrixWorld);
-    const dist = worldPos.distanceTo(hit.point);
+    tmp.set(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(activeMesh.matrixWorld);
+    const dist = tmp.distanceTo(hit.point);
     if (dist > radius) continue;
-    const falloff = 1 - dist / radius;
-    const move = new THREE.Vector3(normal.getX(i), normal.getY(i), normal.getZ(i))
-      .multiplyScalar(strength * falloff);
-    pos.setXYZ(i, vx + move.x, vy + move.y, vz + move.z);
+
+    const falloff = Math.exp(-(dist * dist) / (radius * radius)); // Gaussian falloff
+    offset.set(normal.getX(i), normal.getY(i), normal.getZ(i)).multiplyScalar(strength * falloff);
+    pos.setXYZ(i, pos.getX(i) + offset.x, pos.getY(i) + offset.y, pos.getZ(i) + offset.z);
   }
 
   pos.needsUpdate = true;
   geo.computeVertexNormals();
+
+  // Optional neighbor smoothing
+  smoothVertices(geo, hit.point, radius * 1.2);
+}
+
+function smoothVertices(geo, center, radius) {
+  const pos = geo.attributes.position;
+  const tmp = new THREE.Vector3();
+  const neighbors = [];
+
+  for (let i = 0; i < pos.count; i++) {
+    tmp.set(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(activeMesh.matrixWorld);
+    if (tmp.distanceTo(center) > radius) continue;
+    neighbors.length = 0;
+
+    geo.index.array.forEach((idx, j) => {
+      if (idx === i) {
+        neighbors.push(geo.index.array[j === 0 ? geo.index.count - 1 : j - 1]);
+        neighbors.push(geo.index.array[(j + 1) % geo.index.count]);
+      }
+    });
+
+    if (neighbors.length === 0) continue;
+
+    let avg = new THREE.Vector3();
+    neighbors.forEach(n => avg.add(new THREE.Vector3(pos.getX(n), pos.getY(n), pos.getZ(n))));
+    avg.multiplyScalar(1 / neighbors.length);
+    pos.setXYZ(i, (pos.getX(i) + avg.x) * 0.5, (pos.getY(i) + avg.y) * 0.5, (pos.getZ(i) + avg.z) * 0.5);
+  }
+
+  pos.needsUpdate = true;
 }
 
 /* ---------- Pointer Events ---------- */
