@@ -1,44 +1,89 @@
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
   background: #2b2b2b;
+  color: #eee;
+  height: 100%;
+  overflow: hidden;
   font-family: system-ui, sans-serif;
 }
 
 #viewport {
   position: absolute;
-  top: 40px;
+  top: 48px;
   left: 0;
-  width: 100vw;
-  height: calc(100vh - 40px);
-  display: block;
+  right: 0;
+  bottom: 0;
 }
 
 #topbar {
   position: absolute;
   top: 0;
   left: 0;
-  height: 40px;
-  width: 100%;
-  background: #1e1e1e;
+  right: 0;
+  height: 48px;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 0 8px;
-  gap: 6px;
+  background: #1f1f1f;
+  padding: 0 10px;
   z-index: 10;
 }
 
-#topbar button,
-#topbar input {
-  background: #3a3a3a;
-  color: white;
+.group button {
+  margin-right: 6px;
+}
+
+button {
+  background: #444;
   border: none;
+  color: #fff;
   padding: 6px 10px;
   cursor: pointer;
   border-radius: 4px;
 }
 
-#topbar button:hover {
-  background: #505050;
+button.active {
+  background: #66aaff;
+}
+
+button:hover {
+  background: #666;
+}
+
+#toolPanel {
+  position: absolute;
+  top: 52px;
+  left: 8px;
+  width: 220px;
+  background: rgba(30, 30, 30, 0.95);
+  padding: 10px;
+  border-radius: 6px;
+  z-index: 10;
+}
+
+#toolPanel.hidden {
+  display: none;
+}
+
+#toolPanel h3 {
+  margin: 0 0 8px 0;
+}
+
+.row {
+  margin-bottom: 10px;
+}
+
+.row button {
+  width: 48%;
+  margin: 2px 1%;
+}
+
+input[type="range"] {
+  width: 100%;
 }
