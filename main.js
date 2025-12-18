@@ -26,6 +26,8 @@ scene.add(transform);
 let activeMesh = null;
 let wireframe = false;
 let cameraLocked = false;
+let sculpting = false;
+let savedControlsEnabled = true;
 
 /* ---------- Lighting ---------- */
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -75,7 +77,7 @@ function setActive(mesh) {
   transform.attach(mesh);
 }
 
-/* ---------- Default ---------- */
+/* ---------- Default Mesh ---------- */
 setActive(createLatticeCube());
 
 /* ---------- UI ---------- */
@@ -119,11 +121,9 @@ document.getElementById("importGLTF").onchange = e => {
   reader.readAsArrayBuffer(file);
 };
 
-/* ---------- Sculpt ---------- */
+/* ---------- Sculpting ---------- */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-let sculpting = false;
-let savedControlsEnabled = true;
 
 const brushRing = new THREE.Mesh(
   new THREE.RingGeometry(0.95, 1, 32),
@@ -153,7 +153,7 @@ function sculptInflate(hit) {
     const dist = tmp.distanceTo(hit.point);
     if (dist > radius) continue;
 
-    const falloff = Math.exp(-(dist * dist) / (radius * radius)); // Gaussian falloff
+    const falloff = Math.exp(-(dist * dist) / (radius * radius)); // Gaussian
     offset.set(normal.getX(i), normal.getY(i), normal.getZ(i)).multiplyScalar(strength * falloff);
     pos.setXYZ(i, pos.getX(i) + offset.x, pos.getY(i) + offset.y, pos.getZ(i) + offset.z);
   }
@@ -161,32 +161,38 @@ function sculptInflate(hit) {
   pos.needsUpdate = true;
   geo.computeVertexNormals();
 
-  // Optional neighbor smoothing
   smoothVertices(geo, hit.point, radius * 1.2);
 }
 
 function smoothVertices(geo, center, radius) {
   const pos = geo.attributes.position;
   const tmp = new THREE.Vector3();
-  const neighbors = [];
+  const neighborMap = {};
+
+  // Build neighbor map
+  if (geo.index) {
+    for (let i = 0; i < geo.index.count; i += 3) {
+      const a = geo.index.array[i];
+      const b = geo.index.array[i + 1];
+      const c = geo.index.array[i + 2];
+      if (!neighborMap[a]) neighborMap[a] = new Set();
+      if (!neighborMap[b]) neighborMap[b] = new Set();
+      if (!neighborMap[c]) neighborMap[c] = new Set();
+      neighborMap[a].add(b).add(c);
+      neighborMap[b].add(a).add(c);
+      neighborMap[c].add(a).add(b);
+    }
+  }
 
   for (let i = 0; i < pos.count; i++) {
     tmp.set(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(activeMesh.matrixWorld);
     if (tmp.distanceTo(center) > radius) continue;
-    neighbors.length = 0;
-
-    geo.index.array.forEach((idx, j) => {
-      if (idx === i) {
-        neighbors.push(geo.index.array[j === 0 ? geo.index.count - 1 : j - 1]);
-        neighbors.push(geo.index.array[(j + 1) % geo.index.count]);
-      }
-    });
-
-    if (neighbors.length === 0) continue;
+    const neighbors = neighborMap[i];
+    if (!neighbors || neighbors.size === 0) continue;
 
     let avg = new THREE.Vector3();
     neighbors.forEach(n => avg.add(new THREE.Vector3(pos.getX(n), pos.getY(n), pos.getZ(n))));
-    avg.multiplyScalar(1 / neighbors.length);
+    avg.multiplyScalar(1 / neighbors.size);
     pos.setXYZ(i, (pos.getX(i) + avg.x) * 0.5, (pos.getY(i) + avg.y) * 0.5, (pos.getZ(i) + avg.z) * 0.5);
   }
 
@@ -200,6 +206,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(activeMesh)[0];
   if (!hit) return;
+
   sculpting = true;
   savedControlsEnabled = controls.enabled;
   controls.enabled = false;
