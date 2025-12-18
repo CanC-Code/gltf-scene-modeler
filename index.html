@@ -1,26 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>MC Voxel Builder</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-<div id="top-bar">
-    <button id="cameraLock">Toggle Camera Lock</button>
-</div>
-
-<div id="gui-container"></div>
-
 <canvas id="viewport"></canvas>
 
-<script type="module" src="three/three.module.js"></script>
-<script type="module" src="three/OrbitControls.js"></script>
-<script type="module" src="three/TransformControls.js"></script>
-<script type="module" src="three/GLTFLoader.js"></script>
-<script type="module" src="three/GLTFExporter.js"></script>
-<script type="module" src="three/lil-gui.esm.min.js"></script>
+<!-- TOP RIGHT CONTROLS -->
+<div id="top-controls">
+  <button id="cameraLock">🔒 Camera</button>
+  <button id="gizmoToggle">🧭 Gizmo</button>
+</div>
+
+<!-- COLLAPSIBLE MENU -->
+<div id="menu">
+  <div id="tabs">
+    <button data-tab="sculpt">Sculpt</button>
+    <button data-tab="object">Object</button>
+    <button data-tab="paint">Paint</button>
+    <button data-tab="export">Export</button>
+  </div>
+
+  <div class="tab" id="sculpt">
+    <label>Brush</label>
+    <button data-brush="inflate">Inflate</button>
+    <button data-brush="deflate">Deflate</button>
+    <button data-brush="smooth">Smooth</button>
+    <button data-brush="flatten">Flatten</button>
+
+    <label>Radius</label>
+    <input id="radius" type="range" min="0.05" max="1" step="0.01" value="0.4">
+
+    <label>Strength</label>
+    <input id="strength" type="range" min="0.01" max="0.5" step="0.01" value="0.15">
+  </div>
+
+  <div class="tab" id="object">
+    <button id="newCube">New Cube</button>
+    <button id="newSphere">New Sphere</button>
+  </div>
+
+  <div class="tab" id="paint">
+    <input type="color" id="paintColor" value="#8ac5ff">
+    <button id="applyPaint">Apply</button>
+  </div>
+
+  <div class="tab" id="export">
+    <button id="exportGLTF">Export GLTF</button>
+  </div>
+</div>
+
 <script type="module" src="main.js"></script>
 </body>
 </html>
