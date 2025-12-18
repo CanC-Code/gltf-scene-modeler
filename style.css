@@ -1,72 +1,53 @@
-html,body {
-  margin:0;
-  padding:0;
-  overflow:hidden;
-  background:#1e1e1e;
-  font-family:sans-serif;
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #2a2a2a;
+  font-family: system-ui, sans-serif;
 }
 
-#viewport {
-  position:fixed;
-  inset:0;
+canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
 }
 
-#top-controls {
-  position:fixed;
-  top:10px;
-  right:10px;
-  display:flex;
-  gap:6px;
-  z-index:10;
+#topbar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(40,40,40,0.95);
+  border-radius: 10px;
+  padding: 6px 10px;
+  display: flex;
+  gap: 12px;
+  z-index: 10;
 }
 
-#top-controls button {
-  background:#333;
-  color:white;
-  border:none;
-  padding:6px 10px;
-  border-radius:6px;
+.group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-#menu {
-  position:fixed;
-  right:10px;
-  top:60px;
-  width:220px;
-  background:#2a2a2a;
-  border-radius:8px;
-  padding:8px;
-  z-index:9;
+button, select, input[type=range] {
+  background: #444;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 
-#tabs {
-  display:flex;
-  gap:4px;
-  margin-bottom:6px;
-}
-
-#tabs button {
-  flex:1;
-  background:#444;
-  color:white;
-  border:none;
-  border-radius:4px;
-}
-
-.tab {
-  display:none;
-}
-
-.tab.active {
-  display:block;
+button:hover {
+  background: #666;
+  cursor: pointer;
 }
 
 label {
-  color:#aaa;
-  font-size:12px;
-}
-
-button {
-  width:100%;
-  margin:4px 0;
+  font-size: 12px;
+  color: #ccc;
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
