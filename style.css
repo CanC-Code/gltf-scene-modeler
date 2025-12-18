@@ -1,56 +1,62 @@
-body {
+body, html {
     margin: 0;
+    padding: 0;
     overflow: hidden;
     font-family: sans-serif;
-    background-color: #202025;
+    background-color: #282c34;
     color: #fff;
 }
 
-/* Top-right panel */
-#uiPanel {
+#top-bar {
     position: absolute;
-    top: 5px;
-    right: 5px;
-    background-color: rgba(20,20,20,0.9);
-    padding: 5px;
-    border-radius: 6px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #1e1e1e;
+    padding: 5px 10px;
+    display: flex;
+    justify-content: flex-start;
     z-index: 10;
-    width: 220px;
 }
 
-#tabs {
+#menu {
+    position: absolute;
+    top: 40px;
+    left: 10px;
+    width: 250px;
+    background: rgba(30,30,30,0.9);
+    border-radius: 5px;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.tab-buttons {
     display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    margin-bottom: 5px;
 }
 
-.tabButton {
-    flex: 1 1 auto;
-    font-size: 0.8em;
-    padding: 2px 4px;
-    cursor: pointer;
-    background-color: #333;
+.tab-buttons button {
+    flex: 1;
+    padding: 5px;
+    background: #333;
     border: none;
-    border-radius: 3px;
-    color: white;
+    color: #fff;
+    cursor: pointer;
 }
 
-.tabButton.active {
-    background-color: #555;
+.tab-buttons button.active {
+    background: #555;
 }
 
-.tabContent {
-    display: flex;
-    flex-direction: column;
-}
-
-.tabContent.hidden {
+.tab-content {
     display: none;
+    padding: 10px;
 }
 
-.tabContent button,
-.tabContent input,
-.tabContent select {
-    margin: 2px 0;
+.tab-content.active {
+    display: block;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
 }
