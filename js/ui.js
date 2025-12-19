@@ -2,33 +2,22 @@ export function initUI(state) {
   /* ---------- Top Bar ---------- */
   const toggleMenuBtn = document.getElementById("toggleMenu");
   const menu = document.getElementById("menu");
+
   toggleMenuBtn.onclick = () => {
-    if (menu.classList.contains("collapsed")) {
-      menu.classList.remove("collapsed");
-      menu.style.opacity = 0;
-      menu.style.display = "block";
-      requestAnimationFrame(() => {
-        menu.style.transition = "opacity 0.2s";
-        menu.style.opacity = 1;
-      });
-    } else {
-      menu.style.transition = "opacity 0.2s";
-      menu.style.opacity = 0;
-      menu.addEventListener("transitionend", function hide() {
-        menu.style.display = "none";
-        menu.classList.add("collapsed");
-        menu.removeEventListener("transitionend", hide);
-      });
-    }
+    menu.classList.toggle("collapsed");
   };
 
   const lockCameraBtn = document.getElementById("lockCamera");
   lockCameraBtn.onclick = () => {
     state.cameraLocked = !state.cameraLocked;
-    lockCameraBtn.textContent = state.cameraLocked ? "Camera Locked" : "Camera Free";
+    state.controls.enabled = !state.cameraLocked;
+
+    lockCameraBtn.textContent = state.cameraLocked
+      ? "Camera Locked"
+      : "Camera Free";
+
     lockCameraBtn.classList.toggle("active", state.cameraLocked);
     lockCameraBtn.classList.toggle("inactive", !state.cameraLocked);
-    state.controls.enabled = !state.cameraLocked;
   };
 
   const wireBtn = document.getElementById("toggleWire");
@@ -37,29 +26,26 @@ export function initUI(state) {
   };
 
   /* ---------- Model ---------- */
-  const cubeBtn = document.getElementById("newCube");
-  cubeBtn.onclick = () => {
+  document.getElementById("newCube").onclick = () => {
     if (state.createCube) state.createCube();
   };
-
-  const sphereBtn = document.getElementById("newSphere");
-  sphereBtn.onclick = () => {
+  document.getElementById("newSphere").onclick = () => {
     if (state.createSphere) state.createSphere();
   };
 
   /* ---------- Sculpt Tools ---------- */
-  const toolMapping = {
-    toolInflate: "inflate",
-    toolDeflate: "deflate",
-    toolSmooth: "smooth",
-    toolFlatten: "flatten",
-    toolPinch: "pinch"
-  };
-
-  Object.entries(toolMapping).forEach(([id, tool]) => {
-    const btn = document.getElementById(id);
+  const tools = ["inflate", "deflate", "smooth", "flatten", "pinch", "clay", "scrape"];
+  tools.forEach(tool => {
+    const btn = document.getElementById(`tool${tool.charAt(0).toUpperCase() + tool.slice(1)}`);
     if (btn) btn.onclick = () => state.setTool(tool);
   });
+
+  const symmetryBtn = document.getElementById("toggleSymmetry");
+  symmetryBtn.onclick = () => {
+    state.symmetry = !state.symmetry;
+    symmetryBtn.classList.toggle("active", state.symmetry);
+    symmetryBtn.textContent = state.symmetry ? "Symmetry On" : "Symmetry Off";
+  };
 
   /* ---------- Sliders ---------- */
   const sizeSlider = document.getElementById("brushSize");
