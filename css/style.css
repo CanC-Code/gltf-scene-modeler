@@ -2,7 +2,7 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #b0c4de; /* light steel blue for better visibility */
+  background: #1e1e1e; /* dark base */
   font-family: sans-serif;
 }
 
@@ -23,11 +23,17 @@ html, body {
 
 #topbar button {
   padding: 6px 10px;
-  background: #444;
-  color: white;
+  background: #333;
+  color: #eee;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+#topbar button:hover {
+  background: #444;
+  transform: scale(1.05);
 }
 
 #lockCamera.active {
@@ -39,25 +45,78 @@ html, body {
   position: fixed;
   top: 48px;
   left: 8px;
-  width: 200px;
-  background: rgba(30,30,30,0.95);
-  color: white;
-  padding: 10px;
-  border-radius: 6px;
+  width: 220px;
+  background: rgba(40,40,40,0.95);
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-#menu.collapsed { display: none; }
+#menu.collapsed {
+  display: none;
+}
 
 #menu h3 {
   margin: 10px 0 5px;
   font-size: 14px;
+  color: #aaa;
+  text-transform: uppercase;
 }
 
-#menu button,
-#menu input {
+#menu button {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  background: #2c2c2c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+#menu button.active {
+  background: #4a8cff;
+  color: #fff;
+  box-shadow: 0 0 6px #4a8cff;
+}
+
+#menu button:hover {
+  background: #3a3a3a;
+}
+
+#menu input[type="range"] {
   width: 100%;
   margin-bottom: 6px;
+  -webkit-appearance: none;
+  background: #333;
+  height: 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#menu input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #4a8cff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 3px #4a8cff;
+  transition: background 0.2s;
+}
+
+#menu input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #4a8cff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 3px #4a8cff;
 }
 
 #cursorBrush {
@@ -72,7 +131,15 @@ html, body {
   display: none;
 }
 
-#menu button.active {
-  background-color: #4a8cff;
-  border: 1px solid #7fb0ff;
+/* Tool & Symmetry Containers */
+#toolContainer, #symContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+#toolContainer button, #symContainer button {
+  flex: 1 1 30%;
+  text-transform: capitalize;
+  font-size: 12px;
 }
