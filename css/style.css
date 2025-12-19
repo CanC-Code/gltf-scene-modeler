@@ -2,24 +2,72 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #111;
+  background: #2b2b2b;
   font-family: sans-serif;
 }
 
 #viewport {
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  cursor: grab;
+  position: fixed;
+  inset: 0;
 }
 
-#viewport:active {
-  cursor: grabbing;
-}
-
-#gui {
-  position: absolute;
-  top: 10px;
-  left: 10px;
+#topbar {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
   z-index: 10;
+}
+
+#topbar button {
+  padding: 6px 10px;
+  background: #444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#topbar button.active {
+  background: #2e7dff;
+}
+
+#menu {
+  position: fixed;
+  top: 48px;
+  left: 8px;
+  width: 200px;
+  background: rgba(30,30,30,0.95);
+  color: white;
+  padding: 10px;
+  border-radius: 6px;
+  z-index: 10;
+}
+
+#menu.collapsed {
+  display: none;
+}
+
+#menu h3 {
+  margin: 10px 0 5px;
+  font-size: 14px;
+}
+
+#menu button,
+#menu input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+#cursorBrush {
+  position: fixed;
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(255,255,255,0.6);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: none;
+  z-index: 9;
 }
