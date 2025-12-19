@@ -4,7 +4,7 @@ import { TransformControls } from "../three/TransformControls.js";
 import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
 import { initUI } from "./ui.js";
-import { mergeVertices } from "../three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeVertices } from "../three/BufferGeometryUtils.js";
 import { SculptBrush } from "./sculptBrush.js";
 
 /* ===============================
