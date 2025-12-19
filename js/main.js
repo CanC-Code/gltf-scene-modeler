@@ -15,7 +15,6 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-// New background for better visibility
 scene.background = new THREE.Color(0xb0c4de); // light steel blue
 
 /* ---------- Camera ---------- */
@@ -68,6 +67,7 @@ const state = {
   cameraLocked: false,
   wireframe: false,
   brush: null,
+  controls, // <-- expose controls to UI
 
   setTool: t => state.brush && state.brush.setTool(t),
   setRadius: r => state.brush && state.brush.setRadius(r),
