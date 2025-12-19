@@ -25,38 +25,33 @@
     <button id="exportGLTF">Export GLTF</button>
     <input type="file" id="importGLTF" accept=".gltf,.glb" />
 
-    <h3>Sculpt</h3>
+    <h3>Sculpt Tools</h3>
     <button id="toolInflate">Inflate</button>
     <button id="toolDeflate">Deflate</button>
     <button id="toolSmooth">Smooth</button>
     <button id="toolFlatten">Flatten</button>
+    <button id="toolPinch">Pinch</button>
+    <button id="toolClay">Clay</button>
+    <button id="toolScrape">Scrape</button>
 
-    <label>Brush Size</label>
+    <h3>Brush</h3>
+    <label>Size</label>
     <input type="range" id="brushSize" min="0.2" max="3" step="0.1" value="1" />
-
-    <label>Brush Strength</label>
+    <label>Strength</label>
     <input type="range" id="brushStrength" min="0.01" max="1" step="0.01" value="0.3" />
 
     <h3>Symmetry</h3>
-    <label><input type="checkbox" id="symX" /> Symmetry X</label>
-    <label><input type="checkbox" id="symY" /> Symmetry Y</label>
-    <label><input type="checkbox" id="symZ" /> Symmetry Z</label>
-
-    <h3>Falloff</h3>
-    <select id="falloffType">
-      <option value="linear">Linear</option>
-      <option value="smooth" selected>Smooth</option>
-      <option value="sphere">Sphere</option>
-    </select>
+    <label><input type="checkbox" id="symX" /> X</label>
+    <label><input type="checkbox" id="symY" /> Y</label>
+    <label><input type="checkbox" id="symZ" /> Z</label>
   </div>
 
   <!-- Cursor Brush -->
   <div id="cursorBrush"></div>
 
-  <!-- Viewport -->
+  <!-- Main Canvas -->
   <canvas id="viewport"></canvas>
 
-  <!-- Main Script -->
-  <script type="module" src="./js/main.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
