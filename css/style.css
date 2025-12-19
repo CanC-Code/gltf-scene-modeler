@@ -37,7 +37,7 @@ html, body {
   position: fixed;
   top: 48px;
   left: 8px;
-  width: 200px;
+  width: 220px;
   background: rgba(30,30,30,0.95);
   color: white;
   padding: 10px;
@@ -49,21 +49,41 @@ html, body {
   display: none;
 }
 
-#menu h3 {
-  margin: 10px 0 5px;
-  font-size: 14px;
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
-#menu button,
-#menu input {
+.tabs button {
+  flex: 1;
+  padding: 6px;
+  background: #444;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: #2e7dff;
+}
+
+.panel {
+  display: none;
+}
+
+.panel.active {
+  display: block;
+}
+
+.panel button,
+.panel input {
   width: 100%;
   margin-bottom: 6px;
 }
 
 #cursorBrush {
   position: fixed;
-  width: 40px;
-  height: 40px;
   border: 2px solid rgba(255,255,255,0.6);
   border-radius: 50%;
   pointer-events: none;
