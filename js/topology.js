@@ -1,6 +1,13 @@
 import * as THREE from "../three/three.module.js";
 
 /**
+ * Ensure geometry has proper normals
+ */
+export function ensureTopology(geometry) {
+  geometry.computeVertexNormals();
+}
+
+/**
  * Builds a neighbor map for each vertex in the geometry.
  * Returns an object mapping vertex index → Set of neighbor indices.
  */
@@ -9,14 +16,12 @@ export function getNeighbors(geometry) {
   const pos = geometry.attributes.position;
   const index = geometry.index ? geometry.index.array : null;
 
-  // Initialize empty sets for all vertices
   for (let i = 0; i < pos.count; i++) {
     neighbors[i] = new Set();
   }
 
   if (!index) return neighbors;
 
-  // Populate neighbors based on indexed faces
   for (let i = 0; i < index.length; i += 3) {
     const a = index[i], b = index[i + 1], c = index[i + 2];
     neighbors[a].add(b).add(c);
@@ -29,7 +34,7 @@ export function getNeighbors(geometry) {
 
 /**
  * Recomputes normals for a given geometry.
- * Optionally only updates normals for a set of vertex indices for performance.
+ * Optionally only updates normals for a set of vertex indices.
  */
 export function updateNormals(geometry, vertices = null) {
   if (!geometry.attributes.normal) {
@@ -42,7 +47,6 @@ export function updateNormals(geometry, vertices = null) {
     return;
   }
 
-  // Partial normal update
   const pos = geometry.attributes.position;
   const normal = geometry.attributes.normal;
   const index = geometry.index ? geometry.index.array : null;
@@ -52,16 +56,12 @@ export function updateNormals(geometry, vertices = null) {
     return;
   }
 
-  // Zero out affected normals
-  for (const vi of vertices) {
-    normal.setXYZ(vi, 0, 0, 0);
-  }
+  for (const vi of vertices) normal.setXYZ(vi, 0, 0, 0);
 
   const tempVec = new THREE.Vector3();
 
   for (let i = 0; i < index.length; i += 3) {
     const a = index[i], b = index[i + 1], c = index[i + 2];
-
     if (!vertices.includes(a) && !vertices.includes(b) && !vertices.includes(c)) continue;
 
     const vA = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
@@ -89,7 +89,6 @@ export function updateNormals(geometry, vertices = null) {
     );
   }
 
-  // Normalize
   for (const vi of vertices) {
     tempVec.set(normal.getX(vi), normal.getY(vi), normal.getZ(vi)).normalize();
     normal.setXYZ(vi, tempVec.x, tempVec.y, tempVec.z);
