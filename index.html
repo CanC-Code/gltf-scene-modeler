@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Web Sculpt Editor</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -17,35 +17,43 @@
   <button id="lockCam">Lock Cam</button>
 </div>
 
-<canvas id="c"></canvas>
+<canvas id="viewport"></canvas>
 
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import * as THREE from "../three/three.module.js";
+import { OrbitControls } from "../three/OrbitControls.js";
 
-const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+/* ---------------- CORE ---------------- */
+
+const canvas = document.getElementById("viewport");
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1e1e1e);
+scene.background = new THREE.Color(0x2a2a2a);
 
 const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
   0.1,
-  1000
+  100
 );
 camera.position.set(3, 3, 3);
 
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 
+/* ---------------- LIGHTING ---------------- */
+
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-dir.position.set(5,5,5);
-scene.add(dir);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+dirLight.position.set(5, 5, 5);
+scene.add(dirLight);
+
+/* ---------------- STATE ---------------- */
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -55,47 +63,23 @@ let sculpting = false;
 let wireframe = false;
 let cameraLocked = false;
 
-/* ---------- MATERIAL ---------- */
+/* ---------------- MATERIAL ---------------- */
+
 function createMaterial() {
   return new THREE.MeshStandardMaterial({
     color: 0xcccccc,
-    metalness: 0.1,
-    roughness: 0.8,
-    wireframe: wireframe
+    roughness: 0.75,
+    metalness: 0.05,
+    wireframe
   });
 }
 
-/* ---------- MESH CREATION ---------- */
-function clearActive() {
-  activeMesh = null;
-}
+/* ---------------- MESH MANAGEMENT ---------------- */
 
-function setActive(mesh) {
-  activeMesh = mesh;
-}
-
-function addCube() {
-  destroyMesh();
-  const geo = new THREE.BoxGeometry(1,1,1,32,32,32);
-  const mesh = new THREE.Mesh(geo, createMaterial());
-  scene.add(mesh);
-  setActive(mesh);
-}
-
-function addSphere() {
-  destroyMesh();
-  const geo = new THREE.SphereGeometry(0.75, 48, 48);
-  const mesh = new THREE.Mesh(geo, createMaterial());
-  scene.add(mesh);
-  setActive(mesh);
-}
-
-/* ---------- DESTRUCTION (THE IMPORTANT PART) ---------- */
 function destroyMesh() {
   if (!activeMesh) return;
 
   sculpting = false;
-
   scene.remove(activeMesh);
 
   if (activeMesh.geometry) {
@@ -111,7 +95,22 @@ function destroyMesh() {
   activeMesh = null;
 }
 
-/* ---------- SCULPTING ---------- */
+function addCube() {
+  destroyMesh();
+  const geo = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
+  activeMesh = new THREE.Mesh(geo, createMaterial());
+  scene.add(activeMesh);
+}
+
+function addSphere() {
+  destroyMesh();
+  const geo = new THREE.SphereGeometry(0.75, 48, 48);
+  activeMesh = new THREE.Mesh(geo, createMaterial());
+  scene.add(activeMesh);
+}
+
+/* ---------------- SCULPT TOOL ---------------- */
+
 function sculpt(event) {
   if (!sculpting || !activeMesh) return;
 
@@ -120,18 +119,18 @@ function sculpt(event) {
 
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(activeMesh);
-
-  if (hit.length === 0) return;
+  if (!hit.length) return;
 
   const geo = activeMesh.geometry;
   const pos = geo.attributes.position;
-  const p = hit[0].point;
+  const normal = hit[0].face.normal.clone();
+  const point = hit[0].point;
 
   for (let i = 0; i < pos.count; i++) {
     const v = new THREE.Vector3().fromBufferAttribute(pos, i);
-    const d = v.distanceTo(p);
+    const d = v.distanceTo(point);
     if (d < 0.25) {
-      v.addScaledVector(hit[0].face.normal, 0.01);
+      v.addScaledVector(normal, 0.015);
       pos.setXYZ(i, v.x, v.y, v.z);
     }
   }
@@ -140,35 +139,43 @@ function sculpt(event) {
   geo.computeVertexNormals();
 }
 
-/* ---------- INPUT ---------- */
-window.addEventListener('pointerdown', e => {
-  if (!cameraLocked) sculpt(e);
-});
-window.addEventListener('pointermove', e => {
-  if (e.buttons === 1 && !cameraLocked) sculpt(e);
+/* ---------------- INPUT ---------------- */
+
+canvas.addEventListener("pointerdown", e => {
+  if (!cameraLocked) sculpting = true;
 });
 
-/* ---------- UI ---------- */
-document.getElementById('addCube').onclick = addCube;
-document.getElementById('addSphere').onclick = addSphere;
+canvas.addEventListener("pointerup", () => {
+  sculpting = false;
+});
 
-document.getElementById('wire').onclick = () => {
+canvas.addEventListener("pointermove", e => {
+  if (sculpting && !cameraLocked) sculpt(e);
+});
+
+/* ---------------- UI ---------------- */
+
+document.getElementById("addCube").onclick = addCube;
+document.getElementById("addSphere").onclick = addSphere;
+
+document.getElementById("wire").onclick = () => {
   wireframe = !wireframe;
   if (activeMesh) activeMesh.material.wireframe = wireframe;
 };
 
-document.getElementById('sculpt').onclick = () => {
+document.getElementById("sculpt").onclick = () => {
   sculpting = !sculpting;
 };
 
-document.getElementById('destroy').onclick = destroyMesh;
+document.getElementById("destroy").onclick = destroyMesh;
 
-document.getElementById('lockCam').onclick = () => {
+document.getElementById("lockCam").onclick = () => {
   cameraLocked = !cameraLocked;
   controls.enabled = !cameraLocked;
 };
 
-/* ---------- LOOP ---------- */
+/* ---------------- LOOP ---------------- */
+
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
@@ -176,7 +183,9 @@ function animate() {
 }
 animate();
 
-window.addEventListener('resize', () => {
+/* ---------------- RESIZE ---------------- */
+
+window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
