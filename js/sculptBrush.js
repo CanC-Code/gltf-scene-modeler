@@ -1,16 +1,26 @@
 import * as THREE from "../three/three.module.js";
+import { getNeighbors, updateNormals } from "./topology.js";
 
 export class SculptBrush {
   constructor(mesh) {
     this.mesh = mesh;
     this.geometry = mesh.geometry;
+
+    // Ensure indexed geometry for neighbor calculations
+    if (!this.geometry.index) {
+      this.geometry = THREE.BufferGeometryUtils.mergeVertices(this.geometry);
+    }
+
     this.position = this.geometry.attributes.position;
     this.normal = this.geometry.attributes.normal;
 
     this.radius = 1;
     this.strength = 0.3;
     this.tool = "inflate";
-    this.symmetry = { x: false, y: false, z: false };
+    this.symmetry = null; // 'x', 'y', 'z' or null
+
+    // Build neighbor map once
+    this.neighbors = getNeighbors(this.geometry);
   }
 
   setTool(tool) {
@@ -25,136 +35,93 @@ export class SculptBrush {
     this.strength = s;
   }
 
-  setSymmetry(axis, enabled) {
-    if (["x","y","z"].includes(axis)) this.symmetry[axis] = enabled;
+  setSymmetry(axis) {
+    this.symmetry = axis; // e.g., 'x', 'y', 'z'
   }
 
-  apply(point) {
+  apply(point, viewDir = null) {
     const pos = this.position;
     const norm = this.normal;
-    const center = point.clone();
+    const center = point;
 
-    const region = [];
-    const avgNormal = new THREE.Vector3();
-    const v = new THREE.Vector3();
-    const n = new THREE.Vector3();
+    const temp = new THREE.Vector3();
+    const tempNormal = new THREE.Vector3();
+    const affected = [];
 
-    // Collect region of influence
     for (let i = 0; i < pos.count; i++) {
-      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      temp.set(pos.getX(i), pos.getY(i), pos.getZ(i));
 
-      const inRegion = this._checkSymmetry(v, center);
-      const dist = v.distanceTo(center);
-      if (dist > this.radius && !inRegion) continue;
+      // Symmetry check
+      if (this.symmetry) {
+        const coord = temp[this.symmetry];
+        const mirrored = 2 * center[this.symmetry] - coord;
+        if (Math.abs(coord - center[this.symmetry]) > this.radius &&
+            Math.abs(mirrored - center[this.symmetry]) > this.radius) continue;
+      } else if (temp.distanceTo(center) > this.radius) continue;
 
-      region.push(i);
-      n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
-      avgNormal.add(n);
+      affected.push(i);
     }
 
-    if (region.length === 0) return;
-    avgNormal.normalize();
+    for (const i of affected) {
+      temp.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      tempNormal.set(norm.getX(i), norm.getY(i), norm.getZ(i));
 
-    // Apply tool effect
-    for (const i of region) {
-      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-      const dist = v.distanceTo(center);
+      const dist = temp.distanceTo(center);
       const falloff = Math.pow(1 - dist / this.radius, 2);
       const influence = falloff * this.strength;
 
-      let ox = 0, oy = 0, oz = 0;
+      let offset = new THREE.Vector3();
 
       switch (this.tool) {
         case "inflate":
-          ox = norm.getX(i) * influence;
-          oy = norm.getY(i) * influence;
-          oz = norm.getZ(i) * influence;
+          offset.copy(tempNormal).multiplyScalar(influence);
           break;
         case "deflate":
-          ox = -norm.getX(i) * influence;
-          oy = -norm.getY(i) * influence;
-          oz = -norm.getZ(i) * influence;
+          offset.copy(tempNormal).multiplyScalar(-influence);
           break;
         case "smooth":
-          ox = -v.x * influence * 0.2;
-          oy = -v.y * influence * 0.2;
-          oz = -v.z * influence * 0.2;
+          offset.set(0, 0, 0);
+          const neigh = this.neighbors[i];
+          if (neigh) {
+            for (const n of neigh) {
+              offset.add(
+                new THREE.Vector3(pos.getX(n), pos.getY(n), pos.getZ(n))
+              );
+            }
+            offset.multiplyScalar(1 / neigh.size);
+            offset.sub(temp).multiplyScalar(influence);
+          }
+          break;
+        case "grab":
+          if (viewDir) offset.copy(viewDir).multiplyScalar(influence);
           break;
         case "flatten":
-          ox = -norm.getX(i) * dist * influence;
-          oy = -norm.getY(i) * dist * influence;
-          oz = -norm.getZ(i) * dist * influence;
+          offset.copy(tempNormal).multiplyScalar(-dist * influence);
           break;
         case "pinch":
-          ox = -v.x * influence;
-          oy = -v.y * influence;
-          oz = -v.z * influence;
+          offset.subVectors(center, temp).multiplyScalar(influence);
           break;
         case "clay":
-          ox = norm.getX(i) * influence * 0.6;
-          oy = norm.getY(i) * influence * 0.6;
-          oz = norm.getZ(i) * influence * 0.6;
+          offset.copy(tempNormal).multiplyScalar(influence * 0.6);
           break;
         case "scrape":
-          ox = -norm.getX(i) * influence * 0.8;
-          oy = -norm.getY(i) * influence * 0.8;
-          oz = -norm.getZ(i) * influence * 0.8;
+          offset.copy(tempNormal).multiplyScalar(-influence * 0.8);
           break;
       }
 
-      pos.setXYZ(i, v.x + ox, v.y + oy, v.z + oz);
+      temp.add(offset);
+      pos.setXYZ(i, temp.x, temp.y, temp.z);
+
+      // Apply symmetry
+      if (this.symmetry) {
+        const mirrored = new THREE.Vector3().copy(temp);
+        mirrored[this.symmetry] =
+          2 * center[this.symmetry] - mirrored[this.symmetry];
+        pos.setXYZ(i, mirrored.x, mirrored.y, mirrored.z);
+      }
     }
 
-    // Laplacian smoothing for coherent surface
-    this._laplacianSmooth(region, 0.45);
-
+    updateNormals(this.geometry, this.neighbors, affected);
     pos.needsUpdate = true;
-    this.geometry.computeVertexNormals();
-  }
-
-  _checkSymmetry(v, center) {
-    let mirrored = false;
-    if (this.symmetry.x && Math.abs(v.x + center.x) < this.radius) mirrored = true;
-    if (this.symmetry.y && Math.abs(v.y + center.y) < this.radius) mirrored = true;
-    if (this.symmetry.z && Math.abs(v.z + center.z) < this.radius) mirrored = true;
-    return mirrored;
-  }
-
-  _laplacianSmooth(region, factor) {
-    const geo = this.geometry;
-    if (!geo.index) return;
-
-    const pos = geo.attributes.position;
-    const index = geo.index.array;
-    const neighbors = {};
-    for (const i of region) neighbors[i] = new Set();
-
-    for (let i = 0; i < index.length; i += 3) {
-      const a = index[i], b = index[i + 1], c = index[i + 2];
-      if (neighbors[a]) neighbors[a].add(b).add(c);
-      if (neighbors[b]) neighbors[b].add(a).add(c);
-      if (neighbors[c]) neighbors[c].add(a).add(b);
-    }
-
-    const original = {};
-    const v = new THREE.Vector3();
-    const avg = new THREE.Vector3();
-
-    for (const i of region) {
-      original[i] = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
-    }
-
-    for (const i of region) {
-      const neigh = neighbors[i];
-      if (!neigh || neigh.size === 0) continue;
-
-      avg.set(0, 0, 0);
-      neigh.forEach(n =>
-        avg.add(new THREE.Vector3(pos.getX(n), pos.getY(n), pos.getZ(n)))
-      );
-      avg.multiplyScalar(1 / neigh.size);
-      v.copy(original[i]).lerp(avg, factor);
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
   }
 }
