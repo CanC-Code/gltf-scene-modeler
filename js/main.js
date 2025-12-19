@@ -15,7 +15,8 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x2e2e2e);
+// New background for better visibility
+scene.background = new THREE.Color(0xb0c4de); // light steel blue
 
 /* ---------- Camera ---------- */
 
@@ -55,7 +56,7 @@ scene.add(rim);
 
 /* ---------- Grid ---------- */
 
-const grid = new THREE.GridHelper(10, 10, 0x555555, 0x333333);
+const grid = new THREE.GridHelper(10, 10, 0x444444, 0x888888);
 grid.position.y = -1.5;
 scene.add(grid);
 
@@ -117,7 +118,7 @@ function createSphere() {
 
 /* ---------- Default ---------- */
 
-createCube();
+createCube(); // Show default cube on load
 
 /* ---------- UI Wiring ---------- */
 
@@ -192,7 +193,8 @@ canvas.addEventListener("pointermove", handleSculpt);
 // Touch
 let touchState = {
   isSculpt: false,
-  lastDistance: 0
+  lastDistance: 0,
+  lastTouchPos: null
 };
 
 canvas.addEventListener("touchstart", e => {
@@ -202,10 +204,13 @@ canvas.addEventListener("touchstart", e => {
   } else if (e.touches.length === 2) {
     sculpting = false;
     touchState.isSculpt = false;
-    touchState.lastDistance = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchState.lastDistance = Math.hypot(dx, dy);
+    touchState.lastTouchPos = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+    };
   }
 });
 
@@ -213,13 +218,26 @@ canvas.addEventListener("touchmove", e => {
   if (touchState.isSculpt) {
     handleSculpt(e);
   } else if (e.touches.length === 2) {
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-    const dist = Math.hypot(dx, dy);
+    // Two-finger orbit
+    const dx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - touchState.lastTouchPos.x;
+    const dy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - touchState.lastTouchPos.y;
+
+    controls.rotateLeft(dx * 0.005);
+    controls.rotateUp(dy * 0.005);
+
+    // Pinch zoom
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
     const zoomFactor = touchState.lastDistance / dist;
-    controls.zoomSpeed = 1;
     camera.position.multiplyScalar(zoomFactor);
     touchState.lastDistance = dist;
+
+    touchState.lastTouchPos = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+    };
   }
 });
 
