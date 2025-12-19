@@ -33,8 +33,9 @@ const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.enablePan = true;
 controls.enableZoom = true;
+controls.enableRotate = true;
 
-// Mouse mapping: right & middle orbit, left reserved for sculpt
+// Mouse mapping
 controls.mouseButtons = {
   LEFT: null,
   MIDDLE: THREE.MOUSE.DOLLY,
@@ -67,7 +68,7 @@ const state = {
   cameraLocked: false,
   wireframe: false,
   brush: null,
-  controls, // <-- expose controls to UI
+  controls, // make controls accessible to UI
 
   setTool: t => state.brush && state.brush.setTool(t),
   setRadius: r => state.brush && state.brush.setRadius(r),
@@ -89,6 +90,7 @@ function clearMesh() {
 function setMesh(mesh) {
   clearMesh();
   activeMesh = mesh;
+  mesh.material.wireframe = state.wireframe;
   scene.add(mesh);
   state.brush = new SculptBrush(mesh);
 }
@@ -118,7 +120,7 @@ function createSphere() {
 
 /* ---------- Default ---------- */
 
-createCube(); // Show default cube on load
+createCube();
 
 /* ---------- UI Wiring ---------- */
 
@@ -143,10 +145,7 @@ initUI({
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
 let sculpting = false;
-
-/* ---------- Helper Functions ---------- */
 
 function getPointerPos(event) {
   if (event.touches) {
@@ -165,7 +164,6 @@ function getPointerPos(event) {
 
 function handleSculpt(event) {
   if (!sculpting || !activeMesh || !state.brush) return;
-
   const pos = getPointerPos(event);
   mouse.x = pos.x;
   mouse.y = pos.y;
@@ -180,7 +178,7 @@ function handleSculpt(event) {
   state.brush.apply(hits[0].point, viewDir);
 }
 
-/* ---------- Pointer Events ---------- */
+/* ---------- Pointer / Touch Events ---------- */
 
 // Desktop mouse
 canvas.addEventListener("pointerdown", e => {
@@ -193,6 +191,7 @@ canvas.addEventListener("pointermove", handleSculpt);
 // Touch
 let touchState = {
   isSculpt: false,
+  isOrbit: false,
   lastDistance: 0,
   lastTouchPos: null
 };
@@ -201,9 +200,12 @@ canvas.addEventListener("touchstart", e => {
   if (e.touches.length === 1) {
     sculpting = true;
     touchState.isSculpt = true;
+    touchState.isOrbit = false;
   } else if (e.touches.length === 2) {
     sculpting = false;
     touchState.isSculpt = false;
+    touchState.isOrbit = true;
+
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     touchState.lastDistance = Math.hypot(dx, dy);
@@ -215,10 +217,10 @@ canvas.addEventListener("touchstart", e => {
 });
 
 canvas.addEventListener("touchmove", e => {
-  if (touchState.isSculpt) {
-    handleSculpt(e);
-  } else if (e.touches.length === 2) {
-    // Two-finger orbit
+  if (touchState.isSculpt) handleSculpt(e);
+  else if (touchState.isOrbit && e.touches.length === 2) {
+    if (state.cameraLocked) return; // respect camera lock
+
     const dx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - touchState.lastTouchPos.x;
     const dy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - touchState.lastTouchPos.y;
 
@@ -243,6 +245,8 @@ canvas.addEventListener("touchmove", e => {
 
 canvas.addEventListener("touchend", e => {
   if (e.touches.length === 0) sculpting = false;
+  touchState.isSculpt = false;
+  touchState.isOrbit = false;
 });
 
 /* ---------- Resize ---------- */
