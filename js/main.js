@@ -25,7 +25,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 2, 5);
 
 /* =========================
-   Lights (high contrast)
+   Lights
 ========================= */
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -39,24 +39,50 @@ rimLight.position.set(-5, 3, -5);
 scene.add(rimLight);
 
 /* =========================
-   Controls
+   Orbit Controls
 ========================= */
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.enableRotate = false; // DEFAULT OFF
+controls.enableRotate = false;
 controls.enablePan = false;
 controls.enableZoom = true;
 
 /* =========================
-   State
+   State (AUTHORITATIVE)
 ========================= */
 
 const state = {
-  mode: "sculpt", // sculpt | transform | view
+  mode: "sculpt",
   isSculpting: false,
   mesh: null,
-  brush: null
+  brush: null,
+
+  setMode(mode) {
+    this.mode = mode;
+
+    if (mode === "transform") {
+      transformControls.visible = true;
+      controls.enableRotate = true;
+    } else {
+      transformControls.visible = false;
+      controls.enableRotate = false;
+    }
+  },
+
+  setTool(tool) {
+    this.brush?.setTool(tool);
+  },
+
+  setRadius(r) {
+    this.brush?.setRadius(r);
+  },
+
+  setStrength(s) {
+    this.brush?.setStrength(s);
+  },
+
+  resetCamera
 };
 
 /* =========================
@@ -67,8 +93,7 @@ const geometry = new THREE.BoxGeometry(1, 1, 1, 40, 40, 40);
 const material = new THREE.MeshStandardMaterial({
   color: 0xcccccc,
   roughness: 0.45,
-  metalness: 0.05,
-  flatShading: false
+  metalness: 0.05
 });
 
 const mesh = new THREE.Mesh(geometry, material);
@@ -108,7 +133,7 @@ function getHitPoint(event) {
 }
 
 /* =========================
-   Input Rules (CRITICAL)
+   Input Rules
 ========================= */
 
 canvas.addEventListener("contextmenu", e => e.preventDefault());
@@ -126,21 +151,16 @@ canvas.addEventListener("pointerdown", e => {
   }
 });
 
-canvas.addEventListener("pointerup", e => {
+canvas.addEventListener("pointerup", () => {
   state.isSculpting = false;
-
-  if (state.mode === "sculpt") {
-    controls.enableRotate = false;
-  }
+  controls.enableRotate = false;
 });
 
 canvas.addEventListener("pointermove", e => {
   if (!state.isSculpting || state.mode !== "sculpt") return;
 
   const point = getHitPoint(e);
-  if (point) {
-    state.brush.apply(point);
-  }
+  if (point) state.brush.apply(point);
 });
 
 /* =========================
@@ -151,8 +171,8 @@ canvas.addEventListener("touchstart", e => {
   if (e.touches.length === 2) {
     controls.enableRotate = true;
   } else {
-    controls.enableRotate = false;
     state.isSculpting = true;
+    controls.enableRotate = false;
   }
 });
 
@@ -172,36 +192,10 @@ function resetCamera() {
 }
 
 /* =========================
-   UI Hook
+   UI
 ========================= */
 
-initUI({
-  setMode(mode) {
-    state.mode = mode;
-
-    if (mode === "transform") {
-      transformControls.visible = true;
-      controls.enableRotate = true;
-    } else {
-      transformControls.visible = false;
-      controls.enableRotate = false;
-    }
-  },
-
-  setTool(tool) {
-    state.brush.setTool(tool);
-  },
-
-  setRadius(r) {
-    state.brush.setRadius(r);
-  },
-
-  setStrength(s) {
-    state.brush.setStrength(s);
-  },
-
-  resetCamera
-});
+initUI(state);
 
 /* =========================
    Resize
