@@ -1,30 +1,21 @@
 import * as THREE from "../three/three.module.js";
 import { mergeVertices } from "../three/BufferGeometryUtils.js";
-import { getNeighbors, updateNormals } from "./topology.js";
 
 export class SculptBrush {
   constructor(mesh) {
     this.mesh = mesh;
-
-    // Ensure indexed geometry for proper neighbor calculations
-    if (!mesh.geometry.index) {
-      this.geometry = mergeVertices(mesh.geometry);
-      mesh.geometry.dispose();
-      mesh.geometry = this.geometry;
-    } else {
-      this.geometry = mesh.geometry;
-    }
-
+    this.geometry = mesh.geometry;
     this.position = this.geometry.attributes.position;
     this.normal = this.geometry.attributes.normal;
+    this.index = this.geometry.index;
 
-    this.radius = 1;
+    this.radius = 1.0;
     this.strength = 0.3;
     this.tool = "inflate";
-    this.symmetry = null; // 'x', 'y', 'z' or null
+    this.symmetry = { x: false, y: false, z: false };
 
-    // Build neighbor map
-    this.neighbors = getNeighbors(this.geometry);
+    this.neighbors = this.buildNeighborMap();
+    mergeVertices(this.geometry); // remove duplicates to stabilize
   }
 
   setTool(tool) {
@@ -39,117 +30,140 @@ export class SculptBrush {
     this.strength = s;
   }
 
-  setSymmetry(axis) {
-    // Accept 'x', 'y', 'z', or null
-    this.symmetry = axis;
+  setSymmetry({ x = false, y = false, z = false }) {
+    this.symmetry = { x, y, z };
+  }
+
+  buildNeighborMap() {
+    const neighbors = {};
+    const index = this.geometry.index.array;
+    for (let i = 0; i < index.length; i += 3) {
+      const a = index[i], b = index[i + 1], c = index[i + 2];
+      if (!neighbors[a]) neighbors[a] = new Set();
+      if (!neighbors[b]) neighbors[b] = new Set();
+      if (!neighbors[c]) neighbors[c] = new Set();
+      neighbors[a].add(b).add(c);
+      neighbors[b].add(a).add(c);
+      neighbors[c].add(a).add(b);
+    }
+    return neighbors;
   }
 
   apply(point, viewDir = null) {
     const pos = this.position;
     const norm = this.normal;
+    const center = point;
 
-    const affectedVertices = [];
+    const region = [];
+    const v = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const avgNormal = new THREE.Vector3();
 
+    // Phase 1: collect region
     for (let i = 0; i < pos.count; i++) {
-      const vx = pos.getX(i);
-      const vy = pos.getY(i);
-      const vz = pos.getZ(i);
-
-      const dx = vx - point.x;
-      const dy = vy - point.y;
-      const dz = vz - point.z;
-
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      const dist = v.distanceTo(center);
       if (dist > this.radius) continue;
 
-      const falloff = Math.pow(1 - dist / this.radius, 2);
-      const influence = falloff * this.strength;
+      region.push(i);
+      n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
+      avgNormal.add(n);
+    }
+    if (region.length === 0) return;
+    avgNormal.normalize();
 
-      const nx = norm.getX(i);
-      const ny = norm.getY(i);
-      const nz = norm.getZ(i);
+    // Phase 2: neighbor-aware displacement
+    for (const i of region) {
+      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
+
+      const dist = v.distanceTo(center);
+      const falloff = Math.exp(-(dist * dist) / (this.radius * this.radius));
+      const influence = this.strength * falloff;
 
       let ox = 0, oy = 0, oz = 0;
 
       switch (this.tool) {
         case "inflate":
-          ox = nx * influence;
-          oy = ny * influence;
-          oz = nz * influence;
+          ox = n.x * influence;
+          oy = n.y * influence;
+          oz = n.z * influence;
           break;
 
         case "deflate":
-          ox = -nx * influence;
-          oy = -ny * influence;
-          oz = -nz * influence;
+          ox = -n.x * influence;
+          oy = -n.y * influence;
+          oz = -n.z * influence;
           break;
 
         case "smooth":
-          // Average neighbors displacement
-          let avg = new THREE.Vector3();
+          // neighbor average
           const neigh = this.neighbors[i];
           if (neigh && neigh.size > 0) {
-            neigh.forEach(n => {
-              avg.add(new THREE.Vector3(
-                pos.getX(n),
-                pos.getY(n),
-                pos.getZ(n)
-              ));
-            });
+            const avg = new THREE.Vector3();
+            neigh.forEach(nIdx =>
+              avg.add(new THREE.Vector3(pos.getX(nIdx), pos.getY(nIdx), pos.getZ(nIdx)))
+            );
             avg.multiplyScalar(1 / neigh.size);
-            ox = (avg.x - vx) * influence;
-            oy = (avg.y - vy) * influence;
-            oz = (avg.z - vz) * influence;
+            ox = (avg.x - v.x) * influence;
+            oy = (avg.y - v.y) * influence;
+            oz = (avg.z - v.z) * influence;
           }
           break;
 
-        case "grab":
-          if (!viewDir) break;
-          ox = viewDir.x * influence;
-          oy = viewDir.y * influence;
-          oz = viewDir.z * influence;
-          break;
-
         case "flatten":
-          ox = -nx * dist * influence;
-          oy = -ny * dist * influence;
-          oz = -nz * dist * influence;
+          ox = -n.x * dist * influence;
+          oy = -n.y * dist * influence;
+          oz = -n.z * dist * influence;
           break;
 
         case "pinch":
-          ox = -dx * influence;
-          oy = -dy * influence;
-          oz = -dz * influence;
-          break;
-
-        case "clay":
-          ox = nx * influence * 0.6;
-          oy = ny * influence * 0.6;
-          oz = nz * influence * 0.6;
-          break;
-
-        case "scrape":
-          ox = -nx * influence * 0.8;
-          oy = -ny * influence * 0.8;
-          oz = -nz * influence * 0.8;
+          ox = - (v.x - center.x) * influence;
+          oy = - (v.y - center.y) * influence;
+          oz = - (v.z - center.z) * influence;
           break;
       }
 
-      pos.setXYZ(i, vx + ox, vy + oy, vz + oz);
-      affectedVertices.push(i);
+      v.add(new THREE.Vector3(ox, oy, oz));
+      pos.setXYZ(i, v.x, v.y, v.z);
 
-      // Apply symmetry if set
-      if (this.symmetry) {
-        let sx = vx, sy = vy, sz = vz;
-        if (this.symmetry === "x") sx = -vx;
-        if (this.symmetry === "y") sy = -vy;
-        if (this.symmetry === "z") sz = -vz;
-
-        pos.setXYZ(i, sx + ox, sy + oy, sz + oz);
-      }
+      // Phase 3: symmetry
+      if (this.symmetry.x) pos.setXYZ(i, -v.x, v.y, v.z);
+      if (this.symmetry.y) pos.setXYZ(i, v.x, -v.y, v.z);
+      if (this.symmetry.z) pos.setXYZ(i, v.x, v.y, -v.z);
     }
 
+    // Phase 4: Laplacian smoothing for local relaxation
+    this.laplacianSmooth(region, 0.45);
+
     pos.needsUpdate = true;
-    updateNormals(this.geometry, affectedVertices);
+    this.geometry.computeVertexNormals();
+  }
+
+  laplacianSmooth(region, factor) {
+    if (!this.geometry.index) return;
+    const pos = this.position;
+    const index = this.geometry.index.array;
+    const neighbors = this.neighbors;
+
+    const original = {};
+    const v = new THREE.Vector3();
+    const avg = new THREE.Vector3();
+
+    for (const i of region) {
+      original[i] = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    }
+
+    for (const i of region) {
+      const neigh = neighbors[i];
+      if (!neigh || neigh.size === 0) continue;
+
+      avg.set(0, 0, 0);
+      neigh.forEach(n => avg.add(new THREE.Vector3(pos.getX(n), pos.getY(n), pos.getZ(n))));
+      avg.multiplyScalar(1 / neigh.size);
+
+      v.copy(original[i]).lerp(avg, factor);
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
   }
 }
