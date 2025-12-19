@@ -15,21 +15,27 @@
   </div>
 
   <div id="menu" class="collapsed">
-    <h3>Model</h3>
-    <button id="newCube">New Cube</button>
-    <button id="newSphere">New Sphere</button>
+    <div class="tabs">
+      <button data-tab="model" class="active">Model</button>
+      <button data-tab="sculpt">Sculpt</button>
+    </div>
 
-    <h3>File</h3>
-    <button id="exportGLTF">Export GLTF</button>
-    <input type="file" id="importGLTF" accept=".gltf,.glb" />
+    <div class="panel active" id="panel-model">
+      <button id="newCube">New Cube</button>
+      <button id="newSphere">New Sphere</button>
 
-    <h3>Sculpt</h3>
-    <label>Brush Size</label>
-    <input type="range" id="brushSize" min="0.2" max="3" step="0.1" value="1" />
+      <h3>File</h3>
+      <button id="exportGLTF">Export GLTF</button>
+      <input type="file" id="importGLTF" accept=".gltf,.glb" />
+    </div>
+
+    <div class="panel" id="panel-sculpt">
+      <label>Brush Size</label>
+      <input type="range" id="brushSize" min="0.2" max="3" step="0.1" value="1" />
+    </div>
   </div>
 
   <div id="cursorBrush"></div>
-
   <canvas id="viewport"></canvas>
 
   <script type="module" src="./js/main.js"></script>
