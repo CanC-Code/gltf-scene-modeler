@@ -9,6 +9,7 @@ let scene, camera, renderer, controls;
 let activeMesh = null;
 let wireframe = false;
 let cameraLocked = false;
+let mode = 'model';
 let sculpt;
 
 function initThree() {
@@ -35,13 +36,13 @@ function initThree() {
   createCube();
 
   sculpt = new SculptBrush({
-    scene,
     camera,
     canvas,
     cursor: document.getElementById('cursorBrush'),
     getMesh: () => activeMesh,
-    onStart: () => setCameraLocked(true),
-    onEnd: () => setCameraLocked(false)
+    isEnabled: () => mode === 'sculpt',
+    onStrokeStart: () => controls.enabled = false,
+    onStrokeEnd: () => controls.enabled = !cameraLocked
   });
 
   animate();
@@ -52,7 +53,6 @@ function clearActiveMesh() {
   scene.remove(activeMesh);
   activeMesh.geometry.dispose();
   activeMesh.material.dispose();
-  activeMesh = null;
 }
 
 function setActive(mesh) {
@@ -98,31 +98,15 @@ function initUI() {
   document.getElementById('newCube').onclick = createCube;
   document.getElementById('newSphere').onclick = createSphere;
 
-  document.getElementById('exportGLTF').onclick = () => {
-    if (!activeMesh) return;
-    const exporter = new GLTFExporter();
-    exporter.parse(activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'model.gltf';
-      a.click();
-    });
-  };
-
-  document.getElementById('importGLTF').onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const loader = new GLTFLoader();
-      loader.parse(reader.result, '', gltf => {
-        const mesh = gltf.scene.getObjectByProperty('type', 'Mesh');
-        if (mesh) setActive(mesh);
-      });
+  document.querySelectorAll('.tabs button').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.dataset.tab;
+      document.getElementById(`panel-${mode}`).classList.add('active');
     };
-    reader.readAsArrayBuffer(file);
-  };
+  });
 
   document.getElementById('brushSize').oninput =
     e => sculpt.radius = parseFloat(e.target.value);
