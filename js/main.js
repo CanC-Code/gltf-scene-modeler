@@ -27,21 +27,17 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(3.5, 3.5, 5);
 
-/* ---------- Controls ---------- */
+/* ---------- Orbit Controls ---------- */
 
-let controls = null;
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
 
-function enableControls() {
-  if (controls) return;
-  controls = new OrbitControls(camera, canvas);
-  controls.enableDamping = true;
-}
-
-function disableControls() {
-  if (!controls) return;
-  controls.dispose();
-  controls = null;
-}
+// Mouse mapping: right & middle orbit, left reserved for sculpt
+controls.mouseButtons = {
+  LEFT: null,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT: THREE.MOUSE.ROTATE
+};
 
 /* ---------- Lighting ---------- */
 
@@ -79,6 +75,7 @@ const state = {
 
 function clearMesh() {
   if (!activeMesh) return;
+
   scene.remove(activeMesh);
   activeMesh.geometry.dispose();
   activeMesh.material.dispose();
@@ -119,7 +116,6 @@ function createSphere() {
 /* ---------- Default ---------- */
 
 createCube();
-enableControls();
 
 /* ---------- UI Wiring ---------- */
 
@@ -137,23 +133,20 @@ initUI({
   toggleCameraLock: () => {
     state.cameraLocked = !state.cameraLocked;
 
-    if (state.cameraLocked) {
-      disableControls();
-    } else {
-      enableControls();
-    }
+    // Lock = disable rotation only
+    controls.enableRotate = !state.cameraLocked;
   }
 });
 
-/* ---------- Sculpt Interaction (ONLY when locked) ---------- */
+/* ---------- Sculpt Interaction ---------- */
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+
 let sculpting = false;
 
 canvas.addEventListener("pointerdown", e => {
-  if (!state.cameraLocked) return;
-  if (e.button !== 0) return;
+  if (e.button !== 0) return; // left mouse only
   sculpting = true;
 });
 
@@ -161,7 +154,7 @@ canvas.addEventListener("pointerup", () => sculpting = false);
 canvas.addEventListener("pointerleave", () => sculpting = false);
 
 canvas.addEventListener("pointermove", e => {
-  if (!sculpting || !state.cameraLocked || !state.brush || !activeMesh) return;
+  if (!sculpting || !activeMesh || !state.brush) return;
 
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -188,7 +181,7 @@ window.addEventListener("resize", () => {
 
 function animate() {
   requestAnimationFrame(animate);
-  if (controls) controls.update();
+  controls.update();
   renderer.render(scene, camera);
 }
 animate();
