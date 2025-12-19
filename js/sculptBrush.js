@@ -15,7 +15,7 @@ export class SculptBrush {
     this.symmetry = { x: false, y: false, z: false };
 
     this.neighbors = this.buildNeighborMap();
-    mergeVertices(this.geometry); // remove duplicates to stabilize
+    mergeVertices(this.geometry); // stabilize vertices
   }
 
   setTool(tool) {
@@ -50,6 +50,8 @@ export class SculptBrush {
   }
 
   apply(point, viewDir = null) {
+    this.dynamicSubdivision(point);
+
     const pos = this.position;
     const norm = this.normal;
     const center = point;
@@ -59,7 +61,7 @@ export class SculptBrush {
     const n = new THREE.Vector3();
     const avgNormal = new THREE.Vector3();
 
-    // Phase 1: collect region
+    // collect region vertices
     for (let i = 0; i < pos.count; i++) {
       v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
       const dist = v.distanceTo(center);
@@ -72,7 +74,7 @@ export class SculptBrush {
     if (region.length === 0) return;
     avgNormal.normalize();
 
-    // Phase 2: neighbor-aware displacement
+    // apply tool
     for (const i of region) {
       v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
       n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
@@ -97,7 +99,6 @@ export class SculptBrush {
           break;
 
         case "smooth":
-          // neighbor average
           const neigh = this.neighbors[i];
           if (neigh && neigh.size > 0) {
             const avg = new THREE.Vector3();
@@ -127,13 +128,13 @@ export class SculptBrush {
       v.add(new THREE.Vector3(ox, oy, oz));
       pos.setXYZ(i, v.x, v.y, v.z);
 
-      // Phase 3: symmetry
+      // symmetry
       if (this.symmetry.x) pos.setXYZ(i, -v.x, v.y, v.z);
       if (this.symmetry.y) pos.setXYZ(i, v.x, -v.y, v.z);
       if (this.symmetry.z) pos.setXYZ(i, v.x, v.y, -v.z);
     }
 
-    // Phase 4: Laplacian smoothing for local relaxation
+    // Laplacian smoothing
     this.laplacianSmooth(region, 0.45);
 
     pos.needsUpdate = true;
@@ -143,9 +144,7 @@ export class SculptBrush {
   laplacianSmooth(region, factor) {
     if (!this.geometry.index) return;
     const pos = this.position;
-    const index = this.geometry.index.array;
     const neighbors = this.neighbors;
-
     const original = {};
     const v = new THREE.Vector3();
     const avg = new THREE.Vector3();
@@ -164,6 +163,53 @@ export class SculptBrush {
 
       v.copy(original[i]).lerp(avg, factor);
       pos.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+
+  dynamicSubdivision(centerPoint) {
+    const geo = this.geometry;
+    if (!geo.index) return;
+
+    const pos = geo.attributes.position;
+    const idx = geo.index.array;
+
+    const threshold = 0.5 * this.radius; // edge length threshold
+    const newVerts = [];
+
+    for (let i = 0; i < idx.length; i += 3) {
+      const a = idx[i], b = idx[i + 1], c = idx[i + 2];
+      const vA = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
+      const vB = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
+      const vC = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
+
+      const edges = [
+        { from: a, to: b, vFrom: vA, vTo: vB },
+        { from: b, to: c, vFrom: vB, vTo: vC },
+        { from: c, to: a, vFrom: vC, vTo: vA }
+      ];
+
+      edges.forEach(e => {
+        if (e.vFrom.distanceTo(e.vTo) > threshold) {
+          const mid = new THREE.Vector3().addVectors(e.vFrom, e.vTo).multiplyScalar(0.5);
+          newVerts.push({ pos: mid, indices: [e.from, e.to] });
+        }
+      });
+    }
+
+    if (newVerts.length > 0) {
+      const oldPos = pos.array;
+      const newPos = new Float32Array(oldPos.length + newVerts.length * 3);
+      newPos.set(oldPos);
+      let offset = oldPos.length;
+      newVerts.forEach(v => {
+        newPos[offset++] = v.pos.x;
+        newPos[offset++] = v.pos.y;
+        newPos[offset++] = v.pos.z;
+      });
+      geo.setAttribute("position", new THREE.BufferAttribute(newPos, 3));
+      geo.computeVertexNormals();
+      this.neighbors = this.buildNeighborMap();
+      mergeVertices(geo);
     }
   }
 }
