@@ -1,196 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Web Sculpt Editor</title>
-<link rel="stylesheet" href="./css/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MC Voxel Builder</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
 
-<div id="ui">
-  <button id="addCube">Cube</button>
-  <button id="addSphere">Sphere</button>
-  <button id="wire">Wire</button>
-  <button id="sculpt">Sculpt</button>
-  <button id="destroy">Destroy</button>
-  <button id="lockCam">Lock Cam</button>
-</div>
+  <!-- Top Bar -->
+  <div id="topbar">
+    <button id="toggleMenu">☰</button>
+    <button id="lockCamera">Camera Free</button>
+    <button id="toggleWire">▦ Wire</button>
+  </div>
 
-<canvas id="viewport"></canvas>
+  <!-- Side Menu -->
+  <div id="menu" class="collapsed">
+    <h3>Model</h3>
+    <button id="newCube">New Cube</button>
+    <button id="newSphere">New Sphere</button>
 
-<script type="module">
-import * as THREE from "./three/three.module.js";
-import { OrbitControls } from "./three/OrbitControls.js";
+    <h3>Sculpt</h3>
+    <button id="toolInflate">Inflate</button>
+    <button id="toolSmooth">Smooth</button>
+    <button id="toolFlatten">Flatten</button>
+    <label>Brush Size</label>
+    <input type="range" id="brushSize" min="0.2" max="3" step="0.1" value="1" />
+    <label>Brush Strength</label>
+    <input type="range" id="brushStrength" min="0.01" max="0.2" step="0.01" value="0.08" />
 
-/* ---------------- CORE ---------------- */
+    <h3>File</h3>
+    <button id="exportGLTF">Export GLTF</button>
+    <input type="file" id="importGLTF" accept=".gltf,.glb" />
+  </div>
 
-const canvas = document.getElementById("viewport");
+  <!-- Cursor Brush -->
+  <div id="cursorBrush"></div>
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+  <!-- WebGL Canvas -->
+  <canvas id="viewport"></canvas>
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x2a2a2a);
-
-const camera = new THREE.PerspectiveCamera(
-  60,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  100
-);
-camera.position.set(3, 3, 3);
-
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
-
-/* ---------------- LIGHTING ---------------- */
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-dirLight.position.set(5, 5, 5);
-scene.add(dirLight);
-
-/* ---------------- STATE ---------------- */
-
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-
-let activeMesh = null;
-let sculpting = false;
-let wireframe = false;
-let cameraLocked = false;
-
-/* ---------------- MATERIAL ---------------- */
-
-function createMaterial() {
-  return new THREE.MeshStandardMaterial({
-    color: 0xcccccc,
-    roughness: 0.75,
-    metalness: 0.05,
-    wireframe
-  });
-}
-
-/* ---------------- MESH MANAGEMENT ---------------- */
-
-function destroyMesh() {
-  if (!activeMesh) return;
-
-  sculpting = false;
-  scene.remove(activeMesh);
-
-  if (activeMesh.geometry) {
-    activeMesh.geometry.dispose();
-  }
-
-  if (Array.isArray(activeMesh.material)) {
-    activeMesh.material.forEach(m => m.dispose());
-  } else if (activeMesh.material) {
-    activeMesh.material.dispose();
-  }
-
-  activeMesh = null;
-}
-
-function addCube() {
-  destroyMesh();
-  const geo = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
-  activeMesh = new THREE.Mesh(geo, createMaterial());
-  scene.add(activeMesh);
-}
-
-function addSphere() {
-  destroyMesh();
-  const geo = new THREE.SphereGeometry(0.75, 48, 48);
-  activeMesh = new THREE.Mesh(geo, createMaterial());
-  scene.add(activeMesh);
-}
-
-/* ---------------- SCULPT TOOL ---------------- */
-
-function sculpt(event) {
-  if (!sculpting || !activeMesh) return;
-
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  const hit = raycaster.intersectObject(activeMesh);
-  if (!hit.length) return;
-
-  const geo = activeMesh.geometry;
-  const pos = geo.attributes.position;
-  const normal = hit[0].face.normal.clone();
-  const point = hit[0].point;
-
-  for (let i = 0; i < pos.count; i++) {
-    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
-    const d = v.distanceTo(point);
-    if (d < 0.25) {
-      v.addScaledVector(normal, 0.015);
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
-  }
-
-  pos.needsUpdate = true;
-  geo.computeVertexNormals();
-}
-
-/* ---------------- INPUT ---------------- */
-
-canvas.addEventListener("pointerdown", e => {
-  if (!cameraLocked) sculpting = true;
-});
-
-canvas.addEventListener("pointerup", () => {
-  sculpting = false;
-});
-
-canvas.addEventListener("pointermove", e => {
-  if (sculpting && !cameraLocked) sculpt(e);
-});
-
-/* ---------------- UI ---------------- */
-
-document.getElementById("addCube").onclick = addCube;
-document.getElementById("addSphere").onclick = addSphere;
-
-document.getElementById("wire").onclick = () => {
-  wireframe = !wireframe;
-  if (activeMesh) activeMesh.material.wireframe = wireframe;
-};
-
-document.getElementById("sculpt").onclick = () => {
-  sculpting = !sculpting;
-};
-
-document.getElementById("destroy").onclick = destroyMesh;
-
-document.getElementById("lockCam").onclick = () => {
-  cameraLocked = !cameraLocked;
-  controls.enabled = !cameraLocked;
-};
-
-/* ---------------- LOOP ---------------- */
-
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-
-/* ---------------- RESIZE ---------------- */
-
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-</script>
-
+  <!-- Main Script -->
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>
