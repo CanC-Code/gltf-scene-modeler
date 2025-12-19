@@ -3,9 +3,8 @@ import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
 import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
-import { initUI } from "./ui.js";
 import { SculptBrush } from "./sculptBrush.js";
-import { mergeVertices } from "../three/BufferGeometryUtils.js"; // Ensure path correct
+import { initUI } from "./ui.js";
 
 /* ===============================
    Core Setup
@@ -17,7 +16,7 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xb0c4de); // Light steel blue
+scene.background = new THREE.Color(0xb0c4de); // light steel blue
 
 const camera = new THREE.PerspectiveCamera(
   60,
@@ -47,10 +46,11 @@ const state = {
   controls,
   cameraLocked,
   wireframe,
+  symmetry: { x: false, y: false, z: false },
   setTool: t => state.brush && state.brush.setTool(t),
   setRadius: r => state.brush && state.brush.setRadius(r),
   setStrength: s => state.brush && state.brush.setStrength(s),
-  setSymmetry: s => state.brush && state.brush.setSymmetry && state.brush.setSymmetry(s),
+  setSymmetry: s => state.brush && state.brush.setSymmetry(s),
   toggleWireframe: () => {
     wireframe = !wireframe;
     if (activeMesh) activeMesh.material.wireframe = wireframe;
@@ -89,34 +89,19 @@ function clearActiveMesh() {
   if (!activeMesh) return;
   transform.detach();
   scene.remove(activeMesh);
-  if (activeMesh.geometry) activeMesh.geometry.dispose();
-  if (activeMesh.material) activeMesh.material.dispose();
+  activeMesh.geometry.dispose();
+  activeMesh.material.dispose();
   activeMesh = null;
   state.brush = null;
 }
 
 function setActive(mesh) {
   clearActiveMesh();
-
-  // If mesh is a group, find first Mesh child
-  if (!mesh.geometry && mesh.isGroup && mesh.children.length > 0) {
-    mesh = mesh.children.find(c => c.isMesh);
-  }
-  if (!mesh || !mesh.geometry) return;
-
   activeMesh = mesh;
   scene.add(mesh);
   transform.attach(mesh);
 
-  // Merge vertices to prevent mesh tearing
-  if (activeMesh.geometry.index === null) {
-    const merged = mergeVertices(activeMesh.geometry);
-    activeMesh.geometry.dispose();
-    activeMesh.geometry = merged;
-  }
-
-  // Initialize brush
-  state.brush = new SculptBrush(activeMesh);
+  if (!state.brush) state.brush = new SculptBrush(activeMesh);
 }
 
 /* ===============================
@@ -124,19 +109,21 @@ function setActive(mesh) {
 ================================ */
 
 function createCube() {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-    new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe })
+  setActive(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe })
+    )
   );
-  setActive(mesh);
 }
 
 function createSphere() {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(1.5, 64, 64),
-    new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe })
+  setActive(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(1.5, 64, 64),
+      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe })
+    )
   );
-  setActive(mesh);
 }
 
 /* ===============================
@@ -158,7 +145,7 @@ function importGLTF(e) {
   const reader = new FileReader();
   reader.onload = () => {
     new GLTFLoader().parse(reader.result, "", gltf => {
-      const mesh = gltf.scene.getObjectByProperty("type", "Mesh") || gltf.scene.children.find(c => c.isMesh);
+      const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
       if (mesh) setActive(mesh);
     });
   };
