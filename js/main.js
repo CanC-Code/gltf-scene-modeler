@@ -1,11 +1,12 @@
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
+import { GLTFExporter } from "../three/GLTFExporter.js";
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
 
 /* =========================
-   Renderer / Scene / Camera
+   Renderer / Scene
 ========================= */
 
 const canvas = document.querySelector("canvas");
@@ -16,12 +17,11 @@ renderer.setClearColor(0x1e1e1e);
 
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(
-  45,
-  window.innerWidth / window.innerHeight,
-  0.01,
-  100
-);
+/* =========================
+   Camera
+========================= */
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
 camera.position.set(0, 2, 5);
 
 /* =========================
@@ -30,13 +30,9 @@ camera.position.set(0, 2, 5);
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
-keyLight.position.set(5, 10, 5);
-scene.add(keyLight);
-
-const rimLight = new THREE.DirectionalLight(0x88aaff, 0.4);
-rimLight.position.set(-5, 3, -5);
-scene.add(rimLight);
+const key = new THREE.DirectionalLight(0xffffff, 0.9);
+key.position.set(5, 10, 5);
+scene.add(key);
 
 /* =========================
    Orbit Controls
@@ -46,28 +42,99 @@ const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.enableRotate = false;
 controls.enablePan = false;
-controls.enableZoom = true;
 
 /* =========================
-   State (AUTHORITATIVE)
+   Transform Controls
+========================= */
+
+const transformControls = new TransformControls(camera, canvas);
+scene.add(transformControls);
+
+transformControls.addEventListener("dragging-changed", e => {
+  controls.enabled = !e.value;
+});
+
+/* =========================
+   Mesh Management
+========================= */
+
+let activeMesh = null;
+let wireframe = false;
+
+function setActiveMesh(mesh) {
+  if (activeMesh) {
+    scene.remove(activeMesh);
+    activeMesh.geometry.dispose();
+    activeMesh.material.dispose();
+  }
+
+  activeMesh = mesh;
+  scene.add(mesh);
+
+  transformControls.attach(mesh);
+  state.brush = new SculptBrush(mesh);
+}
+
+/* =========================
+   Mesh Creation
+========================= */
+
+function createCube() {
+  const geo = new THREE.BoxGeometry(1, 1, 1, 40, 40, 40);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xcccccc,
+    wireframe
+  });
+  setActiveMesh(new THREE.Mesh(geo, mat));
+}
+
+function createSphere() {
+  const geo = new THREE.SphereGeometry(0.75, 64, 64);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xcccccc,
+    wireframe
+  });
+  setActiveMesh(new THREE.Mesh(geo, mat));
+}
+
+/* =========================
+   Export
+========================= */
+
+function exportGLTF() {
+  if (!activeMesh) return;
+
+  const exporter = new GLTFExporter();
+  exporter.parse(activeMesh, gltf => {
+    const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "model.gltf";
+    a.click();
+  });
+}
+
+/* =========================
+   State (UI CONTRACT)
 ========================= */
 
 const state = {
   mode: "sculpt",
-  isSculpting: false,
-  mesh: null,
   brush: null,
 
   setMode(mode) {
     this.mode = mode;
+    transformControls.visible = mode === "transform";
+    controls.enableRotate = mode === "transform";
+  },
 
-    if (mode === "transform") {
-      transformControls.visible = true;
-      controls.enableRotate = true;
-    } else {
-      transformControls.visible = false;
-      controls.enableRotate = false;
-    }
+  setTransform(type) {
+    transformControls.setMode(type);
+  },
+
+  toggleWireframe() {
+    wireframe = !wireframe;
+    if (activeMesh) activeMesh.material.wireframe = wireframe;
   },
 
   setTool(tool) {
@@ -82,123 +149,54 @@ const state = {
     this.brush?.setStrength(s);
   },
 
-  resetCamera
+  createCube,
+  createSphere,
+  exportGLTF
 };
 
 /* =========================
-   Default Mesh
-========================= */
-
-const geometry = new THREE.BoxGeometry(1, 1, 1, 40, 40, 40);
-const material = new THREE.MeshStandardMaterial({
-  color: 0xcccccc,
-  roughness: 0.45,
-  metalness: 0.05
-});
-
-const mesh = new THREE.Mesh(geometry, material);
-scene.add(mesh);
-
-state.mesh = mesh;
-state.brush = new SculptBrush(mesh);
-
-/* =========================
-   Transform Gizmo
-========================= */
-
-const transformControls = new TransformControls(camera, canvas);
-transformControls.attach(mesh);
-transformControls.visible = false;
-scene.add(transformControls);
-
-transformControls.addEventListener("dragging-changed", e => {
-  controls.enabled = !e.value;
-});
-
-/* =========================
-   Raycasting
+   Sculpting
 ========================= */
 
 const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2();
+const mouse = new THREE.Vector2();
+let sculpting = false;
 
-function getHitPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObject(state.mesh, false);
-  return hits.length ? hits[0].point : null;
+function getHit(e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObject(activeMesh)[0];
+  return hit?.point ?? null;
 }
 
-/* =========================
-   Input Rules
-========================= */
-
-canvas.addEventListener("contextmenu", e => e.preventDefault());
-
 canvas.addEventListener("pointerdown", e => {
-  if (state.mode !== "sculpt") return;
+  if (state.mode !== "sculpt" || !activeMesh) return;
+  if (e.button !== 0) return;
 
-  if (e.button === 0) {
-    state.isSculpting = true;
-    controls.enableRotate = false;
-  }
-
-  if (e.button === 2) {
-    controls.enableRotate = true;
-  }
+  sculpting = true;
+  controls.enableRotate = false;
 });
 
 canvas.addEventListener("pointerup", () => {
-  state.isSculpting = false;
-  controls.enableRotate = false;
+  sculpting = false;
 });
 
 canvas.addEventListener("pointermove", e => {
-  if (!state.isSculpting || state.mode !== "sculpt") return;
-
-  const point = getHitPoint(e);
-  if (point) state.brush.apply(point);
+  if (!sculpting || !state.brush) return;
+  const p = getHit(e);
+  if (p) state.brush.apply(p);
 });
 
 /* =========================
-   Touch Support
+   Defaults
 ========================= */
 
-canvas.addEventListener("touchstart", e => {
-  if (e.touches.length === 2) {
-    controls.enableRotate = true;
-  } else {
-    state.isSculpting = true;
-    controls.enableRotate = false;
-  }
-});
-
-canvas.addEventListener("touchend", () => {
-  state.isSculpting = false;
-  controls.enableRotate = false;
-});
-
-/* =========================
-   Camera Reset
-========================= */
-
-function resetCamera() {
-  camera.position.set(0, 2, 5);
-  controls.target.set(0, 0, 0);
-  controls.update();
-}
-
-/* =========================
-   UI
-========================= */
-
+createCube();
 initUI(state);
 
 /* =========================
-   Resize
+   Resize & Render
 ========================= */
 
 window.addEventListener("resize", () => {
@@ -207,14 +205,9 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-/* =========================
-   Render Loop
-========================= */
-
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
 }
-
 animate();
