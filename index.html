@@ -8,36 +8,69 @@
 </head>
 
 <body>
+
+  <!-- Top bar -->
   <div id="topbar">
     <button id="toggleMenu">☰</button>
-    <button id="lockCamera">Camera Free</button>
+    <button id="lockCamera" class="inactive">Camera Free</button>
     <button id="toggleWire">▦ Wire</button>
   </div>
 
+  <!-- Side menu -->
   <div id="menu" class="collapsed">
-    <div class="tabs">
-      <button data-tab="model" class="active">Model</button>
-      <button data-tab="sculpt">Sculpt</button>
-    </div>
 
-    <div class="panel active" id="panel-model">
+    <!-- MODEL TAB -->
+    <div class="panel">
+      <h3>Model</h3>
       <button id="newCube">New Cube</button>
       <button id="newSphere">New Sphere</button>
+    </div>
 
+    <!-- SCULPT TAB -->
+    <div class="panel">
+      <h3>Sculpt</h3>
+
+      <label for="brushSize">Brush Size</label>
+      <input
+        type="range"
+        id="brushSize"
+        min="0.2"
+        max="3"
+        step="0.1"
+        value="1"
+      />
+
+      <label for="brushStrength">Brush Strength</label>
+      <input
+        type="range"
+        id="brushStrength"
+        min="0.05"
+        max="1"
+        step="0.05"
+        value="0.3"
+      />
+
+      <button id="toolInflate">Inflate</button>
+      <button id="toolSmooth">Smooth</button>
+      <button id="toolFlatten">Flatten</button>
+    </div>
+
+    <!-- FILE TAB -->
+    <div class="panel">
       <h3>File</h3>
       <button id="exportGLTF">Export GLTF</button>
       <input type="file" id="importGLTF" accept=".gltf,.glb" />
     </div>
 
-    <div class="panel" id="panel-sculpt">
-      <label>Brush Size</label>
-      <input type="range" id="brushSize" min="0.2" max="3" step="0.1" value="1" />
-    </div>
   </div>
 
+  <!-- Brush cursor -->
   <div id="cursorBrush"></div>
+
+  <!-- Viewport -->
   <canvas id="viewport"></canvas>
 
+  <!-- Main entry -->
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>
