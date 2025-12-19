@@ -1,5 +1,6 @@
 export function initUI(state) {
-  /* ---------- Top Bar ---------- */
+  /* ---------- Menu Toggle ---------- */
+
   const toggleMenuBtn = document.getElementById("toggleMenu");
   const menu = document.getElementById("menu");
 
@@ -7,57 +8,84 @@ export function initUI(state) {
     menu.classList.toggle("collapsed");
   };
 
-  const lockCameraBtn = document.getElementById("lockCamera");
-  lockCameraBtn.onclick = () => {
-    state.cameraLocked = !state.cameraLocked;
-    state.controls.enabled = !state.cameraLocked;
+  /* ---------- Mode Buttons ---------- */
 
-    lockCameraBtn.textContent = state.cameraLocked
-      ? "Camera Locked"
-      : "Camera Free";
-
-    lockCameraBtn.classList.toggle("active", state.cameraLocked);
-    lockCameraBtn.classList.toggle("inactive", !state.cameraLocked);
+  const tools = {
+    sculpt: document.getElementById("toolSculpt"),
+    move: document.getElementById("toolMove"),
+    rotate: document.getElementById("toolRotate"),
+    scale: document.getElementById("toolScale")
   };
 
-  const wireBtn = document.getElementById("toggleWire");
-  wireBtn.onclick = () => {
-    if (state.toggleWireframe) state.toggleWireframe();
+  function activate(btn) {
+    Object.values(tools).forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  }
+
+  tools.sculpt.onclick = () => {
+    state.setMode("sculpt");
+    activate(tools.sculpt);
   };
 
-  /* ---------- Model ---------- */
-  document.getElementById("newCube").onclick = () => {
-    if (state.createCube) state.createCube();
+  tools.move.onclick = () => {
+    state.setMode("transform");
+    state.setTransform("translate");
+    activate(tools.move);
   };
-  document.getElementById("newSphere").onclick = () => {
-    if (state.createSphere) state.createSphere();
+
+  tools.rotate.onclick = () => {
+    state.setMode("transform");
+    state.setTransform("rotate");
+    activate(tools.rotate);
+  };
+
+  tools.scale.onclick = () => {
+    state.setMode("transform");
+    state.setTransform("scale");
+    activate(tools.scale);
   };
 
   /* ---------- Sculpt Tools ---------- */
-  const tools = ["inflate", "deflate", "smooth", "flatten", "pinch", "clay", "scrape"];
-  tools.forEach(tool => {
-    const btn = document.getElementById(`tool${tool.charAt(0).toUpperCase() + tool.slice(1)}`);
-    if (btn) btn.onclick = () => state.setTool(tool);
-  });
 
-  const symmetryBtn = document.getElementById("toggleSymmetry");
-  symmetryBtn.onclick = () => {
-    state.symmetry = !state.symmetry;
-    symmetryBtn.classList.toggle("active", state.symmetry);
-    symmetryBtn.textContent = state.symmetry ? "Symmetry On" : "Symmetry Off";
-  };
+  document.getElementById("toolInflate").onclick = () =>
+    state.setTool("inflate");
+
+  document.getElementById("toolDeflate").onclick = () =>
+    state.setTool("deflate");
+
+  document.getElementById("toolSmooth").onclick = () =>
+    state.setTool("smooth");
+
+  document.getElementById("toolFlatten").onclick = () =>
+    state.setTool("flatten");
+
+  document.getElementById("toolPinch").onclick = () =>
+    state.setTool("pinch");
 
   /* ---------- Sliders ---------- */
-  const sizeSlider = document.getElementById("brushSize");
-  if (sizeSlider) sizeSlider.oninput = e => state.setRadius(parseFloat(e.target.value));
 
-  const strengthSlider = document.getElementById("brushStrength");
-  if (strengthSlider) strengthSlider.oninput = e => state.setStrength(parseFloat(e.target.value));
+  document.getElementById("brushSize").oninput = e =>
+    state.setRadius(parseFloat(e.target.value));
+
+  document.getElementById("brushStrength").oninput = e =>
+    state.setStrength(parseFloat(e.target.value));
+
+  /* ---------- Model ---------- */
+
+  document.getElementById("newCube").onclick = () =>
+    state.createCube();
+
+  document.getElementById("newSphere").onclick = () =>
+    state.createSphere();
 
   /* ---------- File ---------- */
-  const exportBtn = document.getElementById("exportGLTF");
-  if (exportBtn && state.exportGLTF) exportBtn.onclick = state.exportGLTF;
 
-  const importInput = document.getElementById("importGLTF");
-  if (importInput && state.importGLTF) importInput.onchange = state.importGLTF;
+  document.getElementById("toggleWire").onclick = () =>
+    state.toggleWireframe();
+
+  document.getElementById("exportGLTF").onclick = () =>
+    state.exportGLTF();
+
+  document.getElementById("importGLTF").onchange = e =>
+    state.importGLTF(e);
 }
