@@ -16,12 +16,13 @@
     <button id="toggleMenu">☰</button>
 
     <div class="tool-group">
-      <button id="modeSculpt" class="tool active">Sculpt</button>
-      <button id="modeMove" class="tool">Move</button>
-      <button id="modeRotate" class="tool">Rotate</button>
-      <button id="modeScale" class="tool">Scale</button>
+      <button id="toolSculpt" class="tool active">Sculpt</button>
+      <button id="toolMove" class="tool">Move</button>
+      <button id="toolRotate" class="tool">Rotate</button>
+      <button id="toolScale" class="tool">Scale</button>
     </div>
 
+    <button id="toggleGizmo">🧭</button>
     <button id="toggleWire">▦</button>
   </div>
 
@@ -49,9 +50,6 @@
     <button id="exportGLTF">Export GLTF</button>
     <input type="file" id="importGLTF" accept=".gltf,.glb" />
   </div>
-
-  <!-- View Cube -->
-  <div id="viewCube"></div>
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
