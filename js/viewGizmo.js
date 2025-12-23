@@ -1,7 +1,4 @@
 // js/viewGizmo.js
-// Author: CCVO
-// Purpose: On-screen interactive view cube for snapping camera orientation
-
 import * as THREE from "../three/three.module.js";
 
 export class ViewGizmo {
@@ -22,47 +19,52 @@ export class ViewGizmo {
     this.cube = new THREE.Mesh(geo, mat);
     this.scene.add(this.cube);
 
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true
+    });
+
     this.renderer.setSize(this.size, this.size);
+    this.renderer.domElement.style.position = "fixed";
+    this.renderer.domElement.style.top = "12px";
+    this.renderer.domElement.style.right = "12px";
+    this.renderer.domElement.style.cursor = "pointer";
+    this.renderer.domElement.style.zIndex = "20";
 
-    const el = this.renderer.domElement;
-    el.style.position = "fixed";
-    el.style.top = "12px";
-    el.style.right = "12px";
-    el.style.zIndex = "20";
-    el.style.cursor = "pointer";
-    el.style.touchAction = "none";
-
-    document.body.appendChild(el);
+    document.body.appendChild(this.renderer.domElement);
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
 
-    el.addEventListener("pointerdown", e => this.onPointerDown(e), {
-      passive: false
-    });
+    this.renderer.domElement.addEventListener("pointerdown", e =>
+      this.onClick(e)
+    );
   }
 
-  onPointerDown(e) {
-    e.preventDefault();
-
+  onClick(e) {
     const rect = this.renderer.domElement.getBoundingClientRect();
+
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
-    const hit = this.raycaster.intersectObject(this.cube)[0];
+
+    const hit = this.raycaster.intersectObject(this.cube, false)[0];
     if (!hit) return;
 
-    this.snapCamera(hit.face.normal.clone());
+    const normal = hit.face.normal.clone();
+    this.snapCamera(normal);
   }
 
   snapCamera(dir) {
     dir.normalize();
-    const target = this.controls.target.clone();
-    const dist = this.mainCamera.position.distanceTo(target);
 
-    this.mainCamera.position.copy(dir.multiplyScalar(dist).add(target));
+    const target = this.controls.target.clone();
+    const distance = this.mainCamera.position.distanceTo(target);
+
+    const newPos = dir.multiplyScalar(distance).add(target);
+
+    this.mainCamera.position.copy(newPos);
     this.mainCamera.lookAt(target);
     this.controls.update();
   }
