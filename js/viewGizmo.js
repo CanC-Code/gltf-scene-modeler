@@ -1,144 +1,120 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Interactive view cube with N/E/S/W labels
+// Purpose: Interactive View Cube / Gizmo for camera orientation (Three.js r159 compatible)
 
 import * as THREE from "../three/three.module.js";
-import { FontLoader } from "../three/FontLoader.js";
-import { TextGeometry } from "../three/TextGeometry.js";
 
-export class ViewGizmo {
-  constructor(mainCamera, controls) {
-    this.mainCamera = mainCamera;
+export class viewGizmo {
+  constructor(camera, controls, options = {}) {
+    this.camera = camera;
     this.controls = controls;
 
-    this.size = 160; // slightly larger
-    this.offsetTop = 12;
-    this.offsetRight = 12;
+    this.size = options.size || 128;
+    this.top = options.top ?? 12;
+    this.right = options.right ?? 12;
 
+    /* ===============================
+       Internal Scene
+    ================================ */
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
-    this.camera.position.set(3, 3, 3);
-    this.camera.lookAt(0, 0, 0);
+    this.gizmoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    this.gizmoCamera.position.set(2, 2, 2);
+    this.gizmoCamera.lookAt(0, 0, 0);
 
-    // Main cube
-    const geo = new THREE.BoxGeometry(1, 1, 1);
-    const mat = new THREE.MeshNormalMaterial();
-    this.cube = new THREE.Mesh(geo, mat);
-    this.scene.add(this.cube);
-
-    // Renderer
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(this.size, this.size);
-    this.renderer.domElement.style.position = "fixed";
-    this.renderer.domElement.style.top = this.offsetTop + "px";
-    this.renderer.domElement.style.right = this.offsetRight + "px";
-    this.renderer.domElement.style.cursor = "pointer";
-    this.renderer.domElement.style.zIndex = "20";
+    this.renderer.domElement.style.position = "absolute";
+    this.renderer.domElement.style.top = this.top + "px";
+    this.renderer.domElement.style.right = this.right + "px";
+    this.renderer.domElement.style.pointerEvents = "auto";
+    this.renderer.domElement.style.zIndex = "10";
     document.body.appendChild(this.renderer.domElement);
 
+    /* ===============================
+       Gizmo Cube
+    ================================ */
     this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
-    this.isDragging = false;
+    this.pointer = new THREE.Vector2();
+    this.dragging = false;
 
-    this.renderer.domElement.addEventListener("pointerdown", e => this.onPointerDown(e));
-    this.renderer.domElement.addEventListener("pointermove", e => this.onPointerMove(e));
-    this.renderer.domElement.addEventListener("pointerup", e => this.onPointerUp(e));
-
-    this.font = null;
-    this.labels = [];
-    this.loadFont();
-  }
-
-  loadFont() {
-    const loader = new FontLoader();
-    loader.load(
-      "three/fonts/helvetiker_regular.typeface.json",
-      font => {
-        console.log("ViewGizmo font loaded successfully");
-        this.font = font;
-        this.createLabels();
-      },
-      undefined,
-      err => console.error("Font failed to load:", err)
-    );
-  }
-
-  createLabels() {
-    if (!this.font) return;
-    const directions = ["N", "E", "S", "W"];
-    const positions = [
-      new THREE.Vector3(0, 0, 1.5),
-      new THREE.Vector3(1.5, 0, 0),
-      new THREE.Vector3(0, 0, -1.5),
-      new THREE.Vector3(-1.5, 0, 0)
+    const materials = [
+      new THREE.MeshBasicMaterial({ color: 0xff5555 }), // +X
+      new THREE.MeshBasicMaterial({ color: 0xaa0000 }), // -X
+      new THREE.MeshBasicMaterial({ color: 0x55ff55 }), // +Y
+      new THREE.MeshBasicMaterial({ color: 0x006600 }), // -Y
+      new THREE.MeshBasicMaterial({ color: 0x5555ff }), // +Z
+      new THREE.MeshBasicMaterial({ color: 0x000066 })  // -Z
     ];
 
-    directions.forEach((dir, i) => {
-      const textGeo = new TextGeometry(dir, { font: this.font, size: 0.25, height: 0.05 });
-      const mat = new THREE.MeshBasicMaterial({ color: 0x888888, depthTest: false });
-      const mesh = new THREE.Mesh(textGeo, mat);
-      mesh.position.copy(positions[i]);
-      this.scene.add(mesh);
-      this.labels.push(mesh);
-    });
+    this.cube = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      materials
+    );
+    this.scene.add(this.cube);
 
-    console.log("ViewGizmo N/E/S/W labels created");
+    /* ===============================
+       Interaction
+    ================================ */
+    this.renderer.domElement.addEventListener("pointerdown", e => this.onPointerDown(e));
+    window.addEventListener("pointermove", e => this.onPointerMove(e));
+    window.addEventListener("pointerup", () => this.dragging = false);
+
+    console.log("ViewGizmo initialized");
   }
 
-  onPointerDown(e) {
-    this.isDragging = true;
-    this.updateMouse(e);
-    this.snapCameraIfClicked();
-  }
-
-  onPointerMove(e) {
-    if (!this.isDragging) return;
-    this.updateMouse(e);
-    // dynamic orbit
-    const deltaX = e.movementX * 0.005;
-    const deltaY = e.movementY * 0.005;
-    this.mainCamera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), -deltaX);
-    this.mainCamera.position.applyAxisAngle(new THREE.Vector3(1, 0, 0), -deltaY);
-    this.mainCamera.lookAt(this.controls.target);
-    this.controls.update();
-  }
-
-  onPointerUp() {
-    this.isDragging = false;
-  }
-
-  updateMouse(e) {
+  /* ===============================
+     Pointer Handling
+  ================================ */
+  getPointer(event) {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
-  snapCameraIfClicked() {
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const hit = this.raycaster.intersectObject(this.cube)[0];
-    if (!hit) return;
-    const n = hit.face.normal.clone();
-    this.snapCamera(n);
-  }
+  onPointerDown(event) {
+    this.getPointer(event);
+    this.raycaster.setFromCamera(this.pointer, this.gizmoCamera);
+    const hits = this.raycaster.intersectObject(this.cube);
+    if (!hits.length) return;
 
-  snapCamera(dir) {
-    dir.normalize();
-    const target = this.controls.target.clone();
-    const distance = this.mainCamera.position.distanceTo(target);
-    const newPos = dir.multiplyScalar(distance).add(target);
-    this.mainCamera.position.copy(newPos);
-    this.mainCamera.lookAt(target);
+    this.dragging = true;
+
+    const normal = hits[0].face.normal.clone();
+    normal.applyQuaternion(this.cube.quaternion);
+
+    const distance = this.camera.position.distanceTo(this.controls.target);
+    const newPos = normal.multiplyScalar(distance).add(this.controls.target);
+
+    this.camera.position.copy(newPos);
+    this.camera.lookAt(this.controls.target);
     this.controls.update();
-    console.log("ViewGizmo camera snapped to direction:", dir);
   }
 
+  onPointerMove(event) {
+    if (!this.dragging) return;
+
+    const dx = event.movementX * 0.005;
+    const dy = event.movementY * 0.005;
+
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+
+    spherical.theta -= dx;
+    spherical.phi -= dy;
+    spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+
+    offset.setFromSpherical(spherical);
+    this.camera.position.copy(this.controls.target.clone().add(offset));
+    this.camera.lookAt(this.controls.target);
+    this.controls.update();
+  }
+
+  /* ===============================
+     Update Loop
+  ================================ */
   update() {
-    // Keep cube oriented correctly
-    this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
-
-    // Ensure labels render in front of cube but behind main model
-    this.labels.forEach(l => l.lookAt(this.camera.position));
-
-    this.renderer.render(this.scene, this.camera);
+    this.cube.quaternion.copy(this.camera.quaternion).invert();
+    this.renderer.render(this.scene, this.gizmoCamera);
   }
 }
