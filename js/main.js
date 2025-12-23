@@ -1,3 +1,7 @@
+// js/main.js
+// Author: CCVO
+// Purpose: Core logic of the GLTF Scene Modeler; sets up Three.js scene, camera, renderer, controls, sculpting tools, gizmos, and GLTF import/export.
+
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
@@ -174,7 +178,7 @@ renderer.domElement.addEventListener("pointerleave", () => {
 });
 
 /* ===============================
-   Resize
+   Resize Handling
 ================================ */
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -188,7 +192,7 @@ window.addEventListener("resize", () => {
 state.createCube();
 
 /* ===============================
-   UI
+   UI Initialization
 ================================ */
 initUI(state);
 
@@ -201,3 +205,12 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+
+/* ===============================
+   Enhancement Suggestions:
+   - Add keyboard shortcuts for tools
+   - Snap transform gizmo to grid option
+   - Multiple mesh selection / group sculpting
+   - Save / load multiple meshes in one scene
+   - Scene undo/redo history
+================================ */
