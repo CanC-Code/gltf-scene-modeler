@@ -1,6 +1,6 @@
 // js/ui.js
 // Author: CCVO
-// Purpose: Initializes UI elements for the GLTF Scene Modeler; handles mode/tool selection, brush sliders, mesh creation, import/export, and undo/redo with mobile-friendly sizing.
+// Purpose: Initialize and manage UI for GLTF Scene Modeler (desktop and mobile), including tool buttons, sliders, file import/export, and undo/redo controls
 
 export function initUI(state) {
   const toggleMenu = document.getElementById("toggleMenu");
@@ -19,11 +19,11 @@ export function initUI(state) {
   });
 
   // Wireframe toggle
-  document.getElementById("toggleWire").onclick = () => state.toggleWireframe();
+  document.getElementById("toggleWire").onclick = state.toggleWireframe;
 
-  // New Mesh buttons
-  document.getElementById("newCube").onclick = () => state.createCube();
-  document.getElementById("newSphere").onclick = () => state.createSphere();
+  // New Mesh
+  document.getElementById("newCube").onclick = state.createCube;
+  document.getElementById("newSphere").onclick = state.createSphere;
 
   // Sculpt tools
   const tools = ["Inflate", "Deflate", "Smooth", "Flatten", "Pinch"];
@@ -40,34 +40,42 @@ export function initUI(state) {
   brushStrength.oninput = () => state.setStrength(parseFloat(brushStrength.value));
 
   // Export / Import
-  document.getElementById("exportGLTF").onclick = () => state.exportGLTF();
-  document.getElementById("importGLTF").onchange = e => state.importGLTF(e);
+  document.getElementById("exportGLTF").onclick = state.exportGLTF;
+  document.getElementById("importGLTF").onchange = state.importGLTF;
 
-  // Undo / Redo buttons (create dynamically for mobile/desktop)
+  // Undo/Redo buttons
+  const topbar = document.getElementById("topbar");
+
   const undoBtn = document.createElement("button");
   undoBtn.id = "undoBtn";
-  undoBtn.textContent = "Undo";
-  undoBtn.style.fontSize = state.isTouch ? "1.5em" : "1em";
-  undoBtn.style.margin = "4px";
-  undoBtn.onclick = () => state.undo();
+  undoBtn.textContent = "⟲ Undo";
+  topbar.appendChild(undoBtn);
 
   const redoBtn = document.createElement("button");
   redoBtn.id = "redoBtn";
-  redoBtn.textContent = "Redo";
-  redoBtn.style.fontSize = state.isTouch ? "1.5em" : "1em";
-  redoBtn.style.margin = "4px";
-  redoBtn.onclick = () => state.redo();
-
-  // Add to topbar
-  const topbar = document.getElementById("topbar");
-  topbar.appendChild(undoBtn);
+  redoBtn.textContent = "⟳ Redo";
   topbar.appendChild(redoBtn);
 
-  // Optional: increase button hit area for touch devices
-  if (state.isTouch) {
-    [...document.querySelectorAll("#menu button, #topbar button")].forEach(btn => {
-      btn.style.padding = "12px";
-      btn.style.fontSize = "1.2em";
-    });
-  }
+  // Undo/Redo handlers
+  undoBtn.onclick = () => {
+    if (!state.activeMesh || state.undoStack.length === 0) return;
+    const current = state.activeMesh.geometry.attributes.position.array.slice();
+    state.redoStack.push(current);
+
+    const prev = state.undoStack.pop();
+    state.activeMesh.geometry.attributes.position.array.set(prev);
+    state.activeMesh.geometry.attributes.position.needsUpdate = true;
+    state.activeMesh.geometry.computeVertexNormals();
+  };
+
+  redoBtn.onclick = () => {
+    if (!state.activeMesh || state.redoStack.length === 0) return;
+    const current = state.activeMesh.geometry.attributes.position.array.slice();
+    state.undoStack.push(current);
+
+    const next = state.redoStack.pop();
+    state.activeMesh.geometry.attributes.position.array.set(next);
+    state.activeMesh.geometry.attributes.position.needsUpdate = true;
+    state.activeMesh.geometry.computeVertexNormals();
+  };
 }
