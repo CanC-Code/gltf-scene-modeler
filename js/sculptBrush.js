@@ -1,20 +1,19 @@
 // js/sculptBrush.js
 // Author: CCVO
-// Purpose: Handles sculpting operations on a mesh; supports multiple tools, brush radius/strength, symmetry, and undo/redo tracking.
+// Purpose: Applies sculpting operations (inflate, deflate, smooth, flatten, pinch, clay, scrape) to the active mesh in GLTF Scene Modeler, supporting symmetry and touch/desktop input
 
 import * as THREE from "../three/three.module.js";
 
 export class SculptBrush {
-  constructor(mesh, state) {
+  constructor(mesh) {
     this.mesh = mesh;
     this.geometry = mesh.geometry;
     this.position = this.geometry.attributes.position;
     this.normal = this.geometry.attributes.normal;
 
-    this.radius = 1;
-    this.strength = 0.3;
-    this.tool = "inflate";
-    this.state = state; // reference to global state for undo/redo
+    this.radius = 1;       // Brush radius
+    this.strength = 0.3;   // Sculpting influence
+    this.tool = "inflate"; // Active tool
   }
 
   setTool(tool) {
@@ -34,10 +33,7 @@ export class SculptBrush {
     const norm = this.normal;
     const center = point;
 
-    // Save current positions for undo
-    const oldPositions = new Float32Array(pos.array);
-
-    // Prepare mirrored center if symmetry is enabled
+    // Support mirrored center for symmetry
     const centers = [center.clone()];
     if (symmetry) centers.push(new THREE.Vector3(-center.x, center.y, center.z));
 
@@ -63,7 +59,7 @@ export class SculptBrush {
       for (const i of region) {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         const dist = v.distanceTo(c);
-        const falloff = Math.pow(1 - dist / this.radius, 2);
+        const falloff = Math.pow(1 - dist / this.radius, 2); // Smooth falloff
         const influence = falloff * this.strength;
 
         let ox = 0, oy = 0, oz = 0;
@@ -112,20 +108,5 @@ export class SculptBrush {
 
     pos.needsUpdate = true;
     this.geometry.computeVertexNormals();
-
-    // Push undo state
-    if (this.state) {
-      this.state.undoStack.push({
-        restore: () => {
-          for (let i = 0; i < pos.count; i++) {
-            pos.setXYZ(i, oldPositions[i * 3], oldPositions[i * 3 + 1], oldPositions[i * 3 + 2]);
-          }
-          pos.needsUpdate = true;
-          this.geometry.computeVertexNormals();
-        }
-      });
-      // Clear redo stack when new action is applied
-      this.state.redoStack = [];
-    }
   }
 }
