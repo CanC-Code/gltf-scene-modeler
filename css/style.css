@@ -1,3 +1,9 @@
+/*
+Folder/css/style.css
+Author: CCVO
+Purpose: Styles for the GLTF Scene Modeler UI including top bar, side menu, canvas viewport, and brush cursor.
+*/
+
 html, body {
   margin: 0;
   padding: 0;
@@ -12,6 +18,7 @@ canvas {
   display: block;
 }
 
+/* Top Bar */
 #topbar {
   position: absolute;
   top: 0;
@@ -22,6 +29,7 @@ canvas {
   align-items: center;
   background: #2a2a2a;
   z-index: 10;
+  padding: 0 8px;
 }
 
 .tool-group {
@@ -30,10 +38,23 @@ canvas {
   margin-left: 8px;
 }
 
+.tool {
+  padding: 4px 8px;
+  border: none;
+  background: #3a3a3a;
+  color: #fff;
+  cursor: pointer;
+}
+
+.tool:hover {
+  background: #505050;
+}
+
 .tool.active {
   background: #4a90e2;
 }
 
+/* Side Menu */
 #menu {
   position: absolute;
   top: 44px;
@@ -43,7 +64,7 @@ canvas {
   background: #2b2b2b;
   padding: 10px;
   overflow-y: auto;
-  transition: transform 0.2s;
+  transition: transform 0.2s ease;
   z-index: 9;
 }
 
@@ -51,10 +72,39 @@ canvas {
   transform: translateX(-100%);
 }
 
+#menu h3 {
+  margin: 10px 0 5px 0;
+  color: #fff;
+}
+
+#menu button {
+  display: block;
+  width: 100%;
+  margin: 2px 0;
+  padding: 4px 6px;
+  border: none;
+  background: #3a3a3a;
+  color: #fff;
+  cursor: pointer;
+}
+
+#menu button:hover {
+  background: #505050;
+}
+
+#menu input[type="range"] {
+  width: 100%;
+  margin: 5px 0 10px 0;
+}
+
+/* Cursor Brush */
 #cursorBrush {
   position: absolute;
   pointer-events: none;
   border: 1px solid #4a90e2;
   border-radius: 50%;
   z-index: 5;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
 }
