@@ -1,7 +1,3 @@
-/* css/style.css */
-/* Author: CCVO */
-/* Purpose: Styles the GLTF Scene Modeler UI for desktop and mobile; handles topbar, side menu, canvas, buttons, sliders, cursor, and responsive touch-friendly layout */
-
 html, body {
   margin: 0;
   padding: 0;
@@ -16,133 +12,66 @@ canvas {
   display: block;
 }
 
-/* Top Bar */
 #topbar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 48px;
+  height: 44px;
   display: flex;
   align-items: center;
   background: #2a2a2a;
   z-index: 10;
-  padding: 0 8px;
-  gap: 6px;
-}
-
-#topbar button {
-  background: #3a3a3a;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-  font-size: 1em;
-  padding: 6px 10px;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-
-#topbar button:hover {
-  background: #4a90e2;
+  padding: 0 4px;
+  gap: 4px;
 }
 
 .tool-group {
   display: flex;
   gap: 4px;
+  margin-left: 8px;
 }
 
 .tool.active {
   background: #4a90e2;
 }
 
-/* Undo/Redo buttons */
-#undoBtn, #redoBtn {
-  background: #4a4a4a;
-  color: #fff;
-  border-radius: 4px;
-  border: none;
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-#undoBtn:hover, #redoBtn:hover {
-  background: #6aa0f0;
-}
-
-/* Side Menu */
 #menu {
   position: absolute;
-  top: 48px;
+  top: 44px;
   left: 0;
-  width: 240px;
+  width: 220px;
   bottom: 0;
   background: #2b2b2b;
-  padding: 12px;
+  padding: 10px;
   overflow-y: auto;
   transition: transform 0.2s;
   z-index: 9;
-  box-sizing: border-box;
-  -webkit-overflow-scrolling: touch; /* smooth scrolling on mobile */
 }
 
 #menu.collapsed {
   transform: translateX(-100%);
 }
 
-#menu h3 {
-  margin-top: 12px;
-  margin-bottom: 6px;
-  color: #ccc;
-  font-size: 1em;
-}
-
-#menu button {
-  width: 100%;
-  margin: 4px 0;
-  background: #3a3a3a;
-  color: #fff;
-  border: none;
-  padding: 10px;
-  font-size: 1em;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-#menu button:hover {
-  background: #4a90e2;
-}
-
-#menu input[type="range"] {
-  width: 100%;
-  margin: 6px 0 12px;
-  cursor: pointer;
-}
-
-/* Cursor Brush */
 #cursorBrush {
   position: absolute;
   pointer-events: none;
-  border: 2px solid #4a90e2;
+  border: 1px solid #4a90e2;
   border-radius: 50%;
   z-index: 5;
-  width: 40px;
-  height: 40px;
-  transform: translate(-50%, -50%);
-  display: none;
 }
 
-/* Mobile Touch Enhancements */
-@media (pointer: coarse) {
-  #topbar button, #menu button, #menu input[type="range"] {
-    padding: 14px;
-    font-size: 1.3em;
-  }
+#topbar button {
+  margin: 0 2px;
+  padding: 4px 8px;
+  font-size: 16px;
+  background: #3a3a3a;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
 
-  #cursorBrush {
-    border-width: 3px;
-    width: 50px;
-    height: 50px;
-  }
+#topbar button:hover {
+  background: #5a5a5a;
 }
