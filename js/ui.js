@@ -1,6 +1,6 @@
 // js/ui.js
 // Author: CCVO
-// Purpose: Initializes and manages all UI elements and their interactions for GLTF Scene Modeler, including undo/redo, tool selection, and mesh creation.
+// Purpose: Initialize the UI elements and connect them to application state
 
 export function initUI(state) {
   const toggleMenu = document.getElementById("toggleMenu");
@@ -18,8 +18,41 @@ export function initUI(state) {
     };
   });
 
-  // Wireframe
+  // Wireframe toggle
   document.getElementById("toggleWire").onclick = state.toggleWireframe;
+
+  // Undo / Redo
+  document.getElementById("undoBtn").onclick = () => {
+    if (!state.activeMesh || state.undoStack.length === 0) return;
+    const positions = state.undoStack.pop();
+    if (positions) {
+      const current = state.activeMesh.geometry.attributes.position.array.slice();
+      state.redoStack.push(current);
+      state.activeMesh.geometry.attributes.position.array.set(positions);
+      state.activeMesh.geometry.attributes.position.needsUpdate = true;
+      state.activeMesh.geometry.computeVertexNormals();
+    }
+  };
+
+  document.getElementById("redoBtn").onclick = () => {
+    if (!state.activeMesh || state.redoStack.length === 0) return;
+    const positions = state.redoStack.pop();
+    if (positions) {
+      const current = state.activeMesh.geometry.attributes.position.array.slice();
+      state.undoStack.push(current);
+      state.activeMesh.geometry.attributes.position.array.set(positions);
+      state.activeMesh.geometry.attributes.position.needsUpdate = true;
+      state.activeMesh.geometry.computeVertexNormals();
+    }
+  };
+
+  // Symmetry toggle
+  state.symmetry = false;
+  const symmetryBtn = document.getElementById("toggleSymmetry");
+  symmetryBtn.onclick = () => {
+    state.symmetry = !state.symmetry;
+    symmetryBtn.style.background = state.symmetry ? "#4a90e2" : "#3a3a3a";
+  };
 
   // New Mesh
   document.getElementById("newCube").onclick = state.createCube;
@@ -42,33 +75,4 @@ export function initUI(state) {
   // Export / Import
   document.getElementById("exportGLTF").onclick = state.exportGLTF;
   document.getElementById("importGLTF").onchange = state.importGLTF;
-
-  // Undo/Redo stacks
-  state.undoStack = [];
-  state.redoStack = [];
-
-  const undoBtn = document.getElementById("undoBtn");
-  const redoBtn = document.getElementById("redoBtn");
-
-  undoBtn.onclick = () => {
-    if (!state.activeMesh || state.undoStack.length === 0) return;
-    const current = state.activeMesh.geometry.attributes.position.array.slice();
-    state.redoStack.push(current);
-
-    const prev = state.undoStack.pop();
-    state.activeMesh.geometry.attributes.position.array.set(prev);
-    state.activeMesh.geometry.attributes.position.needsUpdate = true;
-    state.activeMesh.geometry.computeVertexNormals();
-  };
-
-  redoBtn.onclick = () => {
-    if (!state.activeMesh || state.redoStack.length === 0) return;
-    const current = state.activeMesh.geometry.attributes.position.array.slice();
-    state.undoStack.push(current);
-
-    const next = state.redoStack.pop();
-    state.activeMesh.geometry.attributes.position.array.set(next);
-    state.activeMesh.geometry.attributes.position.needsUpdate = true;
-    state.activeMesh.geometry.computeVertexNormals();
-  };
 }
