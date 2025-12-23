@@ -1,6 +1,6 @@
 // js/ui.js
 // Author: CCVO
-// Purpose: Initialize the UI elements and connect them to application state
+// Purpose: Initializes the UI controls for GLTF Scene Modeler, including top bar, menus, brush sliders, sculpt tools, and Undo/Redo buttons
 
 export function initUI(state) {
   const toggleMenu = document.getElementById("toggleMenu");
@@ -20,39 +20,6 @@ export function initUI(state) {
 
   // Wireframe toggle
   document.getElementById("toggleWire").onclick = state.toggleWireframe;
-
-  // Undo / Redo
-  document.getElementById("undoBtn").onclick = () => {
-    if (!state.activeMesh || state.undoStack.length === 0) return;
-    const positions = state.undoStack.pop();
-    if (positions) {
-      const current = state.activeMesh.geometry.attributes.position.array.slice();
-      state.redoStack.push(current);
-      state.activeMesh.geometry.attributes.position.array.set(positions);
-      state.activeMesh.geometry.attributes.position.needsUpdate = true;
-      state.activeMesh.geometry.computeVertexNormals();
-    }
-  };
-
-  document.getElementById("redoBtn").onclick = () => {
-    if (!state.activeMesh || state.redoStack.length === 0) return;
-    const positions = state.redoStack.pop();
-    if (positions) {
-      const current = state.activeMesh.geometry.attributes.position.array.slice();
-      state.undoStack.push(current);
-      state.activeMesh.geometry.attributes.position.array.set(positions);
-      state.activeMesh.geometry.attributes.position.needsUpdate = true;
-      state.activeMesh.geometry.computeVertexNormals();
-    }
-  };
-
-  // Symmetry toggle
-  state.symmetry = false;
-  const symmetryBtn = document.getElementById("toggleSymmetry");
-  symmetryBtn.onclick = () => {
-    state.symmetry = !state.symmetry;
-    symmetryBtn.style.background = state.symmetry ? "#4a90e2" : "#3a3a3a";
-  };
 
   // New Mesh
   document.getElementById("newCube").onclick = state.createCube;
@@ -75,4 +42,33 @@ export function initUI(state) {
   // Export / Import
   document.getElementById("exportGLTF").onclick = state.exportGLTF;
   document.getElementById("importGLTF").onchange = state.importGLTF;
+
+  /* ===============================
+     Undo / Redo Buttons
+  ================================= */
+  const topbar = document.getElementById("topbar");
+
+  const undoBtn = document.createElement("button");
+  undoBtn.textContent = "⎌ Undo";
+  undoBtn.style.marginLeft = "8px";
+  undoBtn.onclick = () => window.undo?.();
+
+  const redoBtn = document.createElement("button");
+  redoBtn.textContent = "↻ Redo";
+  redoBtn.style.marginLeft = "4px";
+  redoBtn.onclick = () => window.redo?.();
+
+  topbar.appendChild(undoBtn);
+  topbar.appendChild(redoBtn);
+
+  // Make buttons touch-friendly
+  [undoBtn, redoBtn].forEach(btn => {
+    btn.style.padding = "6px 8px";
+    btn.style.fontSize = "14px";
+    btn.style.borderRadius = "4px";
+    btn.style.background = "#3a3a3a";
+    btn.style.color = "#fff";
+    btn.style.border = "none";
+    btn.style.cursor = "pointer";
+  });
 }
