@@ -1,8 +1,6 @@
-/*
-Folder/css/style.css
-Author: CCVO
-Purpose: Styles for the GLTF Scene Modeler UI including top bar, side menu, canvas viewport, and brush cursor.
-*/
+/* css/style.css */
+/* Author: CCVO */
+/* Purpose: Styles the GLTF Scene Modeler UI for desktop and mobile; handles topbar, side menu, canvas, buttons, sliders, cursor, and responsive touch-friendly layout */
 
 html, body {
   margin: 0;
@@ -24,48 +22,68 @@ canvas {
   top: 0;
   left: 0;
   right: 0;
-  height: 44px;
+  height: 48px;
   display: flex;
   align-items: center;
   background: #2a2a2a;
   z-index: 10;
   padding: 0 8px;
+  gap: 6px;
+}
+
+#topbar button {
+  background: #3a3a3a;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 1em;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+#topbar button:hover {
+  background: #4a90e2;
 }
 
 .tool-group {
   display: flex;
   gap: 4px;
-  margin-left: 8px;
-}
-
-.tool {
-  padding: 4px 8px;
-  border: none;
-  background: #3a3a3a;
-  color: #fff;
-  cursor: pointer;
-}
-
-.tool:hover {
-  background: #505050;
 }
 
 .tool.active {
   background: #4a90e2;
 }
 
+/* Undo/Redo buttons */
+#undoBtn, #redoBtn {
+  background: #4a4a4a;
+  color: #fff;
+  border-radius: 4px;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#undoBtn:hover, #redoBtn:hover {
+  background: #6aa0f0;
+}
+
 /* Side Menu */
 #menu {
   position: absolute;
-  top: 44px;
+  top: 48px;
   left: 0;
-  width: 220px;
+  width: 240px;
   bottom: 0;
   background: #2b2b2b;
-  padding: 10px;
+  padding: 12px;
   overflow-y: auto;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s;
   z-index: 9;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch; /* smooth scrolling on mobile */
 }
 
 #menu.collapsed {
@@ -73,38 +91,58 @@ canvas {
 }
 
 #menu h3 {
-  margin: 10px 0 5px 0;
-  color: #fff;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  color: #ccc;
+  font-size: 1em;
 }
 
 #menu button {
-  display: block;
   width: 100%;
-  margin: 2px 0;
-  padding: 4px 6px;
-  border: none;
+  margin: 4px 0;
   background: #3a3a3a;
   color: #fff;
+  border: none;
+  padding: 10px;
+  font-size: 1em;
+  border-radius: 4px;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
 #menu button:hover {
-  background: #505050;
+  background: #4a90e2;
 }
 
 #menu input[type="range"] {
   width: 100%;
-  margin: 5px 0 10px 0;
+  margin: 6px 0 12px;
+  cursor: pointer;
 }
 
 /* Cursor Brush */
 #cursorBrush {
   position: absolute;
   pointer-events: none;
-  border: 1px solid #4a90e2;
+  border: 2px solid #4a90e2;
   border-radius: 50%;
   z-index: 5;
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   transform: translate(-50%, -50%);
+  display: none;
+}
+
+/* Mobile Touch Enhancements */
+@media (pointer: coarse) {
+  #topbar button, #menu button, #menu input[type="range"] {
+    padding: 14px;
+    font-size: 1.3em;
+  }
+
+  #cursorBrush {
+    border-width: 3px;
+    width: 50px;
+    height: 50px;
+  }
 }
