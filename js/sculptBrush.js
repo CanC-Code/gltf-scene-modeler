@@ -1,7 +1,11 @@
+// js/sculptBrush.js
+// Author: CCVO
+// Purpose: Handles sculpting operations on a mesh; supports multiple tools, brush radius/strength, symmetry, and undo/redo tracking.
+
 import * as THREE from "../three/three.module.js";
 
 export class SculptBrush {
-  constructor(mesh) {
+  constructor(mesh, state) {
     this.mesh = mesh;
     this.geometry = mesh.geometry;
     this.position = this.geometry.attributes.position;
@@ -10,6 +14,7 @@ export class SculptBrush {
     this.radius = 1;
     this.strength = 0.3;
     this.tool = "inflate";
+    this.state = state; // reference to global state for undo/redo
   }
 
   setTool(tool) {
@@ -28,6 +33,9 @@ export class SculptBrush {
     const pos = this.position;
     const norm = this.normal;
     const center = point;
+
+    // Save current positions for undo
+    const oldPositions = new Float32Array(pos.array);
 
     // Prepare mirrored center if symmetry is enabled
     const centers = [center.clone()];
@@ -82,9 +90,9 @@ export class SculptBrush {
             oz = -avgNormal.z * dist * influence;
             break;
           case "pinch":
-            ox = - (v.x - c.x) * influence;
-            oy = - (v.y - c.y) * influence;
-            oz = - (v.z - c.z) * influence;
+            ox = -(v.x - c.x) * influence;
+            oy = -(v.y - c.y) * influence;
+            oz = -(v.z - c.z) * influence;
             break;
           case "clay":
             ox = avgNormal.x * influence * 0.6;
@@ -104,5 +112,20 @@ export class SculptBrush {
 
     pos.needsUpdate = true;
     this.geometry.computeVertexNormals();
+
+    // Push undo state
+    if (this.state) {
+      this.state.undoStack.push({
+        restore: () => {
+          for (let i = 0; i < pos.count; i++) {
+            pos.setXYZ(i, oldPositions[i * 3], oldPositions[i * 3 + 1], oldPositions[i * 3 + 2]);
+          }
+          pos.needsUpdate = true;
+          this.geometry.computeVertexNormals();
+        }
+      });
+      // Clear redo stack when new action is applied
+      this.state.redoStack = [];
+    }
   }
 }
