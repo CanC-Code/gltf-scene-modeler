@@ -272,7 +272,7 @@ initUI(state);
 /* ===============================
    View Gizmo
 ================================ */
-const viewGizmo = new ViewGizmo(camera, controls);
+const viewGizmo = new viewGizmo(camera, controls);
 
 /* ===============================
    Render Loop
