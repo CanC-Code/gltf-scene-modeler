@@ -1,115 +1,112 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Top-right dynamic view cube gizmo with labels, clickable and draggable for camera orbit
+// Purpose: Provides a view cube for orientation and interactive camera snapping
 
 import * as THREE from "../three/three.module.js";
 
 export class ViewGizmo {
-  constructor(mainCamera, controls) {
+  constructor(mainCamera, controls, gridColor = 0x888888) {
     this.mainCamera = mainCamera;
     this.controls = controls;
+    this.size = 128;
 
-    this.size = 160; // slightly larger
-    this.offset = 16; // px from corner
+    // Gizmo scene
     this.scene = new THREE.Scene();
-
     this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
-    // Cube
     const geo = new THREE.BoxGeometry(1, 1, 1);
     const mat = new THREE.MeshNormalMaterial();
     this.cube = new THREE.Mesh(geo, mat);
     this.scene.add(this.cube);
 
     // Labels for cube faces
-    this.labels = {};
-    const faces = ["F","B","L","R","T","D"];
-    const positions = [
-      [0, 0, 0.6],
-      [0, 0, -0.6],
-      [-0.6, 0, 0],
-      [0.6, 0, 0],
-      [0, 0.6, 0],
-      [0, -0.6, 0]
-    ];
-
-    const canvasTexture = face => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 64; canvas.height = 64;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "white";
-      ctx.font = "bold 40px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(face, 32, 32);
-      const texture = new THREE.CanvasTexture(canvas);
-      return texture;
-    };
-
-    faces.forEach((f,i)=>{
-      const spriteMat = new THREE.SpriteMaterial({
-        map: canvasTexture(f),
-        depthTest:false,
-        transparent:true
+    const loader = new THREE.FontLoader();
+    loader.load("../three/utils/helvetiker_regular.typeface.json", font => {
+      this.labels = [];
+      const texts = ["F", "B", "L", "R", "U", "D"];
+      const positions = [
+        [0, 0, 0.6],
+        [0, 0, -0.6],
+        [-0.6, 0, 0],
+        [0.6, 0, 0],
+        [0, 0.6, 0],
+        [0, -0.6, 0]
+      ];
+      texts.forEach((txt, i) => {
+        const textGeo = new THREE.TextGeometry(txt, { font, size: 0.15, height: 0.01 });
+        const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const mesh = new THREE.Mesh(textGeo, textMat);
+        mesh.position.set(...positions[i]);
+        this.scene.add(mesh);
+        this.labels.push(mesh);
       });
-      const sprite = new THREE.Sprite(spriteMat);
-      sprite.scale.set(0.5,0.5,0.5);
-      sprite.position.set(...positions[i]);
-      this.cube.add(sprite);
-      this.labels[f]=sprite;
     });
 
     // Renderer
-    this.renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true });
+    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setSize(this.size, this.size);
     this.renderer.domElement.style.position = "fixed";
-    this.renderer.domElement.style.top = this.offset + "px"; // top-right
-    this.renderer.domElement.style.right = this.offset + "px";
-    this.renderer.domElement.style.cursor = "grab";
+    this.renderer.domElement.style.top = "12px"; // top-right corner
+    this.renderer.domElement.style.right = "12px";
+    this.renderer.domElement.style.cursor = "pointer";
     this.renderer.domElement.style.zIndex = "20";
     document.body.appendChild(this.renderer.domElement);
 
-    // Interaction
+    // Raycaster for clicks
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
+
+    this.renderer.domElement.addEventListener("pointerdown", e => this.onClick(e));
     this.isDragging = false;
+    this.lastPointer = null;
 
-    this.renderer.domElement.addEventListener("pointerdown", e=>{
-      this.isDragging = true;
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
-    });
-
-    this.renderer.domElement.addEventListener("pointermove", e=>{
-      if(!this.isDragging) return;
-      const dx = e.clientX - this.lastX;
-      const dy = e.clientY - this.lastY;
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
-
-      const rotSpeed = 0.005;
-      this.controls.rotateLeft(dx*rotSpeed);
-      this.controls.rotateUp(dy*rotSpeed);
-      this.controls.update();
-    });
-
-    this.renderer.domElement.addEventListener("pointerup", e=>{
-      this.isDragging = false;
-
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      this.mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
-      this.mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
-      this.raycaster.setFromCamera(this.mouse,this.camera);
-      const hit = this.raycaster.intersectObject(this.cube)[0];
-      if(!hit) return;
-      const n = hit.face.normal.clone();
-      this.snapCamera(n);
-    });
+    // Drag orbit for mobile/desktop
+    this.renderer.domElement.addEventListener("pointermove", e => this.onDrag(e));
+    this.renderer.domElement.addEventListener("pointerup", () => (this.isDragging = false));
   }
 
-  snapCamera(dir){
+  onClick(e) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.intersectObject(this.cube)[0];
+    if (!hit) return;
+    const dir = hit.face.normal.clone();
+    this.snapCamera(dir);
+  }
+
+  onDrag(e) {
+    if (e.buttons !== 1) {
+      this.isDragging = false;
+      this.lastPointer = null;
+      return;
+    }
+    if (!this.isDragging) {
+      this.isDragging = true;
+      this.lastPointer = { x: e.clientX, y: e.clientY };
+      return;
+    }
+    const dx = e.clientX - this.lastPointer.x;
+    const dy = e.clientY - this.lastPointer.y;
+    this.lastPointer = { x: e.clientX, y: e.clientY };
+
+    const angleX = (dy / 100) * Math.PI;
+    const angleY = (dx / 100) * Math.PI;
+
+    const target = this.controls.target.clone();
+    const offset = this.mainCamera.position.clone().sub(target);
+    const quatX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angleX);
+    const quatY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleY);
+    offset.applyQuaternion(quatX).applyQuaternion(quatY);
+    this.mainCamera.position.copy(target.clone().add(offset));
+    this.mainCamera.lookAt(target);
+    this.controls.update();
+  }
+
+  snapCamera(dir) {
     dir.normalize();
     const target = this.controls.target.clone();
     const distance = this.mainCamera.position.distanceTo(target);
@@ -119,8 +116,8 @@ export class ViewGizmo {
     this.controls.update();
   }
 
-  update(){
+  update() {
     this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
-    this.renderer.render(this.scene,this.camera);
+    this.renderer.render(this.scene, this.camera);
   }
 }
