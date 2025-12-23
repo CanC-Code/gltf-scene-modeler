@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Core application logic for GLTF Scene Modeler: handles scene setup, camera, controls, mesh creation, sculpting, and undo/redo functionality.
+// Purpose: Core application logic for GLTF Scene Modeler: handles scene setup, camera, controls, mesh creation, sculpting, symmetry, and undo/redo functionality.
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -52,6 +52,7 @@ const state = {
   transform,
   undoStack: [],
   redoStack: [],
+  symmetry: false,
   setMode(m) {
     this.mode = m;
     if (m === "sculpt") {
@@ -82,15 +83,9 @@ const state = {
     );
     setActiveMesh(mesh);
   },
-  setTool(t) {
-    if (this.brush) this.brush.setTool(t);
-  },
-  setRadius(r) {
-    if (this.brush) this.brush.setRadius(r);
-  },
-  setStrength(s) {
-    if (this.brush) this.brush.setStrength(s);
-  },
+  setTool(t) { if (this.brush) this.brush.setTool(t); },
+  setRadius(r) { if (this.brush) this.brush.setRadius(r); },
+  setStrength(s) { if (this.brush) this.brush.setStrength(s); },
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
@@ -146,12 +141,9 @@ let sculpting = false;
 
 renderer.domElement.addEventListener("pointerdown", e => {
   if (state.mode !== "sculpt" || !state.activeMesh) return;
-
-  // Record current vertex state for undo
   const positions = state.activeMesh.geometry.attributes.position.array.slice();
   state.undoStack.push(positions);
-  state.redoStack = []; // clear redo on new action
-
+  state.redoStack = [];
   sculpting = true;
   transform.detach();
   sculptAtPointer(e);
@@ -173,7 +165,7 @@ function sculptAtPointer(e) {
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
-  state.brush.apply(hit.point);
+  state.brush.apply(hit.point, state.symmetry);
 }
 
 /* ===============================
