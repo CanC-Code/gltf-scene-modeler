@@ -80,7 +80,7 @@ function createDirectionSprite(label) {
   canvas.height = 128;
 
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#777";
+  ctx.fillStyle = "#999999"; // match grid color
   ctx.font = "48px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -304,7 +304,7 @@ window.addEventListener("resize", () => {
 state.createCube();
 initUI(state);
 
-const viewGizmo = new ViewGizmo(camera, controls);
+const viewGizmo = new ViewGizmo(camera, controls, { size: 180 });
 
 /* ============================================================
    Render Loop
