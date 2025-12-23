@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for the 3D editor with world-aligned View Gizmo
+// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159)
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -12,31 +12,26 @@ import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
 
-/* ------------------------------------------------------------------ */
-/* Renderer */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Renderer / Scene
+============================================================ */
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: true,
-  alpha: false
+  antialias: true
 });
 
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-/* ------------------------------------------------------------------ */
-/* Scene */
-/* ------------------------------------------------------------------ */
-
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb0c4de);
 
-/* ------------------------------------------------------------------ */
-/* Camera */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Camera
+============================================================ */
 
 const camera = new THREE.PerspectiveCamera(
   60,
@@ -48,62 +43,56 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(4, 4, 6);
 camera.lookAt(0, 0, 0);
 
-/* ------------------------------------------------------------------ */
-/* Controls */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Controls
+============================================================ */
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.rotateSpeed = 0.6;
-controls.zoomSpeed = 0.8;
-controls.panSpeed = 0.6;
 
-/* ------------------------------------------------------------------ */
-/* Lighting */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Lighting
+============================================================ */
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
 dirLight.position.set(6, 10, 8);
-dirLight.target.position.set(0, 0, 0);
 scene.add(dirLight);
-scene.add(dirLight.target);
 
-/* ------------------------------------------------------------------ */
-/* Grid (World Space) */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Grid
+============================================================ */
 
 const grid = new THREE.GridHelper(20, 20, 0x666666, 0x999999);
-grid.position.y = 0;
 grid.renderOrder = -20;
 scene.add(grid);
 
-/* ------------------------------------------------------------------ */
-/* Cardinal Direction Labels (Viewport Grid) */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Cardinal Direction Labels (World-Aligned)
+============================================================ */
 
-function createDirectionSprite(text) {
+function createDirectionSprite(label) {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
 
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, 128, 128);
   ctx.fillStyle = "#777";
   ctx.font = "48px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, 64, 64);
+  ctx.fillText(label, 64, 64);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
 
   const material = new THREE.SpriteMaterial({
     map: texture,
-    depthWrite: false,
-    depthTest: false
+    depthTest: false,
+    depthWrite: false
   });
 
   const sprite = new THREE.Sprite(material);
@@ -113,7 +102,6 @@ function createDirectionSprite(text) {
   return sprite;
 }
 
-// World directions (right-handed, Three.js standard)
 const north = createDirectionSprite("N");
 north.position.set(0, 0.01, -9);
 
@@ -128,52 +116,180 @@ west.position.set(-9, 0.01, 0);
 
 scene.add(north, south, east, west);
 
-/* ------------------------------------------------------------------ */
-/* Placeholder Object (until model loading / sculpting) */
-/* ------------------------------------------------------------------ */
-
-const testMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1, 1),
-  new THREE.MeshStandardMaterial({ color: 0xcccccc })
-);
-scene.add(testMesh);
-
-/* ------------------------------------------------------------------ */
-/* Transform Controls */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Transform Controls
+============================================================ */
 
 const transformControls = new TransformControls(camera, renderer.domElement);
-transformControls.attach(testMesh);
 scene.add(transformControls);
 
 transformControls.addEventListener("dragging-changed", e => {
   controls.enabled = !e.value;
 });
 
-/* ------------------------------------------------------------------ */
-/* UI + Sculpt System */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Undo / Redo
+============================================================ */
 
-const sculptBrush = new SculptBrush(scene, camera, renderer.domElement);
+const undoStack = [];
+const redoStack = [];
+const MAX_UNDO = 20;
 
-initUI({
-  scene,
-  camera,
-  renderer,
-  controls,
-  transformControls,
-  sculptBrush
+function saveState(mesh) {
+  if (!mesh) return;
+  undoStack.push(mesh.geometry.clone());
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function undo() {
+  if (!state.activeMesh || undoStack.length === 0) return;
+  redoStack.push(state.activeMesh.geometry.clone());
+  const prev = undoStack.pop();
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.geometry = prev;
+  state.activeMesh.geometry.computeVertexNormals();
+}
+
+function redo() {
+  if (!state.activeMesh || redoStack.length === 0) return;
+  undoStack.push(state.activeMesh.geometry.clone());
+  const next = redoStack.pop();
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.geometry = next;
+  state.activeMesh.geometry.computeVertexNormals();
+}
+
+/* ============================================================
+   Application State
+============================================================ */
+
+const state = {
+  mode: "sculpt",
+  activeMesh: null,
+  brush: null,
+  wireframe: false,
+
+  setMode(mode) {
+    this.mode = mode;
+    if (mode === "sculpt") {
+      transformControls.detach();
+      controls.enabled = true;
+    } else {
+      if (this.activeMesh) transformControls.attach(this.activeMesh);
+    }
+  },
+
+  createCube() {
+    clearActiveMesh();
+
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0x88ccff })
+    );
+
+    setActiveMesh(mesh);
+    saveState(mesh);
+  },
+
+  createSphere() {
+    clearActiveMesh();
+
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1.5, 64, 64),
+      new THREE.MeshStandardMaterial({ color: 0x88ff88 })
+    );
+
+    setActiveMesh(mesh);
+    saveState(mesh);
+  },
+
+  exportGLTF() {
+    if (!this.activeMesh) return;
+
+    new GLTFExporter().parse(this.activeMesh, gltf => {
+      const blob = new Blob([JSON.stringify(gltf)], {
+        type: "application/json"
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "model.gltf";
+      a.click();
+    });
+  }
+};
+
+/* ============================================================
+   Mesh Management
+============================================================ */
+
+function clearActiveMesh() {
+  if (!state.activeMesh) return;
+
+  transformControls.detach();
+  scene.remove(state.activeMesh);
+
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.material.dispose();
+
+  state.activeMesh = null;
+  state.brush = null;
+}
+
+function setActiveMesh(mesh) {
+  state.activeMesh = mesh;
+  scene.add(mesh);
+  transformControls.attach(mesh);
+  state.brush = new SculptBrush(mesh);
+}
+
+/* ============================================================
+   Sculpting
+============================================================ */
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let sculpting = false;
+
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (state.mode !== "sculpt" || !state.activeMesh) return;
+  sculpting = true;
+  transformControls.detach();
+  sculptAt(e);
 });
 
-/* ------------------------------------------------------------------ */
-/* View Gizmo (Perfectly Aligned) */
-/* ------------------------------------------------------------------ */
+renderer.domElement.addEventListener("pointerup", () => {
+  sculpting = false;
+});
 
-const viewGizmo = new ViewGizmo(camera, controls);
+renderer.domElement.addEventListener("pointermove", e => {
+  if (sculpting) sculptAt(e);
+});
 
-/* ------------------------------------------------------------------ */
-/* Resize Handling */
-/* ------------------------------------------------------------------ */
+function sculptAt(e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObject(state.activeMesh)[0];
+  if (!hit) return;
+
+  state.brush.apply(hit.point);
+  saveState(state.activeMesh);
+}
+
+/* ============================================================
+   Keyboard
+============================================================ */
+
+window.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "z") undo();
+  if (e.ctrlKey && e.key === "y") redo();
+});
+
+/* ============================================================
+   Resize
+============================================================ */
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -181,13 +297,21 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-/* ------------------------------------------------------------------ */
-/* Animation Loop */
-/* ------------------------------------------------------------------ */
+/* ============================================================
+   Init
+============================================================ */
+
+state.createCube();
+initUI(state);
+
+const viewGizmo = new ViewGizmo(camera, controls);
+
+/* ============================================================
+   Render Loop
+============================================================ */
 
 function animate() {
   requestAnimationFrame(animate);
-
   controls.update();
   renderer.render(scene, camera);
   viewGizmo.update();
