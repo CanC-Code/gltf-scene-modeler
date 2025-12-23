@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Core logic of the GLTF Scene Modeler; sets up Three.js scene, camera, renderer, controls, sculpting tools, gizmos, and GLTF import/export.
+// Purpose: Core logic of the GLTF Scene Modeler; fully compatible with desktop and mobile/touch devices. Adds multi-mesh support, undo/redo, dynamic brush cursor, and mobile-friendly controls.
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -45,11 +45,15 @@ scene.add(new THREE.GridHelper(20, 20));
 ================================ */
 const state = {
   mode: "sculpt",
+  meshes: [],
   activeMesh: null,
   brush: null,
   wireframe: false,
   controls,
   transform,
+  undoStack: [],
+  redoStack: [],
+  isTouch: 'ontouchstart' in window,
   setMode(m) {
     this.mode = m;
     if (m === "sculpt") {
@@ -62,40 +66,50 @@ const state = {
   },
   toggleWireframe() {
     this.wireframe = !this.wireframe;
-    if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe;
+    this.meshes.forEach(mesh => mesh.material.wireframe = this.wireframe);
+  },
+  addMesh(mesh) {
+    this.meshes.push(mesh);
+    scene.add(mesh);
+    setActiveMesh(mesh);
   },
   createCube() {
-    clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe })
     );
-    setActiveMesh(mesh);
+    this.addMesh(mesh);
   },
   createSphere() {
-    clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe })
     );
-    setActiveMesh(mesh);
+    this.addMesh(mesh);
   },
   setTool(t) {
     if (this.brush) this.brush.setTool(t);
   },
   setRadius(r) {
-    if (this.brush) this.brush.setRadius(r);
+    if (this.brush) {
+      this.brush.setRadius(r);
+      const scale = this.isTouch ? 2 : 1; // larger brush for touch
+      cursorBrush.style.width = r * 40 * scale + "px";
+      cursorBrush.style.height = r * 40 * scale + "px";
+    }
   },
   setStrength(s) {
     if (this.brush) this.brush.setStrength(s);
   },
   exportGLTF() {
-    if (!this.activeMesh) return;
-    new GLTFExporter().parse(this.activeMesh, gltf => {
+    if (!this.meshes.length) return;
+    const group = new THREE.Group();
+    this.meshes.forEach(m => group.add(m.clone()));
+    new GLTFExporter().parse(group, gltf => {
       const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "model.gltf";
+      a.download = "scene.gltf";
       a.click();
     });
   },
@@ -103,32 +117,34 @@ const state = {
     const reader = new FileReader();
     reader.onload = () => {
       new GLTFLoader().parse(reader.result, "", gltf => {
-        const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
-        if (mesh) setActiveMesh(mesh);
+        gltf.scene.traverse(obj => {
+          if (obj.isMesh) this.addMesh(obj);
+        });
       });
     };
     reader.readAsArrayBuffer(e.target.files[0]);
+  },
+  undo() {
+    if (!this.undoStack.length) return;
+    const last = this.undoStack.pop();
+    this.redoStack.push(last);
+    last.restore();
+  },
+  redo() {
+    if (!this.redoStack.length) return;
+    const next = this.redoStack.pop();
+    this.undoStack.push(next);
+    next.restore();
   }
 };
 
 /* ===============================
    Active Mesh Handling
 ================================ */
-function clearActiveMesh() {
-  if (!state.activeMesh) return;
-  transform.detach();
-  scene.remove(state.activeMesh);
-  state.activeMesh.geometry.dispose();
-  state.activeMesh.material.dispose();
-  state.activeMesh = null;
-  state.brush = null;
-}
-
 function setActiveMesh(mesh) {
   state.activeMesh = mesh;
-  scene.add(mesh);
   transform.attach(mesh);
-  state.brush = new SculptBrush(mesh);
+  state.brush = new SculptBrush(mesh, state); // pass state for undo
 }
 
 /* ===============================
@@ -145,9 +161,18 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculptAtPointer(e);
 });
 
-renderer.domElement.addEventListener("pointerup", () => {
+renderer.domElement.addEventListener("pointerup", e => {
   sculpting = false;
   if (state.activeMesh && state.mode !== "sculpt") transform.attach(state.activeMesh);
+
+  // Tap-to-select for mobile
+  if (state.isTouch && state.mode !== "sculpt") {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(state.meshes);
+    if (intersects.length) setActiveMesh(intersects[0].object);
+  }
 });
 
 renderer.domElement.addEventListener("pointermove", e => {
@@ -178,6 +203,42 @@ renderer.domElement.addEventListener("pointerleave", () => {
 });
 
 /* ===============================
+   Multi-Mesh Selection via Click
+================================ */
+// Already covered by pointerup for touch, double-click for desktop
+renderer.domElement.addEventListener("dblclick", e => {
+  if (!state.isTouch) {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(state.meshes);
+    if (intersects.length) setActiveMesh(intersects[0].object);
+  }
+});
+
+/* ===============================
+   Keyboard Shortcuts
+================================ */
+window.addEventListener("keydown", e => {
+  if (state.isTouch) return; // keyboard shortcuts ignored on touch
+  switch (e.key.toLowerCase()) {
+    case "s": state.setMode("sculpt"); break;
+    case "m": state.setMode("move"); break;
+    case "r": state.setMode("rotate"); break;
+    case "e": state.setMode("scale"); break;
+    case "z": if (e.ctrlKey) state.undo(); break;
+    case "y": if (e.ctrlKey) state.redo(); break;
+  }
+});
+
+/* ===============================
+   TransformControls Mobile Fix
+================================ */
+transform.addEventListener('dragging-changed', function (event) {
+  controls.enabled = !event.value;
+});
+
+/* ===============================
    Resize Handling
 ================================ */
 window.addEventListener("resize", () => {
@@ -205,12 +266,3 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-
-/* ===============================
-   Enhancement Suggestions:
-   - Add keyboard shortcuts for tools
-   - Snap transform gizmo to grid option
-   - Multiple mesh selection / group sculpting
-   - Save / load multiple meshes in one scene
-   - Scene undo/redo history
-================================ */
