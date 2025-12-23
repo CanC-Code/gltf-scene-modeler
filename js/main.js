@@ -1,253 +1,121 @@
-// js/main.js
+// js/viewGizmo.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler; integrates rendering, sculpting, undo/redo, UI, and dynamic ViewCube
+// Purpose: Dynamic draggable ViewCube with labeled orientation for GLTF Scene Modeler
 
 import * as THREE from "../three/three.module.js";
-import { OrbitControls } from "../three/OrbitControls.js";
-import { TransformControls } from "../three/TransformControls.js";
-import { GLTFLoader } from "../three/GLTFLoader.js";
-import { GLTFExporter } from "../three/GLTFExporter.js";
-import { SculptBrush } from "./sculptBrush.js";
-import { initUI } from "./ui.js";
-import { ViewGizmo } from "./viewGizmo.js";
 
-/* ===============================
-   Renderer & Scene
-================================ */
-const canvas = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
+export class ViewGizmo {
+  constructor(mainCamera, controls) {
+    this.mainCamera = mainCamera;
+    this.controls = controls;
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xb0c4de);
+    this.size = 120; // larger cube
+    this.labelSize = 24; // label font size
 
-const camera = new THREE.PerspectiveCamera(
-  60,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.set(4, 4, 6);
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
+    this.camera.position.set(3, 3, 3);
+    this.camera.lookAt(0, 0, 0);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshNormalMaterial();
+    this.cube = new THREE.Mesh(geo, mat);
+    this.scene.add(this.cube);
 
-/* ===============================
-   Transform Controls
-================================ */
-const transform = new TransformControls(camera, renderer.domElement);
-scene.add(transform);
+    // Labels
+    this.labels = {};
+    const directions = ["F", "B", "L", "R", "T", "D"]; // Front, Back, Left, Right, Top, Down
+    const positions = [
+      [0, 0, 0.6],
+      [0, 0, -0.6],
+      [-0.6, 0, 0],
+      [0.6, 0, 0],
+      [0, 0.6, 0],
+      [0, -0.6, 0],
+    ];
 
-/* ===============================
-   Lighting & Helpers
-================================ */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 7);
-scene.add(dirLight);
-scene.add(new THREE.GridHelper(20, 20));
-
-/* ===============================
-   Undo / Redo
-================================ */
-const undoStack = [];
-const redoStack = [];
-const MAX_UNDO = 20;
-
-function saveState(mesh) {
-  if (!mesh) return;
-  undoStack.push(mesh.geometry.clone());
-  if (undoStack.length > MAX_UNDO) undoStack.shift();
-  redoStack.length = 0;
-}
-
-function undo() {
-  if (!state.activeMesh || undoStack.length === 0) return;
-  redoStack.push(state.activeMesh.geometry.clone());
-  const prev = undoStack.pop();
-  state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = prev;
-  state.activeMesh.geometry.computeVertexNormals();
-}
-
-function redo() {
-  if (!state.activeMesh || redoStack.length === 0) return;
-  undoStack.push(state.activeMesh.geometry.clone());
-  const next = redoStack.pop();
-  state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = next;
-  state.activeMesh.geometry.computeVertexNormals();
-}
-
-/* ===============================
-   Application State
-================================ */
-const state = {
-  mode: "sculpt",
-  activeMesh: null,
-  brush: null,
-  wireframe: false,
-  controls,
-  transform,
-
-  setMode(mode) {
-    this.mode = mode;
-    if (mode === "sculpt") {
-      transform.detach();
-      controls.enabled = true;
-    } else {
-      if (this.activeMesh) transform.attach(this.activeMesh);
-      controls.enabled = mode !== "move";
-    }
-  },
-
-  toggleWireframe() {
-    this.wireframe = !this.wireframe;
-    if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe;
-  },
-
-  createCube() {
-    clearActiveMesh();
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe })
-    );
-    setActiveMesh(mesh);
-    saveState(mesh);
-  },
-
-  createSphere() {
-    clearActiveMesh();
-    const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe })
-    );
-    setActiveMesh(mesh);
-    saveState(mesh);
-  },
-
-  setTool(tool) {
-    if (this.brush) this.brush.setTool(tool);
-  },
-
-  setRadius(r) {
-    if (this.brush) this.brush.setRadius(r);
-  },
-
-  setStrength(s) {
-    if (this.brush) this.brush.setStrength(s);
-  },
-
-  exportGLTF() {
-    if (!this.activeMesh) return;
-    new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "model.gltf";
-      a.click();
+    const loader = new THREE.TextureLoader();
+    directions.forEach((dir, i) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128; canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `${this.labelSize}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(dir, 64, 64);
+      const texture = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false }));
+      sprite.position.set(...positions[i]);
+      sprite.scale.set(0.3, 0.3, 0.3);
+      this.scene.add(sprite);
+      this.labels[dir] = sprite;
     });
-  },
 
-  importGLTF(e) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      new GLTFLoader().parse(reader.result, "", gltf => {
-        const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
-        if (mesh) setActiveMesh(mesh);
-      });
-    };
-    reader.readAsArrayBuffer(e.target.files[0]);
+    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer.setSize(this.size, this.size);
+    this.renderer.domElement.style.position = "fixed";
+    this.renderer.domElement.style.top = "60px"; // lower to avoid menu
+    this.renderer.domElement.style.right = "12px";
+    this.renderer.domElement.style.cursor = "grab";
+    this.renderer.domElement.style.zIndex = "20";
+
+    document.body.appendChild(this.renderer.domElement);
+
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
+    this.dragging = false;
+
+    this.renderer.domElement.addEventListener("pointerdown", e => {
+      this.dragging = true;
+      this.prevX = e.clientX;
+      this.prevY = e.clientY;
+    });
+    window.addEventListener("pointerup", () => this.dragging = false);
+    window.addEventListener("pointermove", e => {
+      if (!this.dragging) return;
+      const deltaX = e.clientX - this.prevX;
+      const deltaY = e.clientY - this.prevY;
+      this.prevX = e.clientX;
+      this.prevY = e.clientY;
+      this.rotateCamera(deltaX, deltaY);
+    });
+
+    this.renderer.domElement.addEventListener("click", e => this.onClick(e));
   }
-};
 
-/* ===============================
-   Mesh Management
-================================ */
-function clearActiveMesh() {
-  if (!state.activeMesh) return;
-  transform.detach();
-  scene.remove(state.activeMesh);
-  state.activeMesh.geometry.dispose();
-  state.activeMesh.material.dispose();
-  state.activeMesh = null;
-  state.brush = null;
+  rotateCamera(dx, dy) {
+    const angleX = dx / 150;
+    const angleY = dy / 150;
+    const offset = new THREE.Vector3().subVectors(this.mainCamera.position, this.controls.target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+    spherical.theta -= angleX;
+    spherical.phi -= angleY;
+    spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+    offset.setFromSpherical(spherical);
+    this.mainCamera.position.copy(this.controls.target).add(offset);
+    this.mainCamera.lookAt(this.controls.target);
+    this.controls.update();
+  }
+
+  onClick(e) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.intersectObject(this.cube)[0];
+    if (!hit) return;
+    const n = hit.face.normal.clone();
+    const target = this.controls.target.clone();
+    const distance = this.mainCamera.position.distanceTo(target);
+    const newPos = n.multiplyScalar(distance).add(target);
+    this.mainCamera.position.copy(newPos);
+    this.mainCamera.lookAt(target);
+    this.controls.update();
+  }
+
+  update() {
+    this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
+    this.renderer.render(this.scene, this.camera);
+  }
 }
-
-function setActiveMesh(mesh) {
-  state.activeMesh = mesh;
-  scene.add(mesh);
-  transform.attach(mesh);
-  state.brush = new SculptBrush(mesh);
-}
-
-/* ===============================
-   Sculpting
-================================ */
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let sculpting = false;
-
-renderer.domElement.addEventListener("pointerdown", e => {
-  if (state.mode !== "sculpt" || !state.activeMesh) return;
-  sculpting = true;
-  transform.detach();
-  sculptAt(e);
-});
-
-renderer.domElement.addEventListener("pointerup", () => {
-  sculpting = false;
-});
-
-renderer.domElement.addEventListener("pointermove", e => {
-  if (sculpting) sculptAt(e);
-});
-
-function sculptAt(e) {
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hit = raycaster.intersectObject(state.activeMesh)[0];
-  if (!hit) return;
-  state.brush.apply(hit.point);
-  saveState(state.activeMesh);
-}
-
-/* ===============================
-   Keyboard Shortcuts
-================================ */
-window.addEventListener("keydown", e => {
-  if (e.ctrlKey && e.key === "z") undo();
-  if (e.ctrlKey && e.key === "y") redo();
-});
-
-/* ===============================
-   Resize Handling
-================================ */
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-/* ===============================
-   Init
-================================ */
-state.createCube();
-initUI(state);
-
-// Integrate dynamic ViewCube with orientation labels
-const viewGizmo = new ViewGizmo(camera, controls);
-
-/* ===============================
-   Render Loop
-================================ */
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-  viewGizmo.update();
-}
-
-animate();
