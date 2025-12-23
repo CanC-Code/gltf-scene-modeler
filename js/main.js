@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler
+// Purpose: Main entry point for GLTF Scene Modeler; integrates rendering, sculpting, undo/redo, UI, and dynamic ViewCube
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -12,7 +12,7 @@ import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
 
 /* ===============================
-   Renderer / Scene
+   Renderer & Scene
 ================================ */
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -43,11 +43,9 @@ scene.add(transform);
    Lighting & Helpers
 ================================ */
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
-
 scene.add(new THREE.GridHelper(20, 20));
 
 /* ===============================
@@ -106,19 +104,14 @@ const state = {
 
   toggleWireframe() {
     this.wireframe = !this.wireframe;
-    if (this.activeMesh) {
-      this.activeMesh.material.wireframe = this.wireframe;
-    }
+    if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe;
   },
 
   createCube() {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x88ccff,
-        wireframe: this.wireframe
-      })
+      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe })
     );
     setActiveMesh(mesh);
     saveState(mesh);
@@ -128,10 +121,7 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({
-        color: 0x88ff88,
-        wireframe: this.wireframe
-      })
+      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe })
     );
     setActiveMesh(mesh);
     saveState(mesh);
@@ -152,9 +142,7 @@ const state = {
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], {
-        type: "application/json"
-      });
+      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -195,7 +183,7 @@ function setActiveMesh(mesh) {
 }
 
 /* ===============================
-   Sculpting Logic
+   Sculpting
 ================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -249,6 +237,7 @@ window.addEventListener("resize", () => {
 state.createCube();
 initUI(state);
 
+// Integrate dynamic ViewCube with orientation labels
 const viewGizmo = new ViewGizmo(camera, controls);
 
 /* ===============================
