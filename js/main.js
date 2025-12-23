@@ -1,20 +1,18 @@
 // js/main.js
 // Author: CCVO
 // Purpose: Main entry point for GLTF Scene Modeler
-// Handles rendering, sculpting, transform controls, undo/redo, UI binding, and view gizmo
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
 import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
-
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
-import { viewGizmo } from "./viewGizmo.js";
+import { ViewGizmo } from "./viewGizmo.js";
 
 /* ===============================
-   Renderer & Scene
+   Renderer / Scene
 ================================ */
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -32,9 +30,6 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(4, 4, 6);
 
-/* ===============================
-   Controls
-================================ */
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
@@ -72,21 +67,23 @@ function saveState(mesh) {
 function undo() {
   if (!state.activeMesh || undoStack.length === 0) return;
   redoStack.push(state.activeMesh.geometry.clone());
+  const prev = undoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = undoStack.pop();
+  state.activeMesh.geometry = prev;
   state.activeMesh.geometry.computeVertexNormals();
 }
 
 function redo() {
   if (!state.activeMesh || redoStack.length === 0) return;
   undoStack.push(state.activeMesh.geometry.clone());
+  const next = redoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = redoStack.pop();
+  state.activeMesh.geometry = next;
   state.activeMesh.geometry.computeVertexNormals();
 }
 
 /* ===============================
-   App State
+   Application State
 ================================ */
 const state = {
   mode: "sculpt",
@@ -118,7 +115,10 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({ color: 0x88ccff })
+      new THREE.MeshStandardMaterial({
+        color: 0x88ccff,
+        wireframe: this.wireframe
+      })
     );
     setActiveMesh(mesh);
     saveState(mesh);
@@ -128,22 +128,25 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({ color: 0x88ff88 })
+      new THREE.MeshStandardMaterial({
+        color: 0x88ff88,
+        wireframe: this.wireframe
+      })
     );
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
-  setTool(t) {
-    this.brush?.setTool(t);
+  setTool(tool) {
+    if (this.brush) this.brush.setTool(tool);
   },
 
   setRadius(r) {
-    this.brush?.setRadius(r);
+    if (this.brush) this.brush.setRadius(r);
   },
 
   setStrength(s) {
-    this.brush?.setStrength(s);
+    if (this.brush) this.brush.setStrength(s);
   },
 
   exportGLTF() {
@@ -172,7 +175,7 @@ const state = {
 };
 
 /* ===============================
-   Mesh Handling
+   Mesh Management
 ================================ */
 function clearActiveMesh() {
   if (!state.activeMesh) return;
@@ -192,7 +195,7 @@ function setActiveMesh(mesh) {
 }
 
 /* ===============================
-   Sculpting
+   Sculpting Logic
 ================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -216,17 +219,15 @@ renderer.domElement.addEventListener("pointermove", e => {
 function sculptAt(e) {
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
-
   state.brush.apply(hit.point);
   saveState(state.activeMesh);
 }
 
 /* ===============================
-   Keyboard Undo / Redo
+   Keyboard Shortcuts
 ================================ */
 window.addEventListener("keydown", e => {
   if (e.ctrlKey && e.key === "z") undo();
@@ -234,7 +235,7 @@ window.addEventListener("keydown", e => {
 });
 
 /* ===============================
-   Resize
+   Resize Handling
 ================================ */
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -248,10 +249,7 @@ window.addEventListener("resize", () => {
 state.createCube();
 initUI(state);
 
-/* ===============================
-   View Gizmo
-================================ */
-const gizmo = new viewGizmo(camera, controls);
+const viewGizmo = new ViewGizmo(camera, controls);
 
 /* ===============================
    Render Loop
@@ -260,6 +258,7 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
-  gizmo.update();
+  viewGizmo.update();
 }
+
 animate();
