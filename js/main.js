@@ -21,7 +21,6 @@ const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true
 });
-
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -39,7 +38,6 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-
 camera.position.set(4, 4, 6);
 camera.lookAt(0, 0, 0);
 
@@ -57,7 +55,6 @@ controls.rotateSpeed = 0.6;
 ============================================================ */
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
 dirLight.position.set(6, 10, 8);
 scene.add(dirLight);
@@ -80,7 +77,7 @@ function createDirectionSprite(label) {
   canvas.height = 128;
 
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#999999"; // match grid color
+  ctx.fillStyle = "#999"; // match grid color
   ctx.font = "48px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -97,8 +94,7 @@ function createDirectionSprite(label) {
 
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(2, 2, 1);
-  sprite.renderOrder = -10;
-
+  sprite.renderOrder = 10; // above grid
   return sprite;
 }
 
@@ -182,35 +178,28 @@ const state = {
 
   createCube() {
     clearActiveMesh();
-
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0x88ccff })
     );
-
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
   createSphere() {
     clearActiveMesh();
-
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({ color: 0x88ff88 })
     );
-
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
   exportGLTF() {
     if (!this.activeMesh) return;
-
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], {
-        type: "application/json"
-      });
+      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -225,13 +214,10 @@ const state = {
 
 function clearActiveMesh() {
   if (!state.activeMesh) return;
-
   transformControls.detach();
   scene.remove(state.activeMesh);
-
   state.activeMesh.geometry.dispose();
   state.activeMesh.material.dispose();
-
   state.activeMesh = null;
   state.brush = null;
 }
@@ -269,11 +255,9 @@ renderer.domElement.addEventListener("pointermove", e => {
 function sculptAt(e) {
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
-
   state.brush.apply(hit.point);
   saveState(state.activeMesh);
 }
