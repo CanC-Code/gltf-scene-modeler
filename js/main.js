@@ -41,9 +41,7 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
-
-const gridHelper = new THREE.GridHelper(20, 20);
-scene.add(gridHelper);
+scene.add(new THREE.GridHelper(20, 20));
 
 /* ===============================
    Undo / Redo
@@ -57,6 +55,7 @@ function saveState(mesh) {
   undoStack.push(mesh.geometry.clone());
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
+  console.log("Saved state for mesh:", mesh);
 }
 
 function undo() {
@@ -66,6 +65,7 @@ function undo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = prev;
   state.activeMesh.geometry.computeVertexNormals();
+  console.log("Undo applied");
 }
 
 function redo() {
@@ -75,6 +75,7 @@ function redo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = next;
   state.activeMesh.geometry.computeVertexNormals();
+  console.log("Redo applied");
 }
 
 /* ===============================
@@ -87,6 +88,7 @@ const state = {
   wireframe: false,
   controls,
   transform,
+
   setMode(mode) {
     this.mode = mode;
     if (mode === "sculpt") {
@@ -96,28 +98,41 @@ const state = {
       if (this.activeMesh) transform.attach(this.activeMesh);
       controls.enabled = mode !== "move";
     }
+    console.log("Mode set to:", mode);
   },
+
   toggleWireframe() {
     this.wireframe = !this.wireframe;
     if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe;
+    console.log("Wireframe toggled:", this.wireframe);
   },
+
   createCube() {
     clearActiveMesh();
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe }));
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe })
+    );
     setActiveMesh(mesh);
     saveState(mesh);
+    console.log("Cube created");
   },
+
   createSphere() {
     clearActiveMesh();
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe }));
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1.5, 64, 64),
+      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe })
+    );
     setActiveMesh(mesh);
     saveState(mesh);
+    console.log("Sphere created");
   },
+
   setTool(tool) { if (this.brush) this.brush.setTool(tool); },
   setRadius(r) { if (this.brush) this.brush.setRadius(r); },
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
+
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
@@ -126,14 +141,17 @@ const state = {
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
       a.click();
+      console.log("GLTF exported");
     });
   },
+
   importGLTF(e) {
     const reader = new FileReader();
     reader.onload = () => {
       new GLTFLoader().parse(reader.result, "", gltf => {
         const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
         if (mesh) setActiveMesh(mesh);
+        console.log("GLTF imported");
       });
     };
     reader.readAsArrayBuffer(e.target.files[0]);
@@ -151,6 +169,7 @@ function clearActiveMesh() {
   state.activeMesh.material.dispose();
   state.activeMesh = null;
   state.brush = null;
+  console.log("Active mesh cleared");
 }
 
 function setActiveMesh(mesh) {
@@ -158,6 +177,7 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transform.attach(mesh);
   state.brush = new SculptBrush(mesh);
+  console.log("Active mesh set:", mesh);
 }
 
 /* ===============================
@@ -174,7 +194,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculptAt(e);
 });
 
-renderer.domElement.addEventListener("pointerup", () => { sculpting = false; });
+renderer.domElement.addEventListener("pointerup", () => sculpting = false);
 renderer.domElement.addEventListener("pointermove", e => { if (sculpting) sculptAt(e); });
 
 function sculptAt(e) {
@@ -185,17 +205,25 @@ function sculptAt(e) {
   if (!hit) return;
   state.brush.apply(hit.point);
   saveState(state.activeMesh);
+  console.log("Sculpt applied at:", hit.point);
 }
 
 /* ===============================
    Keyboard Shortcuts
 ================================ */
-window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });
+window.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "z") undo();
+  if (e.ctrlKey && e.key === "y") redo();
+});
 
 /* ===============================
-   Resize
+   Resize Handling
 ================================ */
-window.addEventListener("resize", () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 /* ===============================
    Init
@@ -203,7 +231,8 @@ window.addEventListener("resize", () => { camera.aspect = window.innerWidth / wi
 state.createCube();
 initUI(state);
 
-const viewGizmo = new ViewGizmo(camera, controls, scene);
+const viewGizmo = new ViewGizmo(camera, controls);
+console.log("ViewGizmo initialized");
 
 /* ===============================
    Render Loop
