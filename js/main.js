@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Core application logic for GLTF Scene Modeler: handles scene setup, camera, controls, mesh creation, sculpting, symmetry, undo/redo, and mirrored cursor visualization.
+// Purpose: Main entry point for GLTF Scene Modeler; handles rendering, UI, sculpting, undo/redo, and view gizmo
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -9,9 +9,10 @@ import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
+import { ViewGizmo } from "./viewGizmo.js";
 
 /* ===============================
-   Core Setup
+   Renderer & Scene
 ================================ */
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -27,7 +28,9 @@ camera.position.set(4, 4, 6);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// Transform Gizmo
+/* ===============================
+   Transform Gizmo
+================================ */
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 
@@ -41,6 +44,39 @@ scene.add(dir);
 scene.add(new THREE.GridHelper(20, 20));
 
 /* ===============================
+   Undo/Redo Stack
+================================ */
+const undoStack = [];
+const redoStack = [];
+const maxUndo = 20;
+
+function saveState(mesh) {
+  if (!mesh) return;
+  const geomClone = mesh.geometry.clone();
+  undoStack.push(geomClone);
+  if (undoStack.length > maxUndo) undoStack.shift();
+  redoStack.length = 0; // clear redo
+}
+
+function undo() {
+  if (!state.activeMesh || undoStack.length === 0) return;
+  redoStack.push(state.activeMesh.geometry.clone());
+  const prev = undoStack.pop();
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.geometry = prev;
+  state.activeMesh.geometry.computeVertexNormals();
+}
+
+function redo() {
+  if (!state.activeMesh || redoStack.length === 0) return;
+  undoStack.push(state.activeMesh.geometry.clone());
+  const next = redoStack.pop();
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.geometry = next;
+  state.activeMesh.geometry.computeVertexNormals();
+}
+
+/* ===============================
    App State
 ================================ */
 const state = {
@@ -50,9 +86,6 @@ const state = {
   wireframe: false,
   controls,
   transform,
-  undoStack: [],
-  redoStack: [],
-  symmetry: false,
   setMode(m) {
     this.mode = m;
     if (m === "sculpt") {
@@ -74,6 +107,7 @@ const state = {
       new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe })
     );
     setActiveMesh(mesh);
+    saveState(mesh);
   },
   createSphere() {
     clearActiveMesh();
@@ -82,10 +116,17 @@ const state = {
       new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe })
     );
     setActiveMesh(mesh);
+    saveState(mesh);
   },
-  setTool(t) { if (this.brush) this.brush.setTool(t); },
-  setRadius(r) { if (this.brush) this.brush.setRadius(r); },
-  setStrength(s) { if (this.brush) this.brush.setStrength(s); },
+  setTool(t) {
+    if (this.brush) this.brush.setTool(t);
+  },
+  setRadius(r) {
+    if (this.brush) this.brush.setRadius(r);
+  },
+  setStrength(s) {
+    if (this.brush) this.brush.setStrength(s);
+  },
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
@@ -119,8 +160,6 @@ function clearActiveMesh() {
   state.activeMesh.material.dispose();
   state.activeMesh = null;
   state.brush = null;
-  state.undoStack = [];
-  state.redoStack = [];
 }
 
 function setActiveMesh(mesh) {
@@ -128,12 +167,10 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transform.attach(mesh);
   state.brush = new SculptBrush(mesh);
-  state.undoStack = [];
-  state.redoStack = [];
 }
 
 /* ===============================
-   Sculpting Core
+   Sculpting
 ================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -141,9 +178,6 @@ let sculpting = false;
 
 renderer.domElement.addEventListener("pointerdown", e => {
   if (state.mode !== "sculpt" || !state.activeMesh) return;
-  const positions = state.activeMesh.geometry.attributes.position.array.slice();
-  state.undoStack.push(positions);
-  state.redoStack = [];
   sculpting = true;
   transform.detach();
   sculptAtPointer(e);
@@ -158,9 +192,6 @@ renderer.domElement.addEventListener("pointermove", e => {
   if (sculpting) sculptAtPointer(e);
 });
 
-/* ===============================
-   Sculpt function
-================================ */
 function sculptAtPointer(e) {
   if (!state.activeMesh) return;
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -168,44 +199,29 @@ function sculptAtPointer(e) {
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
-  state.brush.apply(hit.point, state.symmetry);
+  state.brush.apply(hit.point);
+  saveState(state.activeMesh);
 }
 
 /* ===============================
-   Cursor Brush + Symmetry Visualization
+   Cursor Brush
 ================================ */
 const cursorBrush = document.getElementById("cursorBrush");
-
 renderer.domElement.addEventListener("pointermove", e => {
-  const x = e.clientX;
-  const y = e.clientY;
-
-  // Main cursor
-  cursorBrush.style.left = x + "px";
-  cursorBrush.style.top = y + "px";
+  cursorBrush.style.left = e.clientX + "px";
+  cursorBrush.style.top = e.clientY + "px";
   cursorBrush.style.display = "block";
-
-  // Remove previous mirrored cursors
-  document.querySelectorAll(".mirroredCursor").forEach(el => el.remove());
-
-  if (state.symmetry) {
-    const mirror = document.createElement("div");
-    mirror.className = "mirroredCursor";
-    mirror.style.width = cursorBrush.offsetWidth + "px";
-    mirror.style.height = cursorBrush.offsetHeight + "px";
-
-    // Mirror X across screen center
-    const mirroredX = window.innerWidth - x;
-    mirror.style.left = mirroredX + "px";
-    mirror.style.top = y + "px";
-
-    document.body.appendChild(mirror);
-  }
 });
-
 renderer.domElement.addEventListener("pointerleave", () => {
   cursorBrush.style.display = "none";
-  document.querySelectorAll(".mirroredCursor").forEach(el => el.remove());
+});
+
+/* ===============================
+   Undo / Redo Keybindings
+================================ */
+window.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "z") undo();
+  if (e.ctrlKey && e.key === "y") redo();
 });
 
 /* ===============================
@@ -228,11 +244,17 @@ state.createCube();
 initUI(state);
 
 /* ===============================
+   View Gizmo
+================================ */
+const viewGizmo = new ViewGizmo(camera, controls);
+
+/* ===============================
    Render Loop
 ================================ */
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
+  viewGizmo.update();
 }
 animate();
