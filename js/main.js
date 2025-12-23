@@ -1,15 +1,17 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler; handles rendering, UI, sculpting, undo/redo, and view gizmo
+// Purpose: Main entry point for GLTF Scene Modeler
+// Handles rendering, sculpting, transform controls, undo/redo, UI binding, and view gizmo
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
 import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
+
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
-import { ViewGizmo } from "./viewGizmo.js";
+import { viewGizmo } from "./viewGizmo.js";
 
 /* ===============================
    Renderer & Scene
@@ -30,11 +32,14 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(4, 4, 6);
 
+/* ===============================
+   Controls
+================================ */
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
 /* ===============================
-   Transform Gizmo
+   Transform Controls
 ================================ */
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
@@ -43,46 +48,42 @@ scene.add(transform);
    Lighting & Helpers
 ================================ */
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-dir.position.set(5, 10, 7);
-scene.add(dir);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
+
 scene.add(new THREE.GridHelper(20, 20));
 
 /* ===============================
-   Undo / Redo Stack
+   Undo / Redo
 ================================ */
 const undoStack = [];
 const redoStack = [];
-const maxUndo = 20;
+const MAX_UNDO = 20;
 
 function saveState(mesh) {
   if (!mesh) return;
   undoStack.push(mesh.geometry.clone());
-  if (undoStack.length > maxUndo) undoStack.shift();
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
 }
 
 function undo() {
   if (!state.activeMesh || undoStack.length === 0) return;
   redoStack.push(state.activeMesh.geometry.clone());
-  const prev = undoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = prev;
+  state.activeMesh.geometry = undoStack.pop();
   state.activeMesh.geometry.computeVertexNormals();
 }
 
 function redo() {
   if (!state.activeMesh || redoStack.length === 0) return;
   undoStack.push(state.activeMesh.geometry.clone());
-  const next = redoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = next;
+  state.activeMesh.geometry = redoStack.pop();
   state.activeMesh.geometry.computeVertexNormals();
 }
-
-/* 🔑 Expose for UI buttons */
-window.undo = undo;
-window.redo = redo;
 
 /* ===============================
    App State
@@ -95,14 +96,14 @@ const state = {
   controls,
   transform,
 
-  setMode(m) {
-    this.mode = m;
-    if (m === "sculpt") {
+  setMode(mode) {
+    this.mode = mode;
+    if (mode === "sculpt") {
       transform.detach();
       controls.enabled = true;
     } else {
       if (this.activeMesh) transform.attach(this.activeMesh);
-      controls.enabled = true;
+      controls.enabled = mode !== "move";
     }
   },
 
@@ -117,10 +118,7 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x88ccff,
-        wireframe: this.wireframe
-      })
+      new THREE.MeshStandardMaterial({ color: 0x88ccff })
     );
     setActiveMesh(mesh);
     saveState(mesh);
@@ -130,25 +128,22 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({
-        color: 0x88ff88,
-        wireframe: this.wireframe
-      })
+      new THREE.MeshStandardMaterial({ color: 0x88ff88 })
     );
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
   setTool(t) {
-    if (this.brush) this.brush.setTool(t);
+    this.brush?.setTool(t);
   },
 
   setRadius(r) {
-    if (this.brush) this.brush.setRadius(r);
+    this.brush?.setRadius(r);
   },
 
   setStrength(s) {
-    if (this.brush) this.brush.setStrength(s);
+    this.brush?.setStrength(s);
   },
 
   exportGLTF() {
@@ -177,7 +172,7 @@ const state = {
 };
 
 /* ===============================
-   Active Mesh Handling
+   Mesh Handling
 ================================ */
 function clearActiveMesh() {
   if (!state.activeMesh) return;
@@ -197,18 +192,17 @@ function setActiveMesh(mesh) {
 }
 
 /* ===============================
-   Sculpting (Touch + Mouse Safe)
+   Sculpting
 ================================ */
 const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2();
+const mouse = new THREE.Vector2();
 let sculpting = false;
 
 renderer.domElement.addEventListener("pointerdown", e => {
   if (state.mode !== "sculpt" || !state.activeMesh) return;
   sculpting = true;
-  saveState(state.activeMesh); // save once per stroke
   transform.detach();
-  sculptAtPointer(e);
+  sculptAt(e);
 });
 
 renderer.domElement.addEventListener("pointerup", () => {
@@ -216,34 +210,23 @@ renderer.domElement.addEventListener("pointerup", () => {
 });
 
 renderer.domElement.addEventListener("pointermove", e => {
-  if (sculpting) sculptAtPointer(e);
+  if (sculpting) sculptAt(e);
 });
 
-function sculptAtPointer(e) {
-  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(pointer, camera);
+function sculptAt(e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
+
   state.brush.apply(hit.point);
+  saveState(state.activeMesh);
 }
 
 /* ===============================
-   Cursor Brush (Desktop Only)
-================================ */
-const cursorBrush = document.getElementById("cursorBrush");
-renderer.domElement.addEventListener("pointermove", e => {
-  if (e.pointerType !== "mouse") return;
-  cursorBrush.style.left = e.clientX + "px";
-  cursorBrush.style.top = e.clientY + "px";
-  cursorBrush.style.display = "block";
-});
-renderer.domElement.addEventListener("pointerleave", () => {
-  cursorBrush.style.display = "none";
-});
-
-/* ===============================
-   Undo / Redo Keybindings
+   Keyboard Undo / Redo
 ================================ */
 window.addEventListener("keydown", e => {
   if (e.ctrlKey && e.key === "z") undo();
@@ -260,19 +243,15 @@ window.addEventListener("resize", () => {
 });
 
 /* ===============================
-   Default Mesh
+   Init
 ================================ */
 state.createCube();
-
-/* ===============================
-   UI Init
-================================ */
 initUI(state);
 
 /* ===============================
    View Gizmo
 ================================ */
-const viewGizmo = new ViewGizmo(camera, controls);
+const gizmo = new viewGizmo(camera, controls);
 
 /* ===============================
    Render Loop
@@ -281,6 +260,6 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
-  viewGizmo.update();
+  gizmo.update();
 }
 animate();
