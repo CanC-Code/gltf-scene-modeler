@@ -10,12 +10,10 @@ export class ViewGizmo {
   constructor(mainCamera, controls, options = {}) {
     this.mainCamera = mainCamera;
     this.controls = controls;
-
     this.size = options.size || 160;
 
-    // Scene
+    // Scene for gizmo
     this.scene = new THREE.Scene();
-
     this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
@@ -32,21 +30,24 @@ export class ViewGizmo {
 
     const loader = new FontLoader();
     loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
-      this.createLabel(font, "N",  0, 0, -1.25);
-      this.createLabel(font, "S",  0, 0,  1.25);
-      this.createLabel(font, "E",  1.25, 0,  0);
-      this.createLabel(font, "W", -1.25, 0,  0);
+      this.createLabel(font, "N", 0, 0, -1.2);
+      this.createLabel(font, "S", 0, 0, 1.2);
+      this.createLabel(font, "E", 1.2, 0, 0);
+      this.createLabel(font, "W", -1.2, 0, 0);
     });
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setSize(this.size, this.size);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.domElement.style.position = "fixed";
-    this.renderer.domElement.style.top = "56px";
-    this.renderer.domElement.style.right = "16px";
-    this.renderer.domElement.style.zIndex = "20";
-    this.renderer.domElement.style.cursor = "grab";
+
+    Object.assign(this.renderer.domElement.style, {
+      position: "fixed",
+      top: "56px",
+      right: "16px",
+      zIndex: 20,
+      cursor: "grab"
+    });
 
     document.body.appendChild(this.renderer.domElement);
 
@@ -68,38 +69,43 @@ export class ViewGizmo {
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
 
-      // Smoother rotation
-      const dx = (e.clientX - this.prev.x) * 0.0035;
-      const dy = (e.clientY - this.prev.y) * 0.0035;
+      const dx = (e.clientX - this.prev.x) * 0.005;
+      const dy = (e.clientY - this.prev.y) * 0.005;
 
-      this.controls.rotateLeft(dx);
-      this.controls.rotateUp(dy);
-      this.controls.update();
+      this.rotateCamera(dx, dy);
 
       this.prev.set(e.clientX, e.clientY);
     });
   }
 
   createLabel(font, text, x, y, z) {
-    const geo = new TextGeometry(text, {
-      font,
-      size: 0.35,
-      height: 0.02
-    });
-
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x888888,
-      depthWrite: false
-    });
-
-    const mesh = new THREE.Mesh(geo, mat);
+    const geo = new TextGeometry(text, { font, size: 0.35, height: 0.02 });
     geo.center();
+    const mat = new THREE.MeshBasicMaterial({ color: 0x888888, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
     this.labelGroup.add(mesh);
   }
 
+  rotateCamera(dx, dy) {
+    // Rotate the main camera around its target (orbit target)
+    const offset = new THREE.Vector3();
+    offset.copy(this.mainCamera.position).sub(this.controls.target);
+
+    const spherical = new THREE.Spherical();
+    spherical.setFromVector3(offset);
+
+    spherical.theta -= dx; // horizontal rotation
+    spherical.phi -= dy;   // vertical rotation
+    spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+
+    offset.setFromSpherical(spherical);
+    this.mainCamera.position.copy(this.controls.target).add(offset);
+    this.mainCamera.lookAt(this.controls.target);
+  }
+
   update() {
-    // Cube always oriented opposite camera rotation
+    // Gizmo cube orientation matches camera
     this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
     this.labelGroup.quaternion.copy(this.cube.quaternion);
 
