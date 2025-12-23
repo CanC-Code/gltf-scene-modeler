@@ -1,6 +1,6 @@
 // js/ui.js
 // Author: CCVO
-// Purpose: Initialize and manage UI for GLTF Scene Modeler (desktop and mobile), including tool buttons, sliders, file import/export, and undo/redo controls
+// Purpose: Initializes and manages all UI elements and their interactions for GLTF Scene Modeler, including undo/redo, tool selection, and mesh creation.
 
 export function initUI(state) {
   const toggleMenu = document.getElementById("toggleMenu");
@@ -18,7 +18,7 @@ export function initUI(state) {
     };
   });
 
-  // Wireframe toggle
+  // Wireframe
   document.getElementById("toggleWire").onclick = state.toggleWireframe;
 
   // New Mesh
@@ -43,20 +43,13 @@ export function initUI(state) {
   document.getElementById("exportGLTF").onclick = state.exportGLTF;
   document.getElementById("importGLTF").onchange = state.importGLTF;
 
-  // Undo/Redo buttons
-  const topbar = document.getElementById("topbar");
+  // Undo/Redo stacks
+  state.undoStack = [];
+  state.redoStack = [];
 
-  const undoBtn = document.createElement("button");
-  undoBtn.id = "undoBtn";
-  undoBtn.textContent = "⟲ Undo";
-  topbar.appendChild(undoBtn);
+  const undoBtn = document.getElementById("undoBtn");
+  const redoBtn = document.getElementById("redoBtn");
 
-  const redoBtn = document.createElement("button");
-  redoBtn.id = "redoBtn";
-  redoBtn.textContent = "⟳ Redo";
-  topbar.appendChild(redoBtn);
-
-  // Undo/Redo handlers
   undoBtn.onclick = () => {
     if (!state.activeMesh || state.undoStack.length === 0) return;
     const current = state.activeMesh.geometry.attributes.position.array.slice();
