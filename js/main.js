@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Core application logic for GLTF Scene Modeler: handles scene setup, camera, controls, mesh creation, sculpting, symmetry, and undo/redo functionality.
+// Purpose: Core application logic for GLTF Scene Modeler: handles scene setup, camera, controls, mesh creation, sculpting, symmetry, undo/redo, and mirrored cursor visualization.
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -158,6 +158,9 @@ renderer.domElement.addEventListener("pointermove", e => {
   if (sculpting) sculptAtPointer(e);
 });
 
+/* ===============================
+   Sculpt function
+================================ */
 function sculptAtPointer(e) {
   if (!state.activeMesh) return;
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -169,16 +172,40 @@ function sculptAtPointer(e) {
 }
 
 /* ===============================
-   Cursor Brush
+   Cursor Brush + Symmetry Visualization
 ================================ */
 const cursorBrush = document.getElementById("cursorBrush");
+
 renderer.domElement.addEventListener("pointermove", e => {
-  cursorBrush.style.left = e.clientX + "px";
-  cursorBrush.style.top = e.clientY + "px";
+  const x = e.clientX;
+  const y = e.clientY;
+
+  // Main cursor
+  cursorBrush.style.left = x + "px";
+  cursorBrush.style.top = y + "px";
   cursorBrush.style.display = "block";
+
+  // Remove previous mirrored cursors
+  document.querySelectorAll(".mirroredCursor").forEach(el => el.remove());
+
+  if (state.symmetry) {
+    const mirror = document.createElement("div");
+    mirror.className = "mirroredCursor";
+    mirror.style.width = cursorBrush.offsetWidth + "px";
+    mirror.style.height = cursorBrush.offsetHeight + "px";
+
+    // Mirror X across screen center
+    const mirroredX = window.innerWidth - x;
+    mirror.style.left = mirroredX + "px";
+    mirror.style.top = y + "px";
+
+    document.body.appendChild(mirror);
+  }
 });
+
 renderer.domElement.addEventListener("pointerleave", () => {
   cursorBrush.style.display = "none";
+  document.querySelectorAll(".mirroredCursor").forEach(el => el.remove());
 });
 
 /* ===============================
