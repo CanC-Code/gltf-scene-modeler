@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Core application logic for GLTF Scene Modeler (3D modeling and sculpting in browser), including scene setup, camera, lights, orbit/transform controls, sculpting, undo/redo, and export/import
+// Purpose: Core application logic for GLTF Scene Modeler: handles scene setup, camera, controls, mesh creation, sculpting, and undo/redo functionality.
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -146,6 +146,12 @@ let sculpting = false;
 
 renderer.domElement.addEventListener("pointerdown", e => {
   if (state.mode !== "sculpt" || !state.activeMesh) return;
+
+  // Record current vertex state for undo
+  const positions = state.activeMesh.geometry.attributes.position.array.slice();
+  state.undoStack.push(positions);
+  state.redoStack = []; // clear redo on new action
+
   sculpting = true;
   transform.detach();
   sculptAtPointer(e);
@@ -160,13 +166,6 @@ renderer.domElement.addEventListener("pointermove", e => {
   if (sculpting) sculptAtPointer(e);
 });
 
-function saveState() {
-  if (!state.activeMesh) return;
-  const positions = state.activeMesh.geometry.attributes.position.array.slice();
-  state.undoStack.push(positions);
-  if (state.undoStack.length > 50) state.undoStack.shift();
-}
-
 function sculptAtPointer(e) {
   if (!state.activeMesh) return;
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -174,7 +173,6 @@ function sculptAtPointer(e) {
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
-  saveState();
   state.brush.apply(hit.point);
 }
 
