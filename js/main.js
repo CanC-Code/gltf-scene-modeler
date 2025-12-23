@@ -1,34 +1,42 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler; handles rendering, UI, sculpting, undo/redo, view gizmo, and directional labels
+// Purpose: Main entry point for GLTF Scene Modeler
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
 import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
+
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
-import { viewGizmo } from "./viewGizmo.js";
-import { FontLoader } from "../three/FontLoader.js";
-import { TextGeometry } from "../three/TextGeometry.js";
+import { ViewGizmo } from "./viewGizmo.js";
 
 /* ===============================
    Renderer / Scene
 ================================ */
 const canvas = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb0c4de);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+/* ===============================
+   Camera / Controls
+================================ */
+const camera = new THREE.PerspectiveCamera(
+  60,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
 camera.position.set(4, 4, 6);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.dampingFactor = 0.08;
 
 /* ===============================
    Transform Controls
@@ -36,41 +44,23 @@ controls.enableDamping = true;
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 
+transform.addEventListener("dragging-changed", e => {
+  controls.enabled = !e.value;
+});
+
 /* ===============================
-   Lighting & Grid
+   Lighting / Helpers
 ================================ */
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 
-const gridHelper = new THREE.GridHelper(20, 20);
-scene.add(gridHelper);
+scene.add(new THREE.GridHelper(20, 20));
 
 /* ===============================
-   Directional Labels N/E/S/W
-================================ */
-const loader = new FontLoader();
-loader.load("three/fonts/helvetiker_regular.typeface.json", font => {
-  const labelColor = 0x888888;
-  const createLabel = (text, pos) => {
-    const geo = new TextGeometry(text, { font, size: 0.5, height: 0.05 });
-    const mat = new THREE.MeshBasicMaterial({ color: labelColor, depthTest: false });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(pos);
-    mesh.rotation.x = -Math.PI / 2;
-    scene.add(mesh);
-  };
-  const gridSize = 10;
-  createLabel("N", new THREE.Vector3(0, 0.01, -gridSize));
-  createLabel("S", new THREE.Vector3(0, 0.01, gridSize));
-  createLabel("E", new THREE.Vector3(gridSize, 0.01, 0));
-  createLabel("W", new THREE.Vector3(-gridSize, 0.01, 0));
-  console.log("Scene N/E/S/W labels added");
-});
-
-/* ===============================
-   Undo / Redo
+   Undo / Redo System
 ================================ */
 const undoStack = [];
 const redoStack = [];
@@ -119,20 +109,25 @@ const state = {
       controls.enabled = true;
     } else {
       if (this.activeMesh) transform.attach(this.activeMesh);
-      controls.enabled = mode !== "move";
+      controls.enabled = true;
     }
   },
 
   toggleWireframe() {
     this.wireframe = !this.wireframe;
-    if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe;
+    if (this.activeMesh) {
+      this.activeMesh.material.wireframe = this.wireframe;
+    }
   },
 
   createCube() {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe })
+      new THREE.MeshStandardMaterial({
+        color: 0x88ccff,
+        wireframe: this.wireframe
+      })
     );
     setActiveMesh(mesh);
     saveState(mesh);
@@ -142,20 +137,33 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe })
+      new THREE.MeshStandardMaterial({
+        color: 0x88ff88,
+        wireframe: this.wireframe
+      })
     );
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
-  setTool(tool) { if (this.brush) this.brush.setTool(tool); },
-  setRadius(r) { if (this.brush) this.brush.setRadius(r); },
-  setStrength(s) { if (this.brush) this.brush.setStrength(s); },
+  setTool(tool) {
+    if (this.brush) this.brush.setTool(tool);
+  },
+
+  setRadius(r) {
+    if (this.brush) this.brush.setRadius(r);
+  },
+
+  setStrength(s) {
+    if (this.brush) this.brush.setStrength(s);
+  },
 
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(gltf)], {
+        type: "application/json"
+      });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -196,7 +204,7 @@ function setActiveMesh(mesh) {
 }
 
 /* ===============================
-   Sculpting
+   Sculpting Logic
 ================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -209,7 +217,9 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculptAt(e);
 });
 
-renderer.domElement.addEventListener("pointerup", () => sculpting = false);
+renderer.domElement.addEventListener("pointerup", () => {
+  sculpting = false;
+});
 
 renderer.domElement.addEventListener("pointermove", e => {
   if (sculpting) sculptAt(e);
@@ -224,17 +234,6 @@ function sculptAt(e) {
   state.brush.apply(hit.point);
   saveState(state.activeMesh);
 }
-
-/* ===============================
-   Cursor Brush
-================================ */
-const cursorBrush = document.getElementById("cursorBrush");
-renderer.domElement.addEventListener("pointermove", e => {
-  cursorBrush.style.left = e.clientX + "px";
-  cursorBrush.style.top = e.clientY + "px";
-  cursorBrush.style.display = "block";
-});
-renderer.domElement.addEventListener("pointerleave", () => { cursorBrush.style.display = "none"; });
 
 /* ===============================
    Keyboard Shortcuts
@@ -254,22 +253,31 @@ window.addEventListener("resize", () => {
 });
 
 /* ===============================
-   Initialize App
+   Init
 ================================ */
 state.createCube();
 initUI(state);
 
-// ViewGizmo in top-right, larger
-const viewGizmoInstance = new viewGizmo(camera, controls, { size: 128, top: 12, right: 12 });
+const viewGizmo = new ViewGizmo(camera, controls, {
+  size: 160,
+  top: 16,
+  right: 16
+});
 
 /* ===============================
    Render Loop
 ================================ */
-function animate() {
+let lastTime = performance.now();
+
+function animate(now) {
   requestAnimationFrame(animate);
+
+  const delta = Math.min((now - lastTime) / 1000, 0.033);
+  lastTime = now;
+
   controls.update();
   renderer.render(scene, camera);
-  viewGizmoInstance.update();
+  viewGizmo.update(delta);
 }
 
 animate();
