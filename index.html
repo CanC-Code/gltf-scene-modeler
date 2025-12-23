@@ -1,25 +1,30 @@
+<!--
+Folder/index.html
+Author: CCVO
+Purpose: Main HTML entry point for the GLTF Scene Modeler; defines the UI, toolbars, side menu, file import/export, and canvas viewport.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MC Voxel Sculpt</title>
+  <title>GLTF Scene Modeler</title>
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 
 <body>
   <!-- Top Bar -->
   <div id="topbar">
-    <button id="toggleMenu">☰</button>
+    <button id="toggleMenu" title="Toggle Menu">☰</button>
 
     <div class="tool-group">
-      <button id="toolSculpt" class="tool active">Sculpt</button>
-      <button id="toolMove" class="tool">Move</button>
-      <button id="toolRotate" class="tool">Rotate</button>
-      <button id="toolScale" class="tool">Scale</button>
+      <button id="toolSculpt" class="tool active" title="Sculpt Tool">Sculpt</button>
+      <button id="toolMove" class="tool" title="Move Tool">Move</button>
+      <button id="toolRotate" class="tool" title="Rotate Tool">Rotate</button>
+      <button id="toolScale" class="tool" title="Scale Tool">Scale</button>
     </div>
 
-    <button id="toggleWire">▦</button>
+    <button id="toggleWire" title="Toggle Wireframe">▦</button>
   </div>
 
   <!-- Side Menu -->
@@ -47,7 +52,7 @@
     <input type="file" id="importGLTF" accept=".gltf,.glb" />
   </div>
 
-  <div id="cursorBrush"></div>
+  <div id="cursorBrush" title="Cursor Brush"></div>
   <canvas id="viewport"></canvas>
 
   <script type="module" src="./js/main.js"></script>
