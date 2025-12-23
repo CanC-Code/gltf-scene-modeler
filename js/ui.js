@@ -19,29 +19,68 @@ export function initUI(state) {
   });
 
   // Wireframe toggle
-  document.getElementById("toggleWire").onclick = state.toggleWireframe;
+  const wireBtn = document.getElementById("toggleWire");
+  if (wireBtn) {
+    wireBtn.onclick = () => {
+      state.wireframe = !state.wireframe;
+      if (state.activeMesh) {
+        state.activeMesh.material.wireframe = state.wireframe;
+      }
+    };
+  }
 
-  // New Mesh
-  document.getElementById("newCube").onclick = state.createCube;
-  document.getElementById("newSphere").onclick = state.createSphere;
+  // New Mesh buttons
+  const cubeBtn = document.getElementById("newCube");
+  if (cubeBtn) cubeBtn.onclick = () => state.createCube();
 
-  // Sculpt tools
+  const sphereBtn = document.getElementById("newSphere");
+  if (sphereBtn) sphereBtn.onclick = () => state.createSphere();
+
+  // Sculpt tool buttons
   const tools = ["Inflate", "Deflate", "Smooth", "Flatten", "Pinch"];
   tools.forEach(t => {
     const btn = document.getElementById("tool" + t);
-    btn.onclick = () => state.setTool(t.toLowerCase());
+    if (btn) {
+      btn.onclick = () => {
+        if (state.brush) state.brush.setTool(t.toLowerCase());
+      };
+    }
   });
 
   // Brush sliders
   const brushSize = document.getElementById("brushSize");
-  brushSize.oninput = () => state.setRadius(parseFloat(brushSize.value));
+  if (brushSize) brushSize.oninput = () => {
+    if (state.brush) state.brush.setRadius(parseFloat(brushSize.value));
+  };
 
   const brushStrength = document.getElementById("brushStrength");
-  brushStrength.oninput = () => state.setStrength(parseFloat(brushStrength.value));
+  if (brushStrength) brushStrength.oninput = () => {
+    if (state.brush) state.brush.setStrength(parseFloat(brushStrength.value));
+  };
 
-  // Export / Import
-  document.getElementById("exportGLTF").onclick = state.exportGLTF;
-  document.getElementById("importGLTF").onchange = state.importGLTF;
+  // Export / Import GLTF
+  const exportBtn = document.getElementById("exportGLTF");
+  if (exportBtn) exportBtn.onclick = () => state.exportGLTF();
+
+  const importInput = document.getElementById("importGLTF");
+  if (importInput) importInput.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const contents = evt.target.result;
+      const loader = new THREE.GLTFLoader();
+      loader.parse(contents, '', gltf => {
+        if (state.activeMesh) state.activeMesh.geometry.dispose();
+        if (state.activeMesh) state.activeMesh.material.dispose();
+        state.activeMesh = gltf.scene.children[0];
+        state.activeMesh.material = new THREE.MeshStandardMaterial({ color: 0x88ccff });
+        state.brush = new SculptBrush(state.activeMesh);
+        scene.add(state.activeMesh);
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   /* ===============================
      Undo / Redo Buttons
