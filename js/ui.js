@@ -2,7 +2,7 @@
 // Author: CCVO
 // Purpose: Initializes the UI controls for GLTF Scene Modeler, including top bar, menus, brush sliders, sculpt tools, and Undo/Redo buttons
 
-export function initUI(state) {
+export function initUI(state, viewGizmo) {
   const toggleMenu = document.getElementById("toggleMenu");
   const menu = document.getElementById("menu");
   toggleMenu.onclick = () => menu.classList.toggle("collapsed");
@@ -19,68 +19,38 @@ export function initUI(state) {
   });
 
   // Wireframe toggle
-  const wireBtn = document.getElementById("toggleWire");
-  if (wireBtn) {
-    wireBtn.onclick = () => {
-      state.wireframe = !state.wireframe;
-      if (state.activeMesh) {
-        state.activeMesh.material.wireframe = state.wireframe;
-      }
-    };
-  }
+  document.getElementById("toggleWire").onclick = () => {
+    state.wireframe = !state.wireframe;
+    if (state.activeMesh) state.activeMesh.material.wireframe = state.wireframe;
+  };
 
   // New Mesh buttons
-  const cubeBtn = document.getElementById("newCube");
-  if (cubeBtn) cubeBtn.onclick = () => state.createCube();
+  document.getElementById("newCube").onclick = () => {
+    state.createCube();
+    viewGizmo.setActiveMesh(state.activeMesh);
+  };
+  document.getElementById("newSphere").onclick = () => {
+    state.createSphere();
+    viewGizmo.setActiveMesh(state.activeMesh);
+  };
 
-  const sphereBtn = document.getElementById("newSphere");
-  if (sphereBtn) sphereBtn.onclick = () => state.createSphere();
-
-  // Sculpt tool buttons
+  // Sculpt tools
   const tools = ["Inflate", "Deflate", "Smooth", "Flatten", "Pinch"];
   tools.forEach(t => {
     const btn = document.getElementById("tool" + t);
-    if (btn) {
-      btn.onclick = () => {
-        if (state.brush) state.brush.setTool(t.toLowerCase());
-      };
-    }
+    btn.onclick = () => state.brush?.setTool(t.toLowerCase());
   });
 
   // Brush sliders
   const brushSize = document.getElementById("brushSize");
-  if (brushSize) brushSize.oninput = () => {
-    if (state.brush) state.brush.setRadius(parseFloat(brushSize.value));
-  };
+  brushSize.oninput = () => state.brush?.setRadius(parseFloat(brushSize.value));
 
   const brushStrength = document.getElementById("brushStrength");
-  if (brushStrength) brushStrength.oninput = () => {
-    if (state.brush) state.brush.setStrength(parseFloat(brushStrength.value));
-  };
+  brushStrength.oninput = () => state.brush?.setStrength(parseFloat(brushStrength.value));
 
-  // Export / Import GLTF
-  const exportBtn = document.getElementById("exportGLTF");
-  if (exportBtn) exportBtn.onclick = () => state.exportGLTF();
-
-  const importInput = document.getElementById("importGLTF");
-  if (importInput) importInput.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-      const contents = evt.target.result;
-      const loader = new THREE.GLTFLoader();
-      loader.parse(contents, '', gltf => {
-        if (state.activeMesh) state.activeMesh.geometry.dispose();
-        if (state.activeMesh) state.activeMesh.material.dispose();
-        state.activeMesh = gltf.scene.children[0];
-        state.activeMesh.material = new THREE.MeshStandardMaterial({ color: 0x88ccff });
-        state.brush = new SculptBrush(state.activeMesh);
-        scene.add(state.activeMesh);
-      });
-    };
-    reader.readAsArrayBuffer(file);
-  };
+  // Export / Import
+  document.getElementById("exportGLTF").onclick = () => state.exportGLTF();
+  document.getElementById("importGLTF").onchange = e => state.importGLTF?.(e);
 
   /* ===============================
      Undo / Redo Buttons
@@ -90,12 +60,18 @@ export function initUI(state) {
   const undoBtn = document.createElement("button");
   undoBtn.textContent = "⎌ Undo";
   undoBtn.style.marginLeft = "8px";
-  undoBtn.onclick = () => window.undo?.();
+  undoBtn.onclick = () => {
+    state.undo?.();
+    viewGizmo.setActiveMesh(state.activeMesh);
+  };
 
   const redoBtn = document.createElement("button");
   redoBtn.textContent = "↻ Redo";
   redoBtn.style.marginLeft = "4px";
-  redoBtn.onclick = () => window.redo?.();
+  redoBtn.onclick = () => {
+    state.redo?.();
+    viewGizmo.setActiveMesh(state.activeMesh);
+  };
 
   topbar.appendChild(undoBtn);
   topbar.appendChild(redoBtn);
