@@ -1,6 +1,6 @@
 // js/ui.js
 // Author: CCVO
-// Purpose: Initializes the UI controls for GLTF Scene Modeler, including top bar, menus, brush sliders, sculpt tools, and Undo/Redo buttons
+// Purpose: Initializes the UI controls for GLTF Scene Modeler
 
 export function initUI(state, viewGizmo) {
   const toggleMenu = document.getElementById("toggleMenu");
@@ -27,11 +27,11 @@ export function initUI(state, viewGizmo) {
   // New Mesh buttons
   document.getElementById("newCube").onclick = () => {
     state.createCube();
-    viewGizmo.setActiveMesh(state.activeMesh);
+    viewGizmo.updateMesh(state.activeMesh); // Fixed method name
   };
   document.getElementById("newSphere").onclick = () => {
     state.createSphere();
-    viewGizmo.setActiveMesh(state.activeMesh);
+    viewGizmo.updateMesh(state.activeMesh); // Fixed method name
   };
 
   // Sculpt tools
@@ -61,16 +61,14 @@ export function initUI(state, viewGizmo) {
   undoBtn.textContent = "⎌ Undo";
   undoBtn.style.marginLeft = "8px";
   undoBtn.onclick = () => {
-    state.undo?.();
-    viewGizmo.setActiveMesh(state.activeMesh);
+    state.undo(); // Now properly calls exposed function
   };
 
   const redoBtn = document.createElement("button");
   redoBtn.textContent = "↻ Redo";
   redoBtn.style.marginLeft = "4px";
   redoBtn.onclick = () => {
-    state.redo?.();
-    viewGizmo.setActiveMesh(state.activeMesh);
+    state.redo(); // Now properly calls exposed function
   };
 
   topbar.appendChild(undoBtn);
