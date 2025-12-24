@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159+dynamic ViewGizmo)
+// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159)
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -15,12 +15,8 @@ import { ViewGizmo } from "./viewGizmo.js";
 /* ============================================================
    Renderer / Scene
 ============================================================ */
-
 const canvas = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true
-});
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -31,7 +27,6 @@ scene.background = new THREE.Color(0xb0c4de);
 /* ============================================================
    Camera
 ============================================================ */
-
 const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
@@ -44,7 +39,6 @@ camera.lookAt(0, 0, 0);
 /* ============================================================
    Controls
 ============================================================ */
-
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
@@ -53,9 +47,7 @@ controls.rotateSpeed = 0.6;
 /* ============================================================
    Lighting
 ============================================================ */
-
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-
 const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
 dirLight.position.set(6, 10, 8);
 scene.add(dirLight);
@@ -63,15 +55,13 @@ scene.add(dirLight);
 /* ============================================================
    Grid
 ============================================================ */
-
 const grid = new THREE.GridHelper(20, 20, 0x666666, 0x999999);
 grid.renderOrder = -20;
 scene.add(grid);
 
 /* ============================================================
-   Cardinal Direction Labels (World-Aligned)
+   Cardinal Direction Labels
 ============================================================ */
-
 function createDirectionSprite(label) {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
@@ -82,20 +72,12 @@ function createDirectionSprite(label) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, 64, 64);
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    depthTest: false,
-    depthWrite: false
-  });
-
+  const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(2, 2, 1);
   sprite.renderOrder = -10;
-
   return sprite;
 }
 
@@ -107,13 +89,11 @@ const east = createDirectionSprite("E");
 east.position.set(9, 0.01, 0);
 const west = createDirectionSprite("W");
 west.position.set(-9, 0.01, 0);
-
 scene.add(north, south, east, west);
 
 /* ============================================================
    Transform Controls
 ============================================================ */
-
 const transformControls = new TransformControls(camera, renderer.domElement);
 scene.add(transformControls);
 transformControls.addEventListener("dragging-changed", e => {
@@ -123,7 +103,6 @@ transformControls.addEventListener("dragging-changed", e => {
 /* ============================================================
    Undo / Redo
 ============================================================ */
-
 const undoStack = [];
 const redoStack = [];
 const MAX_UNDO = 20;
@@ -156,7 +135,6 @@ function redo() {
 /* ============================================================
    Application State
 ============================================================ */
-
 const state = {
   mode: "sculpt",
   activeMesh: null,
@@ -181,6 +159,7 @@ const state = {
     );
     setActiveMesh(mesh);
     saveState(mesh);
+    viewGizmo.updateMesh(mesh);
   },
 
   createSphere() {
@@ -191,6 +170,7 @@ const state = {
     );
     setActiveMesh(mesh);
     saveState(mesh);
+    viewGizmo.updateMesh(mesh);
   },
 
   exportGLTF() {
@@ -208,7 +188,6 @@ const state = {
 /* ============================================================
    Mesh Management
 ============================================================ */
-
 function clearActiveMesh() {
   if (!state.activeMesh) return;
   transformControls.detach();
@@ -217,6 +196,7 @@ function clearActiveMesh() {
   state.activeMesh.material.dispose();
   state.activeMesh = null;
   state.brush = null;
+  viewGizmo.updateMesh(null);
 }
 
 function setActiveMesh(mesh) {
@@ -224,12 +204,12 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transformControls.attach(mesh);
   state.brush = new SculptBrush(mesh);
+  viewGizmo.updateMesh(mesh);
 }
 
 /* ============================================================
    Sculpting
 ============================================================ */
-
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let sculpting = false;
@@ -257,7 +237,6 @@ function sculptAt(e) {
 /* ============================================================
    Keyboard
 ============================================================ */
-
 window.addEventListener("keydown", e => {
   if (e.ctrlKey && e.key === "z") undo();
   if (e.ctrlKey && e.key === "y") redo();
@@ -266,7 +245,6 @@ window.addEventListener("keydown", e => {
 /* ============================================================
    Resize
 ============================================================ */
-
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -276,17 +254,15 @@ window.addEventListener("resize", () => {
 /* ============================================================
    Init
 ============================================================ */
-
-state.createCube();
 initUI(state);
 
-// Dynamic View Gizmo linked to activeMesh
-const viewGizmo = new ViewGizmo(camera, controls, state, { size: 100, offset: { top: 56, right: 16 } });
+const viewGizmo = new ViewGizmo(camera, controls);
+
+state.createCube(); // initial cube
 
 /* ============================================================
    Render Loop
 ============================================================ */
-
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
