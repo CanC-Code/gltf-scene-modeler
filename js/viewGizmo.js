@@ -25,11 +25,11 @@ export class ViewGizmo {
     dir.position.set(5, 10, 7);
     this.scene.add(dir);
 
-    // Base cube for reference
+    // Base cube for reference (optional - only shown when no mesh is active)
     const geo = new THREE.BoxGeometry(1, 1, 1);
     const mat = new THREE.MeshNormalMaterial();
     this.cube = new THREE.Mesh(geo, mat);
-    this.scene.add(this.cube);
+    // Don't add to scene yet - will be added only when needed
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -108,7 +108,14 @@ export class ViewGizmo {
       this.meshClone = null;
     }
 
-    if (!mesh) return;
+    if (!mesh) {
+      // Show cube when no mesh is active
+      this.scene.add(this.cube);
+      return;
+    }
+
+    // Remove cube when mesh is active
+    this.scene.remove(this.cube);
 
     this.meshClone = mesh.clone();
     this.meshClone.material = new THREE.MeshNormalMaterial();
@@ -133,10 +140,10 @@ export class ViewGizmo {
       // Match orientation
       this.meshClone.quaternion.copy(this.activeMesh.quaternion);
       this.meshClone.position.set(0, 0, 0);
+    } else {
+      // Update cube to show camera orientation when no mesh is active
+      this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
     }
-
-    // Base cube aligned to camera
-    this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
 
     this.renderer.render(this.scene, this.camera);
   }
