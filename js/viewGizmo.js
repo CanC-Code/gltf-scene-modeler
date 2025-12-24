@@ -11,12 +11,11 @@ export class ViewGizmo {
     this.mainCamera = mainCamera;
     this.controls = controls;
 
-    this.size = options.size || 200;
+    this.size = options.size || 160;
 
-    /* Scene for gizmo */
+    /* Scene */
     this.scene = new THREE.Scene();
 
-    /* Gizmo camera */
     this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
@@ -33,10 +32,10 @@ export class ViewGizmo {
 
     const loader = new FontLoader();
     loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
-      this.createLabel(font, "N",  0, 0, -1.3);
-      this.createLabel(font, "S",  0, 0,  1.3);
-      this.createLabel(font, "E",  1.3, 0,  0);
-      this.createLabel(font, "W", -1.3, 0,  0);
+      this.createLabel(font, "N",  0, 0, -1.2);
+      this.createLabel(font, "S",  0, 0,  1.2);
+      this.createLabel(font, "E",  1.2, 0,  0);
+      this.createLabel(font, "W", -1.2, 0,  0);
     });
 
     /* Renderer */
@@ -75,22 +74,12 @@ export class ViewGizmo {
       const dx = (e.clientX - this.prev.x) * 0.005;
       const dy = (e.clientY - this.prev.y) * 0.005;
 
-      // Rotate camera around target safely
-      const offset = new THREE.Vector3();
-      offset.copy(this.mainCamera.position).sub(this.controls.target);
+      if (this.controls.rotateLeft && this.controls.rotateUp) {
+        this.controls.rotateLeft(dx);
+        this.controls.rotateUp(dy);
+        this.controls.update();
+      }
 
-      const spherical = new THREE.Spherical();
-      spherical.setFromVector3(offset);
-
-      spherical.theta -= dx;
-      spherical.phi   -= dy;
-      spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
-
-      offset.setFromSpherical(spherical);
-      this.mainCamera.position.copy(this.controls.target).add(offset);
-      this.mainCamera.lookAt(this.controls.target);
-
-      this.controls.update();
       this.prev.set(e.clientX, e.clientY);
     });
   }
@@ -103,7 +92,7 @@ export class ViewGizmo {
     });
 
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x999999,
+      color: 0x888888,
       depthWrite: false
     });
 
@@ -115,8 +104,15 @@ export class ViewGizmo {
   }
 
   update() {
-    // Align cube with camera orientation
+    // Fixed world reference (horizontal aligned)
+    const worldQuat = new THREE.Quaternion();
+    worldQuat.setFromEuler(new THREE.Euler(0, 0, 0)); // no tilt
+
+    // Orient gizmo cube to match camera relative to world
     this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
+    this.cube.quaternion.premultiply(worldQuat);
+
+    // Labels follow cube
     this.labelGroup.quaternion.copy(this.cube.quaternion);
 
     this.renderer.render(this.scene, this.camera);
