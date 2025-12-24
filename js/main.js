@@ -1,197 +1,297 @@
+// js/main.js
+// Author: CCVO
+// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159+dynamic ViewGizmo)
+
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
+import { TransformControls } from "../three/TransformControls.js";
+import { GLTFLoader } from "../three/GLTFLoader.js";
+import { GLTFExporter } from "../three/GLTFExporter.js";
 
-/* =========================
+import { SculptBrush } from "./sculptBrush.js";
+import { initUI } from "./ui.js";
+import { ViewGizmo } from "./viewGizmo.js";
+
+/* ============================================================
    Renderer / Scene
-========================= */
+============================================================ */
 
-const canvas = document.querySelector("#viewport");
-
+const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    alpha: true
+  canvas,
+  antialias: true
 });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111);
+scene.background = new THREE.Color(0xb0c4de);
+
+/* ============================================================
+   Camera
+============================================================ */
 
 const camera = new THREE.PerspectiveCamera(
-    60,
-    window.innerWidth / window.innerHeight,
-    0.01,
-    1000
+  60,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
 );
-camera.position.set(3, 3, 6);
+camera.position.set(4, 4, 6);
+camera.lookAt(0, 0, 0);
 
-/* =========================
+/* ============================================================
    Controls
-========================= */
+============================================================ */
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.6;
 
-/* =========================
+/* ============================================================
    Lighting
-========================= */
+============================================================ */
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 7);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+dirLight.position.set(6, 10, 8);
 scene.add(dirLight);
 
-/* =========================
-   Example Editable Object
-========================= */
+/* ============================================================
+   Grid
+============================================================ */
 
-const modelGroup = new THREE.Group();
-scene.add(modelGroup);
+const grid = new THREE.GridHelper(20, 20, 0x666666, 0x999999);
+grid.renderOrder = -20;
+scene.add(grid);
 
-const baseMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x6699ff })
-);
-modelGroup.add(baseMesh);
+/* ============================================================
+   Cardinal Direction Labels (World-Aligned)
+============================================================ */
 
-/* =========================
-   View Gizmo Scene
-========================= */
+function createDirectionSprite(label) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#777";
+  ctx.font = "48px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, 64, 64);
 
-const gizmoScene = new THREE.Scene();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
 
-const gizmoCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-gizmoCamera.position.set(0, 0, 6);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    depthTest: false,
+    depthWrite: false
+  });
 
-const gizmoLight = new THREE.DirectionalLight(0xffffff, 1);
-gizmoLight.position.set(2, 3, 4);
-gizmoScene.add(gizmoLight);
-gizmoScene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2, 2, 1);
+  sprite.renderOrder = -10;
 
-/* =========================
-   View Cube (True 3D)
-========================= */
-
-const cubeSize = 1;
-const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-
-const cubeMaterials = [
-    new THREE.MeshStandardMaterial({ color: 0xff5555 }), // +X
-    new THREE.MeshStandardMaterial({ color: 0x55ff55 }), // -X
-    new THREE.MeshStandardMaterial({ color: 0x5555ff }), // +Y
-    new THREE.MeshStandardMaterial({ color: 0xffff55 }), // -Y
-    new THREE.MeshStandardMaterial({ color: 0xff55ff }), // +Z
-    new THREE.MeshStandardMaterial({ color: 0x55ffff })  // -Z
-];
-
-const viewCube = new THREE.Mesh(cubeGeo, cubeMaterials);
-gizmoScene.add(viewCube);
-
-/* =========================
-   Cardinal Labels
-========================= */
-
-function createDirectionSprite(text) {
-    const size = 128;
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = size;
-
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 64px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, size / 2, size / 2);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-
-    const sprite = new THREE.Sprite(material);
-    sprite.scale.set(0.9, 0.9, 1);
-    return sprite;
+  return sprite;
 }
 
 const north = createDirectionSprite("N");
-north.position.set(0, 0.01, -1.2);
-
+north.position.set(0, 0.01, -9);
 const south = createDirectionSprite("S");
-south.position.set(0, 0.01, 1.2);
-
+south.position.set(0, 0.01, 9);
 const east = createDirectionSprite("E");
-east.position.set(1.2, 0.01, 0);
-
+east.position.set(9, 0.01, 0);
 const west = createDirectionSprite("W");
-west.position.set(-1.2, 0.01, 0);
+west.position.set(-9, 0.01, 0);
 
-gizmoScene.add(north, south, east, west);
+scene.add(north, south, east, west);
 
-/* =========================
-   Dynamic Gizmo Scaling
-========================= */
+/* ============================================================
+   Transform Controls
+============================================================ */
 
-const tempBox = new THREE.Box3();
-const tempSize = new THREE.Vector3();
-
-function updateGizmoScale() {
-    tempBox.setFromObject(modelGroup);
-    tempBox.getSize(tempSize);
-
-    const maxAxis = Math.max(tempSize.x, tempSize.y, tempSize.z);
-    const scale = THREE.MathUtils.clamp(1 / (maxAxis || 1), 0.25, 1);
-
-    viewCube.scale.lerp(
-        new THREE.Vector3(scale, scale, scale),
-        0.15
-    );
-}
-
-/* =========================
-   Resize Handling
-========================= */
-
-window.addEventListener("resize", () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+const transformControls = new TransformControls(camera, renderer.domElement);
+scene.add(transformControls);
+transformControls.addEventListener("dragging-changed", e => {
+  controls.enabled = !e.value;
 });
 
-/* =========================
+/* ============================================================
+   Undo / Redo
+============================================================ */
+
+const undoStack = [];
+const redoStack = [];
+const MAX_UNDO = 20;
+
+function saveState(mesh) {
+  if (!mesh) return;
+  undoStack.push(mesh.geometry.clone());
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function undo() {
+  if (!state.activeMesh || undoStack.length === 0) return;
+  redoStack.push(state.activeMesh.geometry.clone());
+  const prev = undoStack.pop();
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.geometry = prev;
+  state.activeMesh.geometry.computeVertexNormals();
+}
+
+function redo() {
+  if (!state.activeMesh || redoStack.length === 0) return;
+  undoStack.push(state.activeMesh.geometry.clone());
+  const next = redoStack.pop();
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.geometry = next;
+  state.activeMesh.geometry.computeVertexNormals();
+}
+
+/* ============================================================
+   Application State
+============================================================ */
+
+const state = {
+  mode: "sculpt",
+  activeMesh: null,
+  brush: null,
+  wireframe: false,
+
+  setMode(mode) {
+    this.mode = mode;
+    if (mode === "sculpt") {
+      transformControls.detach();
+      controls.enabled = true;
+    } else {
+      if (this.activeMesh) transformControls.attach(this.activeMesh);
+    }
+  },
+
+  createCube() {
+    clearActiveMesh();
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0x88ccff })
+    );
+    setActiveMesh(mesh);
+    saveState(mesh);
+  },
+
+  createSphere() {
+    clearActiveMesh();
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1.5, 64, 64),
+      new THREE.MeshStandardMaterial({ color: 0x88ff88 })
+    );
+    setActiveMesh(mesh);
+    saveState(mesh);
+  },
+
+  exportGLTF() {
+    if (!this.activeMesh) return;
+    new GLTFExporter().parse(this.activeMesh, gltf => {
+      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "model.gltf";
+      a.click();
+    });
+  }
+};
+
+/* ============================================================
+   Mesh Management
+============================================================ */
+
+function clearActiveMesh() {
+  if (!state.activeMesh) return;
+  transformControls.detach();
+  scene.remove(state.activeMesh);
+  state.activeMesh.geometry.dispose();
+  state.activeMesh.material.dispose();
+  state.activeMesh = null;
+  state.brush = null;
+}
+
+function setActiveMesh(mesh) {
+  state.activeMesh = mesh;
+  scene.add(mesh);
+  transformControls.attach(mesh);
+  state.brush = new SculptBrush(mesh);
+}
+
+/* ============================================================
+   Sculpting
+============================================================ */
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let sculpting = false;
+
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (state.mode !== "sculpt" || !state.activeMesh) return;
+  sculpting = true;
+  transformControls.detach();
+  sculptAt(e);
+});
+
+renderer.domElement.addEventListener("pointerup", () => { sculpting = false; });
+renderer.domElement.addEventListener("pointermove", e => { if (sculpting) sculptAt(e); });
+
+function sculptAt(e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObject(state.activeMesh)[0];
+  if (!hit) return;
+  state.brush.apply(hit.point);
+  saveState(state.activeMesh);
+}
+
+/* ============================================================
+   Keyboard
+============================================================ */
+
+window.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "z") undo();
+  if (e.ctrlKey && e.key === "y") redo();
+});
+
+/* ============================================================
+   Resize
+============================================================ */
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================================================
+   Init
+============================================================ */
+
+state.createCube();
+initUI(state);
+
+// Dynamic View Gizmo linked to activeMesh
+const viewGizmo = new ViewGizmo(camera, controls, state, { size: 100, offset: { top: 56, right: 16 } });
+
+/* ============================================================
    Render Loop
-========================= */
+============================================================ */
 
 function animate() {
-    requestAnimationFrame(animate);
-
-    controls.update();
-    updateGizmoScale();
-
-    // Match gizmo orientation to camera
-    viewCube.quaternion.copy(camera.quaternion).invert();
-
-    renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
-    renderer.setScissorTest(false);
-    renderer.render(scene, camera);
-
-    // Gizmo viewport (bottom-right)
-    const size = Math.min(window.innerWidth, window.innerHeight) * 0.18;
-    renderer.setViewport(
-        window.innerWidth - size - 12,
-        12,
-        size,
-        size
-    );
-    renderer.setScissor(
-        window.innerWidth - size - 12,
-        12,
-        size,
-        size
-    );
-    renderer.setScissorTest(true);
-    renderer.render(gizmoScene, gizmoCamera);
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  viewGizmo.update();
 }
 
 animate();
