@@ -1,6 +1,6 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159)
+// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159) with dynamic ViewGizmo
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -80,7 +80,7 @@ function createDirectionSprite(label) {
   canvas.height = 128;
 
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#999999"; // same color as grid
+  ctx.fillStyle = "#777";
   ctx.font = "48px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -140,6 +140,7 @@ function saveState(mesh) {
   undoStack.push(mesh.geometry.clone());
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
+  updateGizmo();
 }
 
 function undo() {
@@ -149,6 +150,7 @@ function undo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = prev;
   state.activeMesh.geometry.computeVertexNormals();
+  updateGizmo();
 }
 
 function redo() {
@@ -158,6 +160,7 @@ function redo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = next;
   state.activeMesh.geometry.computeVertexNormals();
+  updateGizmo();
 }
 
 /* ============================================================
@@ -234,6 +237,7 @@ function clearActiveMesh() {
 
   state.activeMesh = null;
   state.brush = null;
+  updateGizmo();
 }
 
 function setActiveMesh(mesh) {
@@ -241,6 +245,17 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transformControls.attach(mesh);
   state.brush = new SculptBrush(mesh);
+  updateGizmo();
+}
+
+/* ============================================================
+   ViewGizmo
+============================================================ */
+
+const viewGizmo = new ViewGizmo(camera, controls);
+
+function updateGizmo() {
+  viewGizmo.setActiveMesh(state.activeMesh);
 }
 
 /* ============================================================
@@ -303,8 +318,6 @@ window.addEventListener("resize", () => {
 
 state.createCube();
 initUI(state);
-
-const viewGizmo = new ViewGizmo(camera, controls);
 
 /* ============================================================
    Render Loop
