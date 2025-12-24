@@ -55,33 +55,22 @@ export function initUI(state, viewGizmo) {
   /* ===============================
      Undo / Redo Buttons
   ================================= */
-  const topbar = document.getElementById("topbar");
-
-  const undoBtn = document.createElement("button");
-  undoBtn.textContent = "⎌ Undo";
-  undoBtn.style.marginLeft = "8px";
+  const undoBtn = document.getElementById("undoBtn");
+  const redoBtn = document.getElementById("redoBtn");
+  
   undoBtn.onclick = () => {
-    state.undo(); // Now properly calls exposed function
+    state.undo();
   };
 
-  const redoBtn = document.createElement("button");
-  redoBtn.textContent = "↻ Redo";
-  redoBtn.style.marginLeft = "4px";
   redoBtn.onclick = () => {
-    state.redo(); // Now properly calls exposed function
+    state.redo();
   };
 
-  topbar.appendChild(undoBtn);
-  topbar.appendChild(redoBtn);
-
-  // Make buttons touch-friendly
-  [undoBtn, redoBtn].forEach(btn => {
-    btn.style.padding = "6px 8px";
-    btn.style.fontSize = "14px";
-    btn.style.borderRadius = "4px";
-    btn.style.background = "#3a3a3a";
-    btn.style.color = "#fff";
-    btn.style.border = "none";
-    btn.style.cursor = "pointer";
-  });
+  // Symmetry toggle
+  const symmetryBtn = document.getElementById("toggleSymmetry");
+  let symmetryEnabled = false;
+  symmetryBtn.onclick = () => {
+    symmetryEnabled = !symmetryEnabled;
+    symmetryBtn.classList.toggle("active");
+  };
 }
