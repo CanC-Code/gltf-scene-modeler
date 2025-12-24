@@ -17,7 +17,11 @@ import { ViewGizmo } from "./viewGizmo.js";
 ============================================================ */
 
 const canvas = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true
+});
+
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -76,7 +80,7 @@ function createDirectionSprite(label) {
   canvas.height = 128;
 
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#666666"; // match grid color
+  ctx.fillStyle = "#999999"; // same color as grid
   ctx.font = "48px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -178,20 +182,24 @@ const state = {
 
   createCube() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0x88ccff })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
   createSphere() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({ color: 0x88ff88 })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
   },
@@ -200,7 +208,9 @@ const state = {
     if (!this.activeMesh) return;
 
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(gltf)], {
+        type: "application/json"
+      });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -294,8 +304,7 @@ window.addEventListener("resize", () => {
 state.createCube();
 initUI(state);
 
-// Gizmo aligned to world axes
-const viewGizmo = new ViewGizmo(camera, controls, { size: 180, margin: 16 });
+const viewGizmo = new ViewGizmo(camera, controls);
 
 /* ============================================================
    Render Loop
