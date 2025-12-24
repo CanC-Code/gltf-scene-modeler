@@ -1,142 +1,145 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Dynamic miniature camera/orientation gizmo with auto-scaling
+// Purpose: Dynamic, perfectly aligned View Gizmo with live miniature mesh (Three.js r159)
 
 import * as THREE from "../three/three.module.js";
-import { OrbitControls } from "../three/OrbitControls.js";
-import { FontLoader } from "../three/FontLoader.js";
-import { TextGeometry } from "../three/TextGeometry.js";
 
 export class ViewGizmo {
-  constructor(mainCamera, mainControls, options = {}) {
+  constructor(mainCamera, controls, options = {}) {
     this.mainCamera = mainCamera;
-    this.mainControls = mainControls;
-    this.size = options.size || 180;
-    this.activeMesh = null;
+    this.controls = controls;
 
-    /* Scene */
+    this.size = options.size || 120; // slightly smaller, cleaner
+    this.activeMesh = null;
+    this.gizmoMesh = null;
+
+    /* ---------------- Scene ---------------- */
+
     this.scene = new THREE.Scene();
 
-    /* Orthographic camera for gizmo */
-    const s = 2;
-    this.camera = new THREE.OrthographicCamera(-s, s, s, -s, 0.1, 10);
+    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.01, 50);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
-    /* Renderer */
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    this.renderer.setSize(this.size, this.size);
+    /* ---------------- Lighting ---------------- */
+
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const light = new THREE.DirectionalLight(0xffffff, 0.6);
+    light.position.set(5, 5, 5);
+    this.scene.add(light);
+
+    /* ---------------- Renderer ---------------- */
+
+    this.renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true
+    });
+
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setSize(this.size, this.size);
+
     Object.assign(this.renderer.domElement.style, {
       position: "fixed",
-      top: "56px",
+      top: "64px",
       right: "16px",
       zIndex: 20,
       cursor: "grab"
     });
+
     document.body.appendChild(this.renderer.domElement);
 
-    /* Interaction */
+    /* ---------------- Interaction ---------------- */
+
     this.dragging = false;
     this.prev = new THREE.Vector2();
+
     this.renderer.domElement.addEventListener("pointerdown", e => {
       this.dragging = true;
       this.prev.set(e.clientX, e.clientY);
       this.renderer.domElement.style.cursor = "grabbing";
     });
+
     window.addEventListener("pointerup", () => {
       this.dragging = false;
       this.renderer.domElement.style.cursor = "grab";
     });
-    window.addEventListener("pointermove", e => this.onDrag(e));
 
-    /* Labels */
-    this.labelGroup = new THREE.Group();
-    this.scene.add(this.labelGroup);
-    const loader = new FontLoader();
-    loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
-      this.font = font;
-      this.createLabels();
+    window.addEventListener("pointermove", e => {
+      if (!this.dragging) return;
+
+      const dx = (e.clientX - this.prev.x) * 0.004;
+      const dy = (e.clientY - this.prev.y) * 0.004;
+
+      // Rotate camera directly (NO OrbitControls internals)
+      const offset = new THREE.Vector3().subVectors(
+        this.mainCamera.position,
+        this.controls.target
+      );
+
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      spherical.theta -= dx;
+      spherical.phi -= dy;
+      spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+
+      offset.setFromSpherical(spherical);
+      this.mainCamera.position.copy(this.controls.target).add(offset);
+      this.mainCamera.lookAt(this.controls.target);
+
+      this.prev.set(e.clientX, e.clientY);
     });
   }
 
-  onDrag(e) {
-    if (!this.dragging) return;
-    const dx = (e.clientX - this.prev.x) * 0.005;
-    const dy = (e.clientY - this.prev.y) * 0.005;
-
-    this.mainControls.rotateLeft(dx);
-    this.mainControls.rotateUp(dy);
-    this.mainControls.update();
-
-    this.prev.set(e.clientX, e.clientY);
-  }
+  /* ============================================================
+     Active Mesh Handling
+  ============================================================ */
 
   setActiveMesh(mesh) {
-    if (this.activeMesh) this.scene.remove(this.activeMesh);
-    this.activeMesh = mesh ? mesh.clone() : null;
-
-    if (this.activeMesh) {
-      this.activeMesh.traverse(c => {
-        if (c.isMesh) {
-          c.material = new THREE.MeshNormalMaterial();
-        }
-      });
-      this.scene.add(this.activeMesh);
-      this.computeScale();
+    if (this.gizmoMesh) {
+      this.scene.remove(this.gizmoMesh);
+      this.gizmoMesh.geometry.dispose();
+      this.gizmoMesh.material.dispose();
+      this.gizmoMesh = null;
     }
-  }
 
-  computeScale() {
-    if (!this.activeMesh) return;
+    this.activeMesh = mesh;
+    if (!mesh) return;
 
-    // Compute bounding box of mesh
-    const box = new THREE.Box3().setFromObject(this.activeMesh);
+    // Clone geometry only (cheap, stable, no flicker)
+    const geo = mesh.geometry.clone();
+    geo.computeBoundingBox();
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xcccccc,
+      roughness: 0.4,
+      metalness: 0.1
+    });
+
+    this.gizmoMesh = new THREE.Mesh(geo, mat);
+
+    // Center geometry
+    const box = geo.boundingBox;
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    this.gizmoMesh.position.sub(center);
+
+    // Scale to fit view
     const size = new THREE.Vector3();
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = 1.4 / maxDim;
+    this.gizmoMesh.scale.setScalar(scale);
 
-    // Scale down the mesh to fit within the gizmo
-    const scale = maxDim > 0 ? 1.5 / maxDim : 1;
-    this.activeMesh.scale.setScalar(scale);
-
-    // Center the mesh
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    this.activeMesh.position.sub(center.multiplyScalar(scale));
+    this.scene.add(this.gizmoMesh);
   }
 
-  createLabels() {
-    if (!this.font) return;
-    this.labelGroup.clear();
-
-    const labels = [
-      { text: "N", pos: [0, 0, -1.2] },
-      { text: "S", pos: [0, 0, 1.2] },
-      { text: "E", pos: [1.2, 0, 0] },
-      { text: "W", pos: [-1.2, 0, 0] }
-    ];
-
-    labels.forEach(l => {
-      const geo = new TextGeometry(l.text, { font: this.font, size: 0.35, height: 0.02 });
-      geo.center();
-      const mat = new THREE.MeshBasicMaterial({ color: 0x999999, depthWrite: false });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(...l.pos);
-      this.labelGroup.add(mesh);
-    });
-  }
+  /* ============================================================
+     Update Loop
+  ============================================================ */
 
   update() {
-    // Keep labels facing camera
-    this.labelGroup.quaternion.copy(this.camera.quaternion);
-
-    // Align gizmo mesh to main camera
-    if (this.activeMesh) {
-      const m = new THREE.Matrix4();
-      m.extractRotation(this.mainCamera.matrixWorld);
-      this.activeMesh.quaternion.setFromRotationMatrix(m);
-      this.computeScale();
+    if (this.gizmoMesh && this.activeMesh) {
+      // PERFECT orientation sync (no inversion)
+      this.gizmoMesh.quaternion.copy(this.activeMesh.quaternion);
     }
 
     this.renderer.render(this.scene, this.camera);
