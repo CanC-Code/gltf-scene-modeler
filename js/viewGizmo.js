@@ -10,48 +10,54 @@ export class ViewGizmo {
   constructor(mainCamera, controls, options = {}) {
     this.mainCamera = mainCamera;
     this.controls = controls;
-    this.size = options.size || 160;
 
-    // Scene for gizmo
+    this.size = options.size || 200; // slightly larger
+    this.margin = options.margin || 16;
+
+    /* Scene */
     this.scene = new THREE.Scene();
+
     this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
-    // Cube
+    /* Cube */
     const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-    const cubeMat = new THREE.MeshNormalMaterial();
+    const cubeMat = new THREE.MeshNormalMaterial({ flatShading: true });
     this.cube = new THREE.Mesh(cubeGeo, cubeMat);
     this.scene.add(this.cube);
 
-    // Labels
+    /* Labels */
     this.labelGroup = new THREE.Group();
     this.scene.add(this.labelGroup);
 
     const loader = new FontLoader();
     loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
-      this.createLabel(font, "N", 0, 0, -1.2);
-      this.createLabel(font, "S", 0, 0, 1.2);
-      this.createLabel(font, "E", 1.2, 0, 0);
-      this.createLabel(font, "W", -1.2, 0, 0);
+      this.createLabel(font, "N",  0, 0, -1.25);
+      this.createLabel(font, "S",  0, 0,  1.25);
+      this.createLabel(font, "E",  1.25, 0,  0);
+      this.createLabel(font, "W", -1.25, 0,  0);
     });
 
-    // Renderer
+    /* Renderer */
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setSize(this.size, this.size);
     this.renderer.setPixelRatio(window.devicePixelRatio);
 
     Object.assign(this.renderer.domElement.style, {
       position: "fixed",
-      top: "56px",
-      right: "16px",
+      top: `${this.margin}px`,
+      right: `${this.margin}px`,
+      width: `${this.size}px`,
+      height: `${this.size}px`,
       zIndex: 20,
-      cursor: "grab"
+      cursor: "grab",
+      pointerEvents: "auto"
     });
 
     document.body.appendChild(this.renderer.domElement);
 
-    // Interaction
+    /* Interaction */
     this.dragging = false;
     this.prev = new THREE.Vector2();
 
@@ -72,42 +78,56 @@ export class ViewGizmo {
       const dx = (e.clientX - this.prev.x) * 0.005;
       const dy = (e.clientY - this.prev.y) * 0.005;
 
-      this.rotateCamera(dx, dy);
+      // Rotate the camera using controls
+      this.controls.rotateLeft(dx);
+      this.controls.rotateUp(dy);
+      this.controls.update();
 
       this.prev.set(e.clientX, e.clientY);
+    });
+
+    // Update on resize
+    window.addEventListener("resize", () => {
+      this.renderer.setSize(this.size, this.size);
     });
   }
 
   createLabel(font, text, x, y, z) {
-    const geo = new TextGeometry(text, { font, size: 0.35, height: 0.02 });
+    const geo = new TextGeometry(text, {
+      font,
+      size: 0.35,
+      height: 0.02
+    });
+
     geo.center();
-    const mat = new THREE.MeshBasicMaterial({ color: 0x888888, depthWrite: false });
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x666666, // same color as grid
+      depthWrite: false
+    });
+
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
     this.labelGroup.add(mesh);
   }
 
-  rotateCamera(dx, dy) {
-    // Rotate the main camera around its target (orbit target)
-    const offset = new THREE.Vector3();
-    offset.copy(this.mainCamera.position).sub(this.controls.target);
-
-    const spherical = new THREE.Spherical();
-    spherical.setFromVector3(offset);
-
-    spherical.theta -= dx; // horizontal rotation
-    spherical.phi -= dy;   // vertical rotation
-    spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
-
-    offset.setFromSpherical(spherical);
-    this.mainCamera.position.copy(this.controls.target).add(offset);
-    this.mainCamera.lookAt(this.controls.target);
-  }
-
   update() {
-    // Gizmo cube orientation matches camera
-    this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
-    this.labelGroup.quaternion.copy(this.cube.quaternion);
+    // Compute vector from origin to camera
+    const camDir = new THREE.Vector3();
+    camDir.copy(this.mainCamera.position).sub(this.controls.target).normalize();
+
+    // Build a quaternion looking at the camera but keeping world up
+    const up = new THREE.Vector3(0, 1, 0);
+    const lookMatrix = new THREE.Matrix4();
+    lookMatrix.lookAt(new THREE.Vector3(0,0,0), camDir, up);
+    const quat = new THREE.Quaternion();
+    quat.setFromRotationMatrix(lookMatrix);
+
+    // Apply to cube
+    this.cube.quaternion.copy(quat);
+
+    // Labels follow cube
+    this.labelGroup.quaternion.copy(quat);
 
     this.renderer.render(this.scene, this.camera);
   }
