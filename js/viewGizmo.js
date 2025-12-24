@@ -14,7 +14,7 @@ export class ViewGizmo {
 
     // Gizmo camera
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    this.camera.position.set(3, 3, 3);
+    this.camera.position.set(0, 0, 4);
     this.camera.lookAt(0, 0, 0);
 
     // Lighting
@@ -24,12 +24,6 @@ export class ViewGizmo {
     const dir = new THREE.DirectionalLight(0xffffff, 0.6);
     dir.position.set(5, 10, 7);
     this.scene.add(dir);
-
-    // Base cube for reference (optional - only shown when no mesh is active)
-    const geo = new THREE.BoxGeometry(1, 1, 1);
-    const mat = new THREE.MeshNormalMaterial();
-    this.cube = new THREE.Mesh(geo, mat);
-    // Don't add to scene yet - will be added only when needed
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -44,7 +38,9 @@ export class ViewGizmo {
       width: `${this.size}px`,
       height: `${this.size}px`,
       cursor: "grab",
-      zIndex: 20
+      zIndex: 20,
+      border: "2px solid #4a90e2",
+      borderRadius: "8px"
     });
     document.body.appendChild(this.renderer.domElement);
 
@@ -53,6 +49,7 @@ export class ViewGizmo {
     this.prev = new THREE.Vector2();
 
     this.renderer.domElement.addEventListener("pointerdown", e => {
+      e.stopPropagation();
       this.dragging = true;
       this.prev.set(e.clientX, e.clientY);
       this.renderer.domElement.style.cursor = "grabbing";
@@ -65,6 +62,8 @@ export class ViewGizmo {
 
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
+      e.stopPropagation();
+      
       const dx = (e.clientX - this.prev.x) * 0.01;
       const dy = (e.clientY - this.prev.y) * 0.01;
       
@@ -108,14 +107,7 @@ export class ViewGizmo {
       this.meshClone = null;
     }
 
-    if (!mesh) {
-      // Show cube when no mesh is active
-      this.scene.add(this.cube);
-      return;
-    }
-
-    // Remove cube when mesh is active
-    this.scene.remove(this.cube);
+    if (!mesh) return;
 
     this.meshClone = mesh.clone();
     this.meshClone.material = new THREE.MeshNormalMaterial();
@@ -137,12 +129,25 @@ export class ViewGizmo {
 
   update() {
     if (this.activeMesh && this.meshClone) {
-      // Match orientation
+      // Live update: match the main mesh's rotation and geometry
       this.meshClone.quaternion.copy(this.activeMesh.quaternion);
       this.meshClone.position.set(0, 0, 0);
-    } else {
-      // Update cube to show camera orientation when no mesh is active
-      this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
+      
+      // Update geometry if it changed (for live sculpting feedback)
+      if (this.activeMesh.geometry !== this.meshClone.geometry) {
+        this.meshClone.geometry.dispose();
+        this.meshClone.geometry = this.activeMesh.geometry.clone();
+        
+        // Re-scale to fit
+        const box = new THREE.Box3().setFromObject(this.meshClone);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0) {
+          const scale = 1.5 / maxDim;
+          this.meshClone.scale.setScalar(scale);
+        }
+      }
     }
 
     this.renderer.render(this.scene, this.camera);
