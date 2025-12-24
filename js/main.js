@@ -122,6 +122,7 @@ const state = {
     );
     setActiveMesh(mesh);
     saveState(mesh);
+    viewGizmo.updateMesh(mesh);
   },
 
   createSphere() {
@@ -135,6 +136,7 @@ const state = {
     );
     setActiveMesh(mesh);
     saveState(mesh);
+    viewGizmo.updateMesh(mesh);
   },
 
   setTool(tool) {
@@ -167,7 +169,10 @@ const state = {
     reader.onload = () => {
       new GLTFLoader().parse(reader.result, "", gltf => {
         const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
-        if (mesh) setActiveMesh(mesh);
+        if (mesh) {
+          setActiveMesh(mesh);
+          viewGizmo.updateMesh(mesh);
+        }
       });
     };
     reader.readAsArrayBuffer(e.target.files[0]);
@@ -185,6 +190,7 @@ function clearActiveMesh() {
   state.activeMesh.material.dispose();
   state.activeMesh = null;
   state.brush = null;
+  viewGizmo.updateMesh(null);
 }
 
 function setActiveMesh(mesh) {
@@ -246,10 +252,10 @@ window.addEventListener("resize", () => {
 /* ===============================
    Init
 ================================ */
+const viewGizmo = new ViewGizmo(camera, controls);
+
 state.createCube();
 initUI(state);
-
-const viewGizmo = new ViewGizmo(camera, controls);
 
 /* ===============================
    Render Loop
