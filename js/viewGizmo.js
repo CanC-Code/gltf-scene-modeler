@@ -1,59 +1,65 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: True miniature View Gizmo that perfectly mirrors the active mesh
+// Purpose: Robust interactive camera orientation gizmo reflecting the main scene (Three.js r159)
 
 import * as THREE from "../three/three.module.js";
+import { FontLoader } from "../three/FontLoader.js";
+import { TextGeometry } from "../three/TextGeometry.js";
 
 export class ViewGizmo {
-  constructor(mainCamera, controls, options = {}) {
+  constructor(mainCamera, mainControls, options = {}) {
     this.mainCamera = mainCamera;
-    this.controls = controls;
-
+    this.controls = mainControls;
     this.size = options.size || 120;
-    this.activeMesh = null;
-    this.miniature = null;
-
-    /* ---------------- Scene ---------------- */
-
-    this.scene = new THREE.Scene();
-
-    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.01, 100);
-    this.camera.position.set(3, 3, 3);
-    this.camera.lookAt(0, 0, 0);
-
-    /* ---------------- Lighting ---------------- */
-
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-
-    const light = new THREE.DirectionalLight(0xffffff, 0.6);
-    light.position.set(5, 5, 5);
-    this.scene.add(light);
-
-    /* ---------------- Renderer ---------------- */
-
-    this.renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true
-    });
-
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(this.size, this.size);
-
-    Object.assign(this.renderer.domElement.style, {
-      position: "fixed",
-      top: "64px",
-      right: "16px",
-      zIndex: 20,
-      cursor: "grab"
-    });
-
-    document.body.appendChild(this.renderer.domElement);
-
-    /* ---------------- Interaction ---------------- */
-
+    this.offset = options.offset || { top: 56, right: 16 };
     this.dragging = false;
     this.prev = new THREE.Vector2();
 
+    // Scene
+    this.scene = new THREE.Scene();
+
+    // Gizmo Camera (Orthographic)
+    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
+    this.camera.position.set(3, 3, 3);
+    this.camera.up.copy(this.mainCamera.up);
+    this.camera.lookAt(0, 0, 0);
+
+    // Cube Mesh (for orientation)
+    const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+    const cubeMat = new THREE.MeshNormalMaterial({ wireframe: false });
+    this.cube = new THREE.Mesh(cubeGeo, cubeMat);
+    this.scene.add(this.cube);
+
+    // Label Group
+    this.labelGroup = new THREE.Group();
+    this.scene.add(this.labelGroup);
+
+    // Load Font & Create Labels
+    const loader = new FontLoader();
+    loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
+      this.createLabel(font, "N",  0, 0, -1.2);
+      this.createLabel(font, "S",  0, 0,  1.2);
+      this.createLabel(font, "E",  1.2, 0,  0);
+      this.createLabel(font, "W", -1.2, 0,  0);
+    });
+
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer.setSize(this.size, this.size);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    Object.assign(this.renderer.domElement.style, {
+      position: "fixed",
+      top: this.offset.top + "px",
+      right: this.offset.right + "px",
+      width: this.size + "px",
+      height: this.size + "px",
+      zIndex: 20,
+      cursor: "grab",
+      pointerEvents: "auto"
+    });
+    document.body.appendChild(this.renderer.domElement);
+
+    // Interaction
     this.renderer.domElement.addEventListener("pointerdown", e => {
       this.dragging = true;
       this.prev.set(e.clientX, e.clientY);
@@ -68,78 +74,33 @@ export class ViewGizmo {
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
 
-      const dx = (e.clientX - this.prev.x) * 0.004;
-      const dy = (e.clientY - this.prev.y) * 0.004;
+      const dx = (e.clientX - this.prev.x) * 0.005;
+      const dy = (e.clientY - this.prev.y) * 0.005;
 
-      const offset = new THREE.Vector3().subVectors(
-        this.mainCamera.position,
-        this.controls.target
-      );
-
-      const spherical = new THREE.Spherical().setFromVector3(offset);
-      spherical.theta -= dx;
-      spherical.phi -= dy;
-      spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
-
-      offset.setFromSpherical(spherical);
-      this.mainCamera.position.copy(this.controls.target).add(offset);
-      this.mainCamera.lookAt(this.controls.target);
+      // Rotate main camera via controls
+      this.controls.rotateLeft(dx);
+      this.controls.rotateUp(dy);
+      this.controls.update();
 
       this.prev.set(e.clientX, e.clientY);
     });
   }
 
-  /* ============================================================
-     Active Mesh Sync
-  ============================================================ */
-
-  setActiveMesh(mesh) {
-    if (this.miniature) {
-      this.scene.remove(this.miniature);
-      this.miniature.traverse(obj => {
-        if (obj.isMesh) {
-          obj.geometry.dispose();
-          obj.material.dispose();
-        }
-      });
-      this.miniature = null;
-    }
-
-    this.activeMesh = mesh;
-    if (!mesh) return;
-
-    // FULL CLONE (geometry + transforms)
-    this.miniature = mesh.clone(true);
-
-    // Compute bounds AFTER clone
-    const box = new THREE.Box3().setFromObject(this.miniature);
-    const size = new THREE.Vector3();
-    const center = new THREE.Vector3();
-
-    box.getSize(size);
-    box.getCenter(center);
-
-    // Center without distorting shape
-    this.miniature.position.sub(center);
-
-    // Uniform scale to fit
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = 1.5 / maxDim;
-    this.miniature.scale.multiplyScalar(scale);
-
-    this.scene.add(this.miniature);
+  createLabel(font, text, x, y, z) {
+    const geo = new TextGeometry(text, { font, size: 0.35, height: 0.02 });
+    geo.center();
+    const mat = new THREE.MeshBasicMaterial({ color: 0x999999, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    this.labelGroup.add(mesh);
   }
 
-  /* ============================================================
-     Update
-  ============================================================ */
-
   update() {
-    if (this.miniature && this.activeMesh) {
-      // Match camera-relative orientation perfectly
-      this.miniature.quaternion.copy(this.activeMesh.quaternion);
-    }
+    // Copy main camera orientation without inversion
+    this.cube.quaternion.copy(this.mainCamera.quaternion);
+    this.labelGroup.quaternion.copy(this.cube.quaternion);
 
+    // Render gizmo scene
     this.renderer.render(this.scene, this.camera);
   }
 }
