@@ -65,13 +65,29 @@ export class ViewGizmo {
 
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
-      const dx = (e.clientX - this.prev.x) * 0.005;
-      const dy = (e.clientY - this.prev.y) * 0.005;
+      const dx = (e.clientX - this.prev.x) * 0.01;
+      const dy = (e.clientY - this.prev.y) * 0.01;
       
-      // Fixed: Check if controls exist and are enabled (property, not method)
       if (this.controls && this.controls.enabled) {
-        this.controls.rotateLeft(dx);
-        this.controls.rotateUp(dy);
+        // Get current spherical position
+        const offset = new THREE.Vector3();
+        offset.copy(this.mainCamera.position).sub(this.controls.target);
+        
+        const spherical = new THREE.Spherical();
+        spherical.setFromVector3(offset);
+        
+        // Apply rotation
+        spherical.theta -= dx;
+        spherical.phi -= dy;
+        
+        // Clamp phi to prevent flipping
+        spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+        
+        // Update camera position
+        offset.setFromSpherical(spherical);
+        this.mainCamera.position.copy(this.controls.target).add(offset);
+        this.mainCamera.lookAt(this.controls.target);
+        
         this.controls.update();
       }
       this.prev.set(e.clientX, e.clientY);
