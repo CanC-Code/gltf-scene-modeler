@@ -10,6 +10,8 @@ import { GLTFExporter } from "../three/GLTFExporter.js";
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
+import { FontLoader } from "../three/FontLoader.js";
+import { TextGeometry } from "../three/TextGeometry.js";
 
 /* ===============================
    Renderer / Scene
@@ -49,6 +51,46 @@ dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 
 scene.add(new THREE.GridHelper(20, 20));
+
+/* ===============================
+   Compass Labels (N/E/S/W)
+================================ */
+const compassLabels = [];
+const fontLoader = new FontLoader();
+
+fontLoader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
+  const labelMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.7,
+    depthTest: true,
+    depthWrite: false
+  });
+  
+  const directions = [
+    { text: "N", pos: [0, 0, -10] },
+    { text: "E", pos: [10, 0, 0] },
+    { text: "S", pos: [0, 0, 10] },
+    { text: "W", pos: [-10, 0, 0] }
+  ];
+  
+  directions.forEach(dir => {
+    const textGeo = new TextGeometry(dir.text, {
+      font: font,
+      size: 0.8,
+      height: 0.05
+    });
+    textGeo.computeBoundingBox();
+    const centerOffset = -(textGeo.boundingBox.max.x - textGeo.boundingBox.min.x) / 2;
+    
+    const textMesh = new THREE.Mesh(textGeo, labelMaterial);
+    textMesh.position.set(dir.pos[0], 0.1, dir.pos[2]);
+    textMesh.position.x += centerOffset;
+    
+    compassLabels.push(textMesh);
+    scene.add(textMesh);
+  });
+});
 
 /* ===============================
    Undo / Redo
@@ -275,6 +317,12 @@ initUI(state, viewGizmo); // Now passing viewGizmo
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  
+  // Make compass labels always face the camera
+  compassLabels.forEach(label => {
+    label.lookAt(camera.position);
+  });
+  
   renderer.render(scene, camera);
   viewGizmo.update();
 }
