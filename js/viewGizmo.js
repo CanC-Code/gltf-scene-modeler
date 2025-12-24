@@ -11,15 +11,15 @@ export class ViewGizmo {
 
     this.size = options.size || 120;
     this.activeMesh = null;
+    this.meshClone = null;
 
-    /* Scene & Camera for Gizmo */
+    // Scene and camera for gizmo
     this.scene = new THREE.Scene();
-
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
-    /* Lighting */
+    // Lighting
     const amb = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(amb);
 
@@ -27,7 +27,7 @@ export class ViewGizmo {
     dir.position.set(5, 10, 7);
     this.scene.add(dir);
 
-    /* Renderer */
+    // Renderer
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setClearColor(0x000000, 0); // fully transparent
     this.renderer.setSize(this.size, this.size);
@@ -40,11 +40,12 @@ export class ViewGizmo {
       width: `${this.size}px`,
       height: `${this.size}px`,
       zIndex: 20,
-      cursor: "grab"
+      cursor: "grab",
+      pointerEvents: "auto"
     });
     document.body.appendChild(this.renderer.domElement);
 
-    /* Interaction */
+    // Interaction
     this.dragging = false;
     this.prev = new THREE.Vector2();
     this.renderer.domElement.addEventListener("pointerdown", e => {
@@ -60,13 +61,15 @@ export class ViewGizmo {
       if (!this.dragging) return;
       const dx = (e.clientX - this.prev.x) * 0.005;
       const dy = (e.clientY - this.prev.y) * 0.005;
-      this.mainControls.rotateLeft(dx);
-      this.mainControls.rotateUp(dy);
-      this.mainControls.update();
+      if (this.mainControls && this.mainControls.isEnabled()) {
+        this.mainControls.rotateLeft(dx);
+        this.mainControls.rotateUp(dy);
+        this.mainControls.update();
+      }
       this.prev.set(e.clientX, e.clientY);
     });
 
-    /* Gizmo Cube */
+    // Base Gizmo Cube
     this.cube = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshNormalMaterial()
@@ -76,10 +79,16 @@ export class ViewGizmo {
 
   updateMesh(mesh) {
     this.activeMesh = mesh;
-    if (!mesh) return;
 
     // Remove previous clone
-    if (this.meshClone) this.scene.remove(this.meshClone);
+    if (this.meshClone) {
+      this.scene.remove(this.meshClone);
+      if (this.meshClone.geometry) this.meshClone.geometry.dispose();
+      if (this.meshClone.material) this.meshClone.material.dispose();
+      this.meshClone = null;
+    }
+
+    if (!mesh) return;
 
     // Clone mesh for gizmo
     this.meshClone = mesh.clone();
@@ -106,9 +115,10 @@ export class ViewGizmo {
       this.meshClone.position.set(0, 0, 0);
     }
 
-    // Keep gizmo cube aligned with camera
+    // Keep base cube aligned with camera for reference
     this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
 
+    // Smoothly render
     this.renderer.render(this.scene, this.camera);
   }
 }
