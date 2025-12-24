@@ -41,6 +41,11 @@ controls.enableDamping = true;
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 
+// Disable orbit controls when using transform controls
+transform.addEventListener('dragging-changed', function (event) {
+  controls.enabled = !event.value;
+});
+
 /* ===============================
    Lighting & Helpers
 ================================ */
@@ -58,7 +63,7 @@ scene.add(new THREE.GridHelper(20, 20));
 const compassLabels = [];
 const fontLoader = new FontLoader();
 
-fontLoader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
+fontLoader.load("./three/fonts/helvetiker_regular.typeface.json", font => {
   const labelMaterial = new THREE.MeshBasicMaterial({ 
     color: 0xffffff,
     transparent: true,
@@ -147,8 +152,11 @@ const state = {
       transform.detach();
       controls.enabled = true;
     } else {
-      if (this.activeMesh) transform.attach(this.activeMesh);
-      controls.enabled = mode !== "move";
+      if (this.activeMesh) {
+        transform.attach(this.activeMesh);
+        transform.setMode(mode);
+      }
+      // Don't disable controls here - let transform handle it
     }
   },
 
@@ -244,7 +252,9 @@ function clearActiveMesh() {
 function setActiveMesh(mesh) {
   state.activeMesh = mesh;
   scene.add(mesh);
-  transform.attach(mesh);
+  if (state.mode !== "sculpt") {
+    transform.attach(mesh);
+  }
   state.brush = new SculptBrush(mesh);
 }
 
@@ -279,7 +289,6 @@ function sculptAt(e) {
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
   state.brush.apply(hit.point);
-  // Removed saveState from here - only save on pointerdown
 }
 
 /* ===============================
@@ -309,7 +318,7 @@ window.addEventListener("resize", () => {
 const viewGizmo = new ViewGizmo(camera, controls);
 
 state.createCube();
-initUI(state, viewGizmo); // Now passing viewGizmo
+initUI(state, viewGizmo);
 
 /* ===============================
    Render Loop
