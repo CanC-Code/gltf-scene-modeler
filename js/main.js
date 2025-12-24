@@ -71,6 +71,7 @@ function undo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = prev;
   state.activeMesh.geometry.computeVertexNormals();
+  viewGizmo.updateMesh(state.activeMesh);
 }
 
 function redo() {
@@ -80,6 +81,7 @@ function redo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = next;
   state.activeMesh.geometry.computeVertexNormals();
+  viewGizmo.updateMesh(state.activeMesh);
 }
 
 /* ===============================
@@ -92,6 +94,10 @@ const state = {
   wireframe: false,
   controls,
   transform,
+
+  // Expose undo/redo to UI
+  undo,
+  redo,
 
   setMode(mode) {
     this.mode = mode;
@@ -212,6 +218,8 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculpting = true;
   transform.detach();
   sculptAt(e);
+  // Save state once at start of sculpt stroke
+  saveState(state.activeMesh);
 });
 
 renderer.domElement.addEventListener("pointerup", () => {
@@ -229,15 +237,19 @@ function sculptAt(e) {
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
   state.brush.apply(hit.point);
-  saveState(state.activeMesh);
+  // Removed saveState from here - only save on pointerdown
 }
 
 /* ===============================
    Keyboard Shortcuts
 ================================ */
 window.addEventListener("keydown", e => {
-  if (e.ctrlKey && e.key === "z") undo();
-  if (e.ctrlKey && e.key === "y") redo();
+  if (e.ctrlKey && e.key === "z") {
+    undo();
+  }
+  if (e.ctrlKey && e.key === "y") {
+    redo();
+  }
 });
 
 /* ===============================
@@ -255,7 +267,7 @@ window.addEventListener("resize", () => {
 const viewGizmo = new ViewGizmo(camera, controls);
 
 state.createCube();
-initUI(state);
+initUI(state, viewGizmo); // Now passing viewGizmo
 
 /* ===============================
    Render Loop
