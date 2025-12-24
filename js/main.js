@@ -1,11 +1,10 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159) with dynamic ViewGizmo
+// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159)
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
-import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
 
 import { SculptBrush } from "./sculptBrush.js";
@@ -18,6 +17,7 @@ import { ViewGizmo } from "./viewGizmo.js";
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -35,6 +35,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
+
 camera.position.set(4, 4, 6);
 camera.lookAt(0, 0, 0);
 
@@ -58,54 +59,45 @@ dirLight.position.set(6, 10, 8);
 scene.add(dirLight);
 
 /* ============================================================
-   Grid
+   Grid + Cardinal Labels
 ============================================================ */
 
 const grid = new THREE.GridHelper(20, 20, 0x666666, 0x999999);
 grid.renderOrder = -20;
 scene.add(grid);
 
-/* ============================================================
-   Cardinal Direction Labels (World-Aligned)
-============================================================ */
-
 function createDirectionSprite(label) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext("2d");
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+
+  const ctx = c.getContext("2d");
   ctx.fillStyle = "#777";
   ctx.font = "48px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, 64, 64);
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
 
-  const material = new THREE.SpriteMaterial({
-    map: texture,
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
     depthTest: false,
     depthWrite: false
   });
 
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(2, 2, 1);
-  sprite.renderOrder = -10;
-
-  return sprite;
+  const s = new THREE.Sprite(mat);
+  s.scale.set(2, 2, 1);
+  s.renderOrder = -10;
+  return s;
 }
 
-const north = createDirectionSprite("N");
-north.position.set(0, 0.01, -9);
-const south = createDirectionSprite("S");
-south.position.set(0, 0.01, 9);
-const east = createDirectionSprite("E");
-east.position.set(9, 0.01, 0);
-const west = createDirectionSprite("W");
-west.position.set(-9, 0.01, 0);
-
-scene.add(north, south, east, west);
+scene.add(
+  Object.assign(createDirectionSprite("N"), { position: new THREE.Vector3(0, 0.01, -9) }),
+  Object.assign(createDirectionSprite("S"), { position: new THREE.Vector3(0, 0.01,  9) }),
+  Object.assign(createDirectionSprite("E"), { position: new THREE.Vector3(9, 0.01,  0) }),
+  Object.assign(createDirectionSprite("W"), { position: new THREE.Vector3(-9,0.01,  0) })
+);
 
 /* ============================================================
    Transform Controls
@@ -113,6 +105,7 @@ scene.add(north, south, east, west);
 
 const transformControls = new TransformControls(camera, renderer.domElement);
 scene.add(transformControls);
+
 transformControls.addEventListener("dragging-changed", e => {
   controls.enabled = !e.value;
 });
@@ -132,23 +125,23 @@ function saveState(mesh) {
   redoStack.length = 0;
 }
 
-function undo() {
-  if (!state.activeMesh || undoStack.length === 0) return;
+window.undo = function () {
+  if (!state.activeMesh || !undoStack.length) return;
   redoStack.push(state.activeMesh.geometry.clone());
-  const prev = undoStack.pop();
+  const geo = undoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = prev;
-  state.activeMesh.geometry.computeVertexNormals();
-}
+  state.activeMesh.geometry = geo;
+  geo.computeVertexNormals();
+};
 
-function redo() {
-  if (!state.activeMesh || redoStack.length === 0) return;
+window.redo = function () {
+  if (!state.activeMesh || !redoStack.length) return;
   undoStack.push(state.activeMesh.geometry.clone());
-  const next = redoStack.pop();
+  const geo = redoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = next;
-  state.activeMesh.geometry.computeVertexNormals();
-}
+  state.activeMesh.geometry = geo;
+  geo.computeVertexNormals();
+};
 
 /* ============================================================
    Application State
@@ -158,38 +151,39 @@ const state = {
   mode: "sculpt",
   activeMesh: null,
   brush: null,
-  wireframe: false,
 
   setMode(mode) {
     this.mode = mode;
     if (mode === "sculpt") {
       transformControls.detach();
       controls.enabled = true;
-    } else {
-      if (this.activeMesh) transformControls.attach(this.activeMesh);
+    } else if (this.activeMesh) {
+      transformControls.attach(this.activeMesh);
     }
   },
 
   createCube() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0x88ccff })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
-    viewGizmo.setActiveMesh(mesh);
   },
 
   createSphere() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({ color: 0x88ff88 })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
-    viewGizmo.setActiveMesh(mesh);
   },
 
   exportGLTF() {
@@ -213,12 +207,12 @@ function clearActiveMesh() {
 
   transformControls.detach();
   scene.remove(state.activeMesh);
-
   state.activeMesh.geometry.dispose();
   state.activeMesh.material.dispose();
 
   state.activeMesh = null;
   state.brush = null;
+
   viewGizmo.setActiveMesh(null);
 }
 
@@ -227,6 +221,8 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transformControls.attach(mesh);
   state.brush = new SculptBrush(mesh);
+
+  viewGizmo.setActiveMesh(mesh);
 }
 
 /* ============================================================
@@ -244,32 +240,20 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculptAt(e);
 });
 
-renderer.domElement.addEventListener("pointerup", () => {
-  sculpting = false;
-});
-
-renderer.domElement.addEventListener("pointermove", e => {
-  if (sculpting) sculptAt(e);
-});
+renderer.domElement.addEventListener("pointerup", () => sculpting = false);
+renderer.domElement.addEventListener("pointermove", e => sculpting && sculptAt(e));
 
 function sculptAt(e) {
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
+
   state.brush.apply(hit.point);
   saveState(state.activeMesh);
 }
-
-/* ============================================================
-   Keyboard
-============================================================ */
-
-window.addEventListener("keydown", e => {
-  if (e.ctrlKey && e.key === "z") undo();
-  if (e.ctrlKey && e.key === "y") redo();
-});
 
 /* ============================================================
    Resize
@@ -285,9 +269,10 @@ window.addEventListener("resize", () => {
    Init
 ============================================================ */
 
-const viewGizmo = new ViewGizmo(camera, controls);
-state.createCube();
 initUI(state);
+state.createCube();
+
+const viewGizmo = new ViewGizmo(camera, controls);
 
 /* ============================================================
    Render Loop
@@ -296,8 +281,8 @@ initUI(state);
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  renderer.render(scene, camera);
   viewGizmo.update();
+  renderer.render(scene, camera);
 }
 
 animate();
