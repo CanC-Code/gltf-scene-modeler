@@ -129,25 +129,21 @@ export class ViewGizmo {
 
   update() {
     if (this.activeMesh && this.meshClone) {
-      // Live update: match the main mesh's rotation and geometry
+      // Match the main mesh's rotation
       this.meshClone.quaternion.copy(this.activeMesh.quaternion);
       this.meshClone.position.set(0, 0, 0);
       
-      // Update geometry if it changed (for live sculpting feedback)
-      if (this.activeMesh.geometry !== this.meshClone.geometry) {
-        this.meshClone.geometry.dispose();
-        this.meshClone.geometry = this.activeMesh.geometry.clone();
-        
-        // Re-scale to fit
-        const box = new THREE.Box3().setFromObject(this.meshClone);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z);
-        if (maxDim > 0) {
-          const scale = 1.5 / maxDim;
-          this.meshClone.scale.setScalar(scale);
-        }
-      }
+      // Match the main camera's viewing angle
+      const mainCamDirection = new THREE.Vector3();
+      this.mainCamera.getWorldDirection(mainCamDirection);
+      
+      // Position gizmo camera to match main camera's angle
+      const distance = 4;
+      this.camera.position.copy(mainCamDirection).multiplyScalar(-distance);
+      this.camera.lookAt(0, 0, 0);
+      
+      // Apply main camera's up vector for proper orientation
+      this.camera.up.copy(this.mainCamera.up);
     }
 
     this.renderer.render(this.scene, this.camera);
