@@ -1,6 +1,6 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Dynamic miniature camera/orientation gizmo for GLTF Scene Modeler
+// Purpose: Dynamic miniature camera/orientation gizmo with auto-scaling
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
@@ -14,7 +14,7 @@ export class ViewGizmo {
     this.size = options.size || 180;
     this.activeMesh = null;
 
-    /* Gizmo Scene */
+    /* Scene */
     this.scene = new THREE.Scene();
 
     /* Orthographic camera for gizmo */
@@ -73,7 +73,6 @@ export class ViewGizmo {
   }
 
   setActiveMesh(mesh) {
-    // Clear old
     if (this.activeMesh) this.scene.remove(this.activeMesh);
     this.activeMesh = mesh ? mesh.clone() : null;
 
@@ -84,7 +83,27 @@ export class ViewGizmo {
         }
       });
       this.scene.add(this.activeMesh);
+      this.computeScale();
     }
+  }
+
+  computeScale() {
+    if (!this.activeMesh) return;
+
+    // Compute bounding box of mesh
+    const box = new THREE.Box3().setFromObject(this.activeMesh);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    // Scale down the mesh to fit within the gizmo
+    const scale = maxDim > 0 ? 1.5 / maxDim : 1;
+    this.activeMesh.scale.setScalar(scale);
+
+    // Center the mesh
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    this.activeMesh.position.sub(center.multiplyScalar(scale));
   }
 
   createLabels() {
@@ -112,11 +131,12 @@ export class ViewGizmo {
     // Keep labels facing camera
     this.labelGroup.quaternion.copy(this.camera.quaternion);
 
-    // Align gizmo to main camera orientation
+    // Align gizmo mesh to main camera
     if (this.activeMesh) {
       const m = new THREE.Matrix4();
       m.extractRotation(this.mainCamera.matrixWorld);
       this.activeMesh.quaternion.setFromRotationMatrix(m);
+      this.computeScale();
     }
 
     this.renderer.render(this.scene, this.camera);
