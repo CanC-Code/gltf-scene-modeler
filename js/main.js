@@ -1,10 +1,11 @@
 // js/main.js
 // Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159+)
+// Purpose: Main entry point for GLTF Scene Modeler (Three.js r159) with dynamic ViewGizmo
 
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
+import { GLTFLoader } from "../three/GLTFLoader.js";
 import { GLTFExporter } from "../three/GLTFExporter.js";
 
 import { SculptBrush } from "./sculptBrush.js";
@@ -16,7 +17,11 @@ import { ViewGizmo } from "./viewGizmo.js";
 ============================================================ */
 
 const canvas = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true
+});
+
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -34,6 +39,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
+
 camera.position.set(4, 4, 6);
 camera.lookAt(0, 0, 0);
 
@@ -57,12 +63,58 @@ dirLight.position.set(6, 10, 8);
 scene.add(dirLight);
 
 /* ============================================================
-   Grid Helper
+   Grid
 ============================================================ */
 
 const grid = new THREE.GridHelper(20, 20, 0x666666, 0x999999);
 grid.renderOrder = -20;
 scene.add(grid);
+
+/* ============================================================
+   Cardinal Direction Labels (World-Aligned)
+============================================================ */
+
+function createDirectionSprite(label) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#777";
+  ctx.font = "48px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, 64, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(2, 2, 1);
+  sprite.renderOrder = -10;
+
+  return sprite;
+}
+
+const north = createDirectionSprite("N");
+north.position.set(0, 0.01, -9);
+
+const south = createDirectionSprite("S");
+south.position.set(0, 0.01, 9);
+
+const east = createDirectionSprite("E");
+east.position.set(9, 0.01, 0);
+
+const west = createDirectionSprite("W");
+west.position.set(-9, 0.01, 0);
+
+scene.add(north, south, east, west);
 
 /* ============================================================
    Transform Controls
@@ -88,6 +140,7 @@ function saveState(mesh) {
   undoStack.push(mesh.geometry.clone());
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
+  updateGizmo();
 }
 
 function undo() {
@@ -97,6 +150,7 @@ function undo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = prev;
   state.activeMesh.geometry.computeVertexNormals();
+  updateGizmo();
 }
 
 function redo() {
@@ -106,6 +160,7 @@ function redo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = next;
   state.activeMesh.geometry.computeVertexNormals();
+  updateGizmo();
 }
 
 /* ============================================================
@@ -130,28 +185,35 @@ const state = {
 
   createCube() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0x88ccff })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
   createSphere() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({ color: 0x88ff88 })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
   },
 
   exportGLTF() {
     if (!this.activeMesh) return;
+
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(gltf)], {
+        type: "application/json"
+      });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -166,13 +228,16 @@ const state = {
 
 function clearActiveMesh() {
   if (!state.activeMesh) return;
+
   transformControls.detach();
   scene.remove(state.activeMesh);
+
   state.activeMesh.geometry.dispose();
   state.activeMesh.material.dispose();
+
   state.activeMesh = null;
   state.brush = null;
-  viewGizmo.updateMesh(null);
+  updateGizmo();
 }
 
 function setActiveMesh(mesh) {
@@ -180,7 +245,17 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transformControls.attach(mesh);
   state.brush = new SculptBrush(mesh);
-  viewGizmo.updateMesh(mesh);
+  updateGizmo();
+}
+
+/* ============================================================
+   ViewGizmo
+============================================================ */
+
+const viewGizmo = new ViewGizmo(camera, controls);
+
+function updateGizmo() {
+  viewGizmo.setActiveMesh(state.activeMesh);
 }
 
 /* ============================================================
@@ -198,7 +273,9 @@ renderer.domElement.addEventListener("pointerdown", e => {
   sculptAt(e);
 });
 
-renderer.domElement.addEventListener("pointerup", () => { sculpting = false; });
+renderer.domElement.addEventListener("pointerup", () => {
+  sculpting = false;
+});
 
 renderer.domElement.addEventListener("pointermove", e => {
   if (sculpting) sculptAt(e);
@@ -217,7 +294,7 @@ function sculptAt(e) {
 }
 
 /* ============================================================
-   Keyboard Shortcuts
+   Keyboard
 ============================================================ */
 
 window.addEventListener("keydown", e => {
@@ -226,7 +303,7 @@ window.addEventListener("keydown", e => {
 });
 
 /* ============================================================
-   Window Resize
+   Resize
 ============================================================ */
 
 window.addEventListener("resize", () => {
@@ -236,13 +313,11 @@ window.addEventListener("resize", () => {
 });
 
 /* ============================================================
-   Initialize
+   Init
 ============================================================ */
 
-initUI(state);
-
-const viewGizmo = new ViewGizmo(camera, controls);
 state.createCube();
+initUI(state);
 
 /* ============================================================
    Render Loop
