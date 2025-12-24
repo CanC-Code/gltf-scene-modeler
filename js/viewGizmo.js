@@ -67,7 +67,9 @@ export class ViewGizmo {
       if (!this.dragging) return;
       const dx = (e.clientX - this.prev.x) * 0.005;
       const dy = (e.clientY - this.prev.y) * 0.005;
-      if (this.controls && this.controls.isEnabled()) {
+      
+      // Fixed: Check if controls exist and are enabled (property, not method)
+      if (this.controls && this.controls.enabled) {
         this.controls.rotateLeft(dx);
         this.controls.rotateUp(dy);
         this.controls.update();
