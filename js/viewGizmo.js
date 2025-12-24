@@ -1,44 +1,51 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Dynamic miniature view gizmo showing the active mesh, perfectly aligned and orbitable
+// Purpose: Dynamic interactive camera orientation gizmo
 
 import * as THREE from "../three/three.module.js";
-import { OrbitControls } from "../three/OrbitControls.js";
-import { FontLoader } from "../three/FontLoader.js";
-import { TextGeometry } from "../three/TextGeometry.js";
 
 export class ViewGizmo {
-  constructor(mainCamera, controls, options = {}) {
+  constructor(mainCamera, mainControls, options = {}) {
     this.mainCamera = mainCamera;
-    this.controls = controls;
+    this.mainControls = mainControls;
 
-    this.size = options.size || 120; // smaller default
-    this.padding = 0.5; // space around object
+    this.size = options.size || 120;
+    this.mesh = null;
 
-    /* Scene */
+    /* Scene & Camera for Gizmo */
     this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x000000); // transparent if needed
 
-    /* Orthographic camera for gizmo */
-    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
+    this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
+
+    /* Lighting */
+    const amb = new THREE.AmbientLight(0xffffff, 0.8);
+    this.scene.add(amb);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+    dir.position.set(5, 10, 7);
+    this.scene.add(dir);
 
     /* Renderer */
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setSize(this.size, this.size);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-
     Object.assign(this.renderer.domElement.style, {
       position: "fixed",
       top: "56px",
       right: "16px",
+      width: `${this.size}px`,
+      height: `${this.size}px`,
       zIndex: 20,
-      cursor: "grab"
+      cursor: "grab",
+      border: "1px solid #555",
+      background: "#222"
     });
-
     document.body.appendChild(this.renderer.domElement);
 
-    /* Dragging */
+    /* Interaction */
     this.dragging = false;
     this.prev = new THREE.Vector2();
     this.renderer.domElement.addEventListener("pointerdown", e => {
@@ -52,80 +59,50 @@ export class ViewGizmo {
     });
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
-      const dx = (e.clientX - this.prev.x) * 0.01;
-      const dy = (e.clientY - this.prev.y) * 0.01;
-      this.controls.rotateLeft(dx);
-      this.controls.rotateUp(dy);
-      this.controls.update();
+      const dx = (e.clientX - this.prev.x) * 0.005;
+      const dy = (e.clientY - this.prev.y) * 0.005;
+      this.mainControls.rotateLeft(dx);
+      this.mainControls.rotateUp(dy);
+      this.mainControls.update();
       this.prev.set(e.clientX, e.clientY);
     });
 
-    /* Cube / mesh placeholder */
-    this.meshGroup = new THREE.Group();
-    this.scene.add(this.meshGroup);
-
-    /* Labels */
-    this.labelGroup = new THREE.Group();
-    this.scene.add(this.labelGroup);
-
-    const loader = new FontLoader();
-    loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
-      this.createLabel(font, "N",  0, 0, -1.2);
-      this.createLabel(font, "S",  0, 0,  1.2);
-      this.createLabel(font, "E",  1.2, 0,  0);
-      this.createLabel(font, "W", -1.2, 0,  0);
-    });
+    /* Gizmo Cube */
+    this.cube = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshNormalMaterial({ wireframe: false })
+    );
+    this.scene.add(this.cube);
   }
 
-  createLabel(font, text, x, y, z) {
-    const geo = new TextGeometry(text, {
-      font,
-      size: 0.25,
-      height: 0.02
-    });
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x888888,
-      depthWrite: false
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    geo.center();
-    mesh.position.set(x, y, z);
-    this.labelGroup.add(mesh);
-  }
-
-  updateMesh(activeMesh) {
-    // Clear previous mesh
-    while (this.meshGroup.children.length) {
-      const obj = this.meshGroup.children.pop();
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) obj.material.dispose();
-    }
-
-    if (!activeMesh) return;
-
-    // Clone mesh for gizmo
-    const clone = activeMesh.clone();
-    clone.traverse(c => {
-      if (c.isMesh) {
-        c.material = new THREE.MeshNormalMaterial();
+  updateMesh(mesh) {
+    if (mesh) {
+      // Clone the mesh for gizmo visualization
+      if (this.mesh) this.scene.remove(this.mesh);
+      this.mesh = mesh.clone();
+      this.mesh.material = new THREE.MeshNormalMaterial({ wireframe: false });
+      // Fit the mesh into gizmo cube size
+      const box = new THREE.Box3().setFromObject(this.mesh);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 0) {
+        const scale = 1.8 / maxDim; // fit into cube
+        this.mesh.scale.setScalar(scale);
       }
-    });
-    this.meshGroup.add(clone);
-
-    // Compute bounding box for scaling
-    const box = new THREE.Box3().setFromObject(clone);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = 2 / (maxDim + this.padding);
-    this.meshGroup.scale.setScalar(scale);
-    this.meshGroup.position.set(0, 0, 0);
+      this.mesh.position.set(0, 0, 0);
+      this.scene.add(this.mesh);
+    } else if (this.mesh) {
+      this.scene.remove(this.mesh);
+      this.mesh = null;
+    }
   }
 
   update() {
-    // Align gizmo rotation with camera
-    this.meshGroup.quaternion.copy(this.mainCamera.quaternion).invert();
-    this.labelGroup.quaternion.copy(this.meshGroup.quaternion);
+    // Orient cube to match main camera rotation
+    const quat = this.mainCamera.quaternion.clone();
+    this.cube.quaternion.copy(quat).invert();
+    if (this.mesh) this.mesh.quaternion.copy(this.cube.quaternion);
 
     this.renderer.render(this.scene, this.camera);
   }
