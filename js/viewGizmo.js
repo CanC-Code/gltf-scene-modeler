@@ -1,15 +1,16 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Robust interactive camera orientation gizmo reflecting the main scene (Three.js r159)
+// Purpose: Interactive camera orientation gizmo reflecting the active object dynamically
 
 import * as THREE from "../three/three.module.js";
 import { FontLoader } from "../three/FontLoader.js";
 import { TextGeometry } from "../three/TextGeometry.js";
 
 export class ViewGizmo {
-  constructor(mainCamera, mainControls, options = {}) {
+  constructor(mainCamera, mainControls, mainState, options = {}) {
     this.mainCamera = mainCamera;
     this.controls = mainControls;
+    this.state = mainState; // Reference to main scene state to get activeMesh
     this.size = options.size || 120;
     this.offset = options.offset || { top: 56, right: 16 };
     this.dragging = false;
@@ -24,17 +25,14 @@ export class ViewGizmo {
     this.camera.up.copy(this.mainCamera.up);
     this.camera.lookAt(0, 0, 0);
 
-    // Cube Mesh (for orientation)
-    const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-    const cubeMat = new THREE.MeshNormalMaterial({ wireframe: false });
-    this.cube = new THREE.Mesh(cubeGeo, cubeMat);
-    this.scene.add(this.cube);
+    // Gizmo Object placeholder
+    this.gizmoObject = null;
 
     // Label Group
     this.labelGroup = new THREE.Group();
     this.scene.add(this.labelGroup);
 
-    // Load Font & Create Labels
+    // Load Font & Labels
     const loader = new FontLoader();
     loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
       this.createLabel(font, "N",  0, 0, -1.2);
@@ -73,7 +71,6 @@ export class ViewGizmo {
 
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
-
       const dx = (e.clientX - this.prev.x) * 0.005;
       const dy = (e.clientY - this.prev.y) * 0.005;
 
@@ -96,11 +93,35 @@ export class ViewGizmo {
   }
 
   update() {
-    // Copy main camera orientation without inversion
-    this.cube.quaternion.copy(this.mainCamera.quaternion);
-    this.labelGroup.quaternion.copy(this.cube.quaternion);
+    // If activeMesh exists, clone it into gizmo scene
+    if (this.state.activeMesh) {
+      if (!this.gizmoObject) {
+        // Clone geometry + material
+        this.gizmoObject = this.state.activeMesh.clone();
+        this.scene.add(this.gizmoObject);
+      } else {
+        // Update geometry dynamically
+        this.gizmoObject.geometry.dispose();
+        this.gizmoObject.geometry = this.state.activeMesh.geometry.clone();
+        // Update material if needed
+        this.gizmoObject.material.dispose();
+        this.gizmoObject.material = this.state.activeMesh.material.clone();
+      }
 
-    // Render gizmo scene
+      // Center & scale dynamically
+      const bbox = new THREE.Box3().setFromObject(this.gizmoObject);
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z, 1);
+      this.gizmoObject.scale.setScalar(1 / maxDim);
+      const center = bbox.getCenter(new THREE.Vector3());
+      this.gizmoObject.position.copy(center).multiplyScalar(-1);
+    }
+
+    // Sync rotation with main camera
+    if (this.gizmoObject) this.gizmoObject.quaternion.copy(this.mainCamera.quaternion);
+    this.labelGroup.quaternion.copy(this.mainCamera.quaternion);
+
     this.renderer.render(this.scene, this.camera);
   }
 }
