@@ -11,19 +11,19 @@ export class ViewGizmo {
     this.mainCamera = mainCamera;
     this.controls = controls;
 
-    this.size = options.size || 200; // slightly larger
-    this.margin = options.margin || 16;
+    this.size = options.size || 200;
 
-    /* Scene */
+    /* Scene for gizmo */
     this.scene = new THREE.Scene();
 
+    /* Gizmo camera */
     this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 10);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
     /* Cube */
     const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-    const cubeMat = new THREE.MeshNormalMaterial({ flatShading: true });
+    const cubeMat = new THREE.MeshNormalMaterial();
     this.cube = new THREE.Mesh(cubeGeo, cubeMat);
     this.scene.add(this.cube);
 
@@ -33,10 +33,10 @@ export class ViewGizmo {
 
     const loader = new FontLoader();
     loader.load("../three/fonts/helvetiker_regular.typeface.json", font => {
-      this.createLabel(font, "N",  0, 0, -1.25);
-      this.createLabel(font, "S",  0, 0,  1.25);
-      this.createLabel(font, "E",  1.25, 0,  0);
-      this.createLabel(font, "W", -1.25, 0,  0);
+      this.createLabel(font, "N",  0, 0, -1.3);
+      this.createLabel(font, "S",  0, 0,  1.3);
+      this.createLabel(font, "E",  1.3, 0,  0);
+      this.createLabel(font, "W", -1.3, 0,  0);
     });
 
     /* Renderer */
@@ -46,13 +46,10 @@ export class ViewGizmo {
 
     Object.assign(this.renderer.domElement.style, {
       position: "fixed",
-      top: `${this.margin}px`,
-      right: `${this.margin}px`,
-      width: `${this.size}px`,
-      height: `${this.size}px`,
+      top: "56px",
+      right: "16px",
       zIndex: 20,
-      cursor: "grab",
-      pointerEvents: "auto"
+      cursor: "grab"
     });
 
     document.body.appendChild(this.renderer.domElement);
@@ -78,17 +75,23 @@ export class ViewGizmo {
       const dx = (e.clientX - this.prev.x) * 0.005;
       const dy = (e.clientY - this.prev.y) * 0.005;
 
-      // Rotate the camera using controls
-      this.controls.rotateLeft(dx);
-      this.controls.rotateUp(dy);
+      // Rotate camera around target safely
+      const offset = new THREE.Vector3();
+      offset.copy(this.mainCamera.position).sub(this.controls.target);
+
+      const spherical = new THREE.Spherical();
+      spherical.setFromVector3(offset);
+
+      spherical.theta -= dx;
+      spherical.phi   -= dy;
+      spherical.phi = Math.max(0.01, Math.min(Math.PI - 0.01, spherical.phi));
+
+      offset.setFromSpherical(spherical);
+      this.mainCamera.position.copy(this.controls.target).add(offset);
+      this.mainCamera.lookAt(this.controls.target);
+
       this.controls.update();
-
       this.prev.set(e.clientX, e.clientY);
-    });
-
-    // Update on resize
-    window.addEventListener("resize", () => {
-      this.renderer.setSize(this.size, this.size);
     });
   }
 
@@ -99,35 +102,22 @@ export class ViewGizmo {
       height: 0.02
     });
 
-    geo.center();
-
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x666666, // same color as grid
+      color: 0x999999,
       depthWrite: false
     });
 
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
+    geo.center();
+
     this.labelGroup.add(mesh);
   }
 
   update() {
-    // Compute vector from origin to camera
-    const camDir = new THREE.Vector3();
-    camDir.copy(this.mainCamera.position).sub(this.controls.target).normalize();
-
-    // Build a quaternion looking at the camera but keeping world up
-    const up = new THREE.Vector3(0, 1, 0);
-    const lookMatrix = new THREE.Matrix4();
-    lookMatrix.lookAt(new THREE.Vector3(0,0,0), camDir, up);
-    const quat = new THREE.Quaternion();
-    quat.setFromRotationMatrix(lookMatrix);
-
-    // Apply to cube
-    this.cube.quaternion.copy(quat);
-
-    // Labels follow cube
-    this.labelGroup.quaternion.copy(quat);
+    // Align cube with camera orientation
+    this.cube.quaternion.copy(this.mainCamera.quaternion).invert();
+    this.labelGroup.quaternion.copy(this.cube.quaternion);
 
     this.renderer.render(this.scene, this.camera);
   }
