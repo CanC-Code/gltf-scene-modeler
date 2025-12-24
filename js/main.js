@@ -17,7 +17,11 @@ import { ViewGizmo } from "./viewGizmo.js";
 ============================================================ */
 
 const canvas = document.getElementById("viewport");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true
+});
+
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -35,6 +39,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
+
 camera.position.set(4, 4, 6);
 camera.lookAt(0, 0, 0);
 
@@ -73,6 +78,7 @@ function createDirectionSprite(label) {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
+
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#777";
   ctx.font = "48px sans-serif";
@@ -98,10 +104,13 @@ function createDirectionSprite(label) {
 
 const north = createDirectionSprite("N");
 north.position.set(0, 0.01, -9);
+
 const south = createDirectionSprite("S");
 south.position.set(0, 0.01, 9);
+
 const east = createDirectionSprite("E");
 east.position.set(9, 0.01, 0);
+
 const west = createDirectionSprite("W");
 west.position.set(-9, 0.01, 0);
 
@@ -113,6 +122,7 @@ scene.add(north, south, east, west);
 
 const transformControls = new TransformControls(camera, renderer.domElement);
 scene.add(transformControls);
+
 transformControls.addEventListener("dragging-changed", e => {
   controls.enabled = !e.value;
 });
@@ -130,6 +140,7 @@ function saveState(mesh) {
   undoStack.push(mesh.geometry.clone());
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
+  updateGizmo();
 }
 
 function undo() {
@@ -139,6 +150,7 @@ function undo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = prev;
   state.activeMesh.geometry.computeVertexNormals();
+  updateGizmo();
 }
 
 function redo() {
@@ -148,6 +160,7 @@ function redo() {
   state.activeMesh.geometry.dispose();
   state.activeMesh.geometry = next;
   state.activeMesh.geometry.computeVertexNormals();
+  updateGizmo();
 }
 
 /* ============================================================
@@ -172,30 +185,35 @@ const state = {
 
   createCube() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0x88ccff })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
-    viewGizmo.setActiveMesh(mesh);
   },
 
   createSphere() {
     clearActiveMesh();
+
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({ color: 0x88ff88 })
     );
+
     setActiveMesh(mesh);
     saveState(mesh);
-    viewGizmo.setActiveMesh(mesh);
   },
 
   exportGLTF() {
     if (!this.activeMesh) return;
+
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(gltf)], {
+        type: "application/json"
+      });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -219,7 +237,7 @@ function clearActiveMesh() {
 
   state.activeMesh = null;
   state.brush = null;
-  viewGizmo.setActiveMesh(null);
+  updateGizmo();
 }
 
 function setActiveMesh(mesh) {
@@ -227,6 +245,17 @@ function setActiveMesh(mesh) {
   scene.add(mesh);
   transformControls.attach(mesh);
   state.brush = new SculptBrush(mesh);
+  updateGizmo();
+}
+
+/* ============================================================
+   ViewGizmo
+============================================================ */
+
+const viewGizmo = new ViewGizmo(camera, controls);
+
+function updateGizmo() {
+  viewGizmo.setActiveMesh(state.activeMesh);
 }
 
 /* ============================================================
@@ -255,9 +284,11 @@ renderer.domElement.addEventListener("pointermove", e => {
 function sculptAt(e) {
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
   if (!hit) return;
+
   state.brush.apply(hit.point);
   saveState(state.activeMesh);
 }
@@ -285,7 +316,6 @@ window.addEventListener("resize", () => {
    Init
 ============================================================ */
 
-const viewGizmo = new ViewGizmo(camera, controls);
 state.createCube();
 initUI(state);
 
