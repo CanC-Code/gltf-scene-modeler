@@ -1,6 +1,6 @@
 // js/viewGizmo.js
 // Author: CCVO
-// Purpose: Dynamic, perfectly aligned View Gizmo with live miniature mesh (Three.js r159)
+// Purpose: True miniature View Gizmo that perfectly mirrors the active mesh
 
 import * as THREE from "../three/three.module.js";
 
@@ -9,21 +9,22 @@ export class ViewGizmo {
     this.mainCamera = mainCamera;
     this.controls = controls;
 
-    this.size = options.size || 120; // slightly smaller, cleaner
+    this.size = options.size || 120;
     this.activeMesh = null;
-    this.gizmoMesh = null;
+    this.miniature = null;
 
     /* ---------------- Scene ---------------- */
 
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.01, 50);
+    this.camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.01, 100);
     this.camera.position.set(3, 3, 3);
     this.camera.lookAt(0, 0, 0);
 
     /* ---------------- Lighting ---------------- */
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+
     const light = new THREE.DirectionalLight(0xffffff, 0.6);
     light.position.set(5, 5, 5);
     this.scene.add(light);
@@ -70,7 +71,6 @@ export class ViewGizmo {
       const dx = (e.clientX - this.prev.x) * 0.004;
       const dy = (e.clientY - this.prev.y) * 0.004;
 
-      // Rotate camera directly (NO OrbitControls internals)
       const offset = new THREE.Vector3().subVectors(
         this.mainCamera.position,
         this.controls.target
@@ -90,56 +90,54 @@ export class ViewGizmo {
   }
 
   /* ============================================================
-     Active Mesh Handling
+     Active Mesh Sync
   ============================================================ */
 
   setActiveMesh(mesh) {
-    if (this.gizmoMesh) {
-      this.scene.remove(this.gizmoMesh);
-      this.gizmoMesh.geometry.dispose();
-      this.gizmoMesh.material.dispose();
-      this.gizmoMesh = null;
+    if (this.miniature) {
+      this.scene.remove(this.miniature);
+      this.miniature.traverse(obj => {
+        if (obj.isMesh) {
+          obj.geometry.dispose();
+          obj.material.dispose();
+        }
+      });
+      this.miniature = null;
     }
 
     this.activeMesh = mesh;
     if (!mesh) return;
 
-    // Clone geometry only (cheap, stable, no flicker)
-    const geo = mesh.geometry.clone();
-    geo.computeBoundingBox();
+    // FULL CLONE (geometry + transforms)
+    this.miniature = mesh.clone(true);
 
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xcccccc,
-      roughness: 0.4,
-      metalness: 0.1
-    });
-
-    this.gizmoMesh = new THREE.Mesh(geo, mat);
-
-    // Center geometry
-    const box = geo.boundingBox;
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    this.gizmoMesh.position.sub(center);
-
-    // Scale to fit view
+    // Compute bounds AFTER clone
+    const box = new THREE.Box3().setFromObject(this.miniature);
     const size = new THREE.Vector3();
-    box.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const scale = 1.4 / maxDim;
-    this.gizmoMesh.scale.setScalar(scale);
+    const center = new THREE.Vector3();
 
-    this.scene.add(this.gizmoMesh);
+    box.getSize(size);
+    box.getCenter(center);
+
+    // Center without distorting shape
+    this.miniature.position.sub(center);
+
+    // Uniform scale to fit
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = 1.5 / maxDim;
+    this.miniature.scale.multiplyScalar(scale);
+
+    this.scene.add(this.miniature);
   }
 
   /* ============================================================
-     Update Loop
+     Update
   ============================================================ */
 
   update() {
-    if (this.gizmoMesh && this.activeMesh) {
-      // PERFECT orientation sync (no inversion)
-      this.gizmoMesh.quaternion.copy(this.activeMesh.quaternion);
+    if (this.miniature && this.activeMesh) {
+      // Match camera-relative orientation perfectly
+      this.miniature.quaternion.copy(this.activeMesh.quaternion);
     }
 
     this.renderer.render(this.scene, this.camera);
