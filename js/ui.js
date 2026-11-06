@@ -2,35 +2,44 @@
 export function initUI(state, viewGizmo) {
   const toggleMenu = document.getElementById("toggleMenu");
   const menu = document.getElementById("menu");
-  toggleMenu.onclick = () => menu.classList.toggle("collapsed");
+  if (toggleMenu && menu) toggleMenu.onclick = () => menu.classList.toggle("collapsed");
 
   // Bottom Panel Toggle
   const bottomPanel = document.getElementById("bottom-panel");
-  document.getElementById("panel-handle").addEventListener("pointerdown", () => {
-    bottomPanel.classList.toggle("expanded");
-  });
+  const panelHandle = document.getElementById("panel-handle");
+  if (bottomPanel && panelHandle) {
+    panelHandle.addEventListener("pointerdown", () => {
+      bottomPanel.classList.toggle("expanded");
+    });
+  }
 
   // Trackpad Mode Toggle
   const btnModeCamera = document.getElementById("btnModeCamera");
   const btnModeBrush = document.getElementById("btnModeBrush");
   
-  btnModeCamera.onclick = () => {
-    state.setTrackpadMode('camera');
-    btnModeCamera.classList.add("active");
-    btnModeBrush.classList.remove("active");
-    document.querySelector("#trackpad-surface span").textContent = "Move Camera (Trackpad)";
-  };
-  
-  btnModeBrush.onclick = () => {
-    state.setTrackpadMode('brush');
-    btnModeBrush.classList.add("active");
-    btnModeCamera.classList.remove("active");
-    document.querySelector("#trackpad-surface span").textContent = "Guide Brush Cursor";
-  };
+  if (btnModeCamera && btnModeBrush) {
+    btnModeCamera.onclick = () => {
+      state.setTrackpadMode('camera');
+      btnModeCamera.classList.add("active");
+      btnModeBrush.classList.remove("active");
+      const span = document.querySelector("#trackpad-surface span");
+      if (span) span.textContent = "Move Camera (Trackpad)";
+    };
+    
+    btnModeBrush.onclick = () => {
+      state.setTrackpadMode('brush');
+      btnModeBrush.classList.add("active");
+      btnModeCamera.classList.remove("active");
+      const span = document.querySelector("#trackpad-surface span");
+      if (span) span.textContent = "Guide Brush Cursor";
+    };
+  }
 
   // Right Panel Undo/Redo
-  document.getElementById("panelUndoBtn").onclick = () => state.undo();
-  document.getElementById("panelRedoBtn").onclick = () => state.redo();
+  const pUndo = document.getElementById("panelUndoBtn");
+  const pRedo = document.getElementById("panelRedoBtn");
+  if (pUndo) pUndo.onclick = () => state.undo();
+  if (pRedo) pRedo.onclick = () => state.redo();
 
   // Mode buttons
   const modes = ["Sculpt", "Paint", "Move", "Rotate", "Scale"];
@@ -46,7 +55,7 @@ export function initUI(state, viewGizmo) {
           if (b) b.classList.remove("active");
         });
         btn.classList.add("active");
-        paintOptions.style.display = (m === "Paint") ? "block" : "none";
+        if (paintOptions) paintOptions.style.display = (m === "Paint") ? "block" : "none";
       };
     }
   });
@@ -56,20 +65,30 @@ export function initUI(state, viewGizmo) {
   if (paintColorInput) paintColorInput.oninput = (e) => state.setPaintColor(e.target.value);
 
   // Wireframe toggle
-  document.getElementById("toggleWire").onclick = () => {
-    state.wireframe = !state.wireframe;
-    if (state.activeMesh) state.activeMesh.material.wireframe = state.wireframe;
-  };
+  const toggleWire = document.getElementById("toggleWire");
+  if (toggleWire) {
+    toggleWire.onclick = () => {
+      state.wireframe = !state.wireframe;
+      if (state.activeMesh) state.activeMesh.material.wireframe = state.wireframe;
+    };
+  }
 
   // New Mesh buttons
-  document.getElementById("newCube").onclick = () => {
-    state.createCube();
-    viewGizmo.updateMesh(state.activeMesh);
-  };
-  document.getElementById("newSphere").onclick = () => {
-    state.createSphere();
-    viewGizmo.updateMesh(state.activeMesh);
-  };
+  const newCube = document.getElementById("newCube");
+  if (newCube) {
+    newCube.onclick = () => {
+      state.createCube();
+      if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
+    };
+  }
+  
+  const newSphere = document.getElementById("newSphere");
+  if (newSphere) {
+    newSphere.onclick = () => {
+      state.createSphere();
+      if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
+    };
+  }
 
   // Sculpt tools
   const tools = ["Inflate", "Deflate", "Smooth", "Flatten", "Pinch"];
@@ -80,20 +99,25 @@ export function initUI(state, viewGizmo) {
 
   // Brush sliders
   const brushSize = document.getElementById("brushSize");
-  brushSize.oninput = () => state.setRadius(parseFloat(brushSize.value));
+  if (brushSize) brushSize.oninput = () => state.setRadius(parseFloat(brushSize.value));
 
   const brushStrength = document.getElementById("brushStrength");
-  brushStrength.oninput = () => state.setStrength(parseFloat(brushStrength.value));
+  if (brushStrength) brushStrength.oninput = () => state.setStrength(parseFloat(brushStrength.value));
 
   // Export / Import
-  document.getElementById("exportGLTF").onclick = () => state.exportGLTF();
-  document.getElementById("importGLTF").onchange = e => state.importGLTF?.(e);
+  const exportGltf = document.getElementById("exportGLTF");
+  if (exportGltf) exportGltf.onclick = () => state.exportGLTF();
+  
+  const importGltf = document.getElementById("importGLTF");
+  if (importGltf) importGltf.onchange = e => state.importGLTF?.(e);
 
   // Symmetry toggle
   const symmetryBtn = document.getElementById("toggleSymmetry");
   let symmetryEnabled = false;
-  symmetryBtn.onclick = () => {
-    symmetryEnabled = !symmetryEnabled;
-    symmetryBtn.classList.toggle("active");
-  };
+  if (symmetryBtn) {
+    symmetryBtn.onclick = () => {
+      symmetryEnabled = !symmetryEnabled;
+      symmetryBtn.classList.toggle("active");
+    };
+  }
 }

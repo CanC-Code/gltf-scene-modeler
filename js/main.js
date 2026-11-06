@@ -30,7 +30,8 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(4, 4, 6);
 
 // Attach OrbitControls to the left trackpad surface
-const trackpadSurface = document.getElementById("trackpad-surface");
+// Fallback to renderer.domElement if trackpad is missing
+const trackpadSurface = document.getElementById("trackpad-surface") || renderer.domElement;
 const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
@@ -130,7 +131,7 @@ function undo() {
   state.activeMesh.material.vertexColors = prev.hasColors;
   state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
-  viewGizmo.updateMesh(state.activeMesh);
+  if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 
 function redo() {
@@ -144,7 +145,7 @@ function redo() {
   state.activeMesh.material.vertexColors = next.hasColors;
   state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
-  viewGizmo.updateMesh(state.activeMesh);
+  if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 
 /* ===============================
@@ -207,7 +208,7 @@ const state = {
     );
     setActiveMesh(mesh);
     saveState(mesh);
-    viewGizmo.updateMesh(mesh);
+    if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
 
   createSphere() {
@@ -218,7 +219,7 @@ const state = {
     );
     setActiveMesh(mesh);
     saveState(mesh);
-    viewGizmo.updateMesh(mesh);
+    if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
 
   setTool(tool) { if (this.brush) this.brush.setTool(tool); },
@@ -246,7 +247,7 @@ const state = {
         const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
         if (mesh) {
           setActiveMesh(mesh);
-          viewGizmo.updateMesh(mesh);
+          if (viewGizmo) viewGizmo.updateMesh(mesh);
         }
       });
     };
@@ -265,7 +266,7 @@ function clearActiveMesh() {
   state.activeMesh.material.dispose();
   state.activeMesh = null;
   state.brush = null;
-  viewGizmo.updateMesh(null);
+  if (viewGizmo) viewGizmo.updateMesh(null);
 }
 
 function setActiveMesh(mesh) {
@@ -284,50 +285,53 @@ const mouse = new THREE.Vector2();
 let isActionActive = false;
 
 // 1. Trackpad Cursor Tracking (Left Side)
-trackpadSurface.addEventListener("pointermove", e => {
-  if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush) return;
-  
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  
-  raycaster.setFromCamera(mouse, camera);
-  const hit = raycaster.intersectObject(state.activeMesh)[0];
-  
-  if (hit) {
-    state.lastHit = hit;
-    brushCursor.visible = true;
-    brushCursor.position.copy(hit.point);
+if (trackpadSurface) {
+  trackpadSurface.addEventListener("pointermove", e => {
+    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush) return;
     
-    const normal = hit.face.normal.clone();
-    normal.transformDirection(state.activeMesh.matrixWorld);
-    brushCursor.lookAt(hit.point.clone().add(normal));
-    brushCursor.scale.setScalar(state.brush.radius);
-  } else {
-    state.lastHit = null;
-    brushCursor.visible = false;
-  }
-});
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    const hit = raycaster.intersectObject(state.activeMesh)[0];
+    
+    if (hit) {
+      state.lastHit = hit;
+      brushCursor.visible = true;
+      brushCursor.position.copy(hit.point);
+      
+      const normal = hit.face.normal.clone();
+      normal.transformDirection(state.activeMesh.matrixWorld);
+      brushCursor.lookAt(hit.point.clone().add(normal));
+      brushCursor.scale.setScalar(state.brush.radius);
+    } else {
+      state.lastHit = null;
+      brushCursor.visible = false;
+    }
+  });
+}
 
 // 2. Action Area Execution (Right Side)
 const actionArea = document.getElementById("action-area");
-
-actionArea.addEventListener("pointerdown", e => {
-  if ((state.mode !== "sculpt" && state.mode !== "paint") || !state.activeMesh) return;
-  e.preventDefault();
-  isActionActive = true;
-  saveState(state.activeMesh);
-  handleAction(e);
-});
-
-actionArea.addEventListener("pointermove", e => {
-  if (isActionActive) {
+if (actionArea) {
+  actionArea.addEventListener("pointerdown", e => {
+    if ((state.mode !== "sculpt" && state.mode !== "paint") || !state.activeMesh) return;
     e.preventDefault();
+    isActionActive = true;
+    saveState(state.activeMesh);
     handleAction(e);
-  }
-});
+  });
 
-actionArea.addEventListener("pointerup", () => { isActionActive = false; });
-actionArea.addEventListener("pointercancel", () => { isActionActive = false; });
+  actionArea.addEventListener("pointermove", e => {
+    if (isActionActive) {
+      e.preventDefault();
+      handleAction(e);
+    }
+  });
+
+  actionArea.addEventListener("pointerup", () => { isActionActive = false; });
+  actionArea.addEventListener("pointercancel", () => { isActionActive = false; });
+}
 
 function handleAction(e) {
   let hit = state.lastHit;
@@ -369,9 +373,13 @@ window.addEventListener("resize", () => {
 /* ===============================
    Init
 ================================ */
-// Moved ViewGizmo down so it doesn't block top bar
-const viewGizmo = new ViewGizmo(camera, controls, { size: 96 });
-viewGizmo.renderer.domElement.style.top = "60px"; 
+let viewGizmo = null;
+try {
+  viewGizmo = new ViewGizmo(camera, controls, { size: 96 });
+  viewGizmo.renderer.domElement.style.top = "60px"; 
+} catch (e) {
+  console.warn("ViewGizmo failed to initialize:", e);
+}
 
 state.createCube();
 initUI(state, viewGizmo);
@@ -381,12 +389,12 @@ initUI(state, viewGizmo);
 ================================ */
 function animate() {
   requestAnimationFrame(animate);
-  if (state.trackpadMode === 'camera') controls.update();
+  if (state.trackpadMode === 'camera' && controls) controls.update();
   
   compassLabels.forEach(label => label.lookAt(camera.position));
   
   renderer.render(scene, camera);
-  viewGizmo.update();
+  if (viewGizmo) viewGizmo.update();
 }
 
 animate();
