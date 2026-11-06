@@ -1,4 +1,5 @@
 import * as THREE from "../three/three.module.js";
+import { updateNormals } from "./topology.js"; // Use optimized normal recalculation
 
 export class SculptBrush {
   constructor(mesh) {
@@ -16,7 +17,6 @@ export class SculptBrush {
     this.normal = this.geometry.attributes.normal;
   }
 
-  // New method to fix the Undo bug
   updateMesh(mesh) {
     this.setMesh(mesh);
   }
@@ -30,6 +30,7 @@ export class SculptBrush {
     const pos = this.position;
     const norm = this.normal;
     const center = point;
+    const affectedVertices = new Set(); // Track all affected for optimized normal update
 
     const centers = [center.clone()];
     if (symmetry) centers.push(new THREE.Vector3(-center.x, center.y, center.z));
@@ -44,6 +45,7 @@ export class SculptBrush {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         if (v.distanceTo(c) > this.radius) continue;
         region.push(i);
+        affectedVertices.add(i);
         n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
         avgNormal.add(n);
       }
@@ -65,14 +67,17 @@ export class SculptBrush {
           case "smooth": ox = (avgNormal.x - v.x) * influence * 0.5; oy = (avgNormal.y - v.y) * influence * 0.5; oz = (avgNormal.z - v.z) * influence * 0.5; break;
           case "flatten": ox = -avgNormal.x * dist * influence; oy = -avgNormal.y * dist * influence; oz = -avgNormal.z * dist * influence; break;
           case "pinch": ox = -(v.x - c.x) * influence; oy = -(v.y - c.y) * influence; oz = -(v.z - c.z) * influence; break;
-          case "clay": ox = avgNormal.x * influence * 0.6; oy = avgNormal.y * influence * 0.6; oz = avgNormal.z * influence * 0.6; break;
-          case "scrape": ox = -avgNormal.x * influence * 0.8; oy = -avgNormal.y * influence * 0.8; oz = -avgNormal.z * influence * 0.8; break;
         }
         pos.setXYZ(i, v.x + ox, v.y + oy, v.z + oz);
       }
     }
+
     pos.needsUpdate = true;
-    this.geometry.computeVertexNormals();
+    
+    // PERF FIX: Only update normals for the vertices we touched
+    if (affectedVertices.size > 0) {
+      updateNormals(this.geometry, Array.from(affectedVertices));
+    }
   }
 
   paint(hit) {

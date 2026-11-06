@@ -1,7 +1,4 @@
 // js/viewGizmo.js
-// Author: CCVO
-// Purpose: Fully functional dynamic camera orientation gizmo
-
 import * as THREE from "../three/three.module.js";
 
 export class ViewGizmo {
@@ -11,40 +8,29 @@ export class ViewGizmo {
     this.size = options.size || 96;
 
     this.scene = new THREE.Scene();
-
-    // Gizmo camera
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     this.camera.position.set(0, 0, 4);
     this.camera.lookAt(0, 0, 0);
 
-    // Lighting
     const amb = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(amb);
-
     const dir = new THREE.DirectionalLight(0xffffff, 0.6);
     dir.position.set(5, 10, 7);
     this.scene.add(dir);
 
-    // Renderer
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.setSize(this.size, this.size);
     this.renderer.setPixelRatio(window.devicePixelRatio);
 
     Object.assign(this.renderer.domElement.style, {
-      position: "fixed",
-      top: "12px",
-      right: "12px",
-      width: `${this.size}px`,
-      height: `${this.size}px`,
-      cursor: "grab",
-      zIndex: 20,
-      border: "2px solid #4a90e2",
-      borderRadius: "8px"
+      position: "fixed", top: "12px", right: "12px",
+      width: `${this.size}px`, height: `${this.size}px`,
+      cursor: "grab", zIndex: 30, // Higher z-index to stay on top
+      border: "2px solid #4a90e2", borderRadius: "8px"
     });
     document.body.appendChild(this.renderer.domElement);
 
-    // Interaction
     this.dragging = false;
     this.prev = new THREE.Vector2();
 
@@ -67,27 +53,25 @@ export class ViewGizmo {
       const dx = (e.clientX - this.prev.x) * 0.01;
       const dy = (e.clientY - this.prev.y) * 0.01;
       
-      if (this.controls && this.controls.enabled) {
-        // Get current spherical position
+      // FIX: Removed the check for controls.enabled. 
+      // The gizmo should ALWAYS rotate the camera, regardless of trackpad mode.
+      if (this.mainCamera && this.controls) {
         const offset = new THREE.Vector3();
         offset.copy(this.mainCamera.position).sub(this.controls.target);
         
         const spherical = new THREE.Spherical();
         spherical.setFromVector3(offset);
         
-        // Apply rotation
         spherical.theta -= dx;
         spherical.phi -= dy;
-        
-        // Clamp phi to prevent flipping
         spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
         
-        // Update camera position
         offset.setFromSpherical(spherical);
         this.mainCamera.position.copy(this.controls.target).add(offset);
         this.mainCamera.lookAt(this.controls.target);
         
-        this.controls.update();
+        // We must update the controls manually if they are disabled
+        if (this.controls.enabled) this.controls.update();
       }
       this.prev.set(e.clientX, e.clientY);
     });
@@ -96,32 +80,25 @@ export class ViewGizmo {
     this.meshClone = null;
   }
 
-  // Set or update the mesh displayed in the gizmo
   updateMesh(mesh) {
     this.activeMesh = mesh;
-
     if (this.meshClone) {
       this.scene.remove(this.meshClone);
       if (this.meshClone.geometry) this.meshClone.geometry.dispose();
       if (this.meshClone.material) this.meshClone.material.dispose();
       this.meshClone = null;
     }
-
     if (!mesh) return;
 
     this.meshClone = mesh.clone();
     this.meshClone.material = new THREE.MeshNormalMaterial();
     this.meshClone.geometry = mesh.geometry.clone();
 
-    // Scale to fit gizmo
     const box = new THREE.Box3().setFromObject(this.meshClone);
     const size = new THREE.Vector3();
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z);
-    if (maxDim > 0) {
-      const scale = 1.5 / maxDim;
-      this.meshClone.scale.setScalar(scale);
-    }
+    if (maxDim > 0) this.meshClone.scale.setScalar(1.5 / maxDim);
 
     this.meshClone.position.set(0, 0, 0);
     this.scene.add(this.meshClone);
@@ -129,23 +106,16 @@ export class ViewGizmo {
 
   update() {
     if (this.activeMesh && this.meshClone) {
-      // Match the main mesh's rotation
       this.meshClone.quaternion.copy(this.activeMesh.quaternion);
       this.meshClone.position.set(0, 0, 0);
       
-      // Match the main camera's viewing angle
-      const mainCamDirection = new THREE.Vector3();
-      this.mainCamera.getWorldDirection(mainCamDirection);
+      const mainCamDir = new THREE.Vector3();
+      this.mainCamera.getWorldDirection(mainCamDir);
       
-      // Position gizmo camera to match main camera's angle
-      const distance = 4;
-      this.camera.position.copy(mainCamDirection).multiplyScalar(-distance);
+      this.camera.position.copy(mainCamDir).multiplyScalar(-4);
       this.camera.lookAt(0, 0, 0);
-      
-      // Apply main camera's up vector for proper orientation
       this.camera.up.copy(this.mainCamera.up);
     }
-
     this.renderer.render(this.scene, this.camera);
   }
 }

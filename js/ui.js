@@ -13,7 +13,7 @@ export function initUI(state, viewGizmo) {
     };
     btnModeBrush.onclick = () => {
       state.setTrackpadMode('brush'); btnModeBrush.classList.add("active"); btnModeCamera.classList.remove("active");
-      const span = document.querySelector("#trackpad-surface span"); if (span) span.textContent = "Guide Brush Cursor";
+      const span = document.querySelector("#trackpad-surface span"); if (span) span.textContent = "Guide Brush / Select";
     };
   }
 
@@ -21,7 +21,7 @@ export function initUI(state, viewGizmo) {
   if (pUndo) pUndo.onclick = () => state.undo();
   if (pRedo) pRedo.onclick = () => state.redo();
 
-  const modes = ["Sculpt", "Paint", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
+  const modes = ["Sculpt", "Paint", "Edit", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {
@@ -35,20 +35,17 @@ export function initUI(state, viewGizmo) {
   const paintColorInput = document.getElementById("paintColor");
   if (paintColorInput) paintColorInput.oninput = e => state.setPaintColor(e.target.value);
 
-  // Background Color
   const bgColorInput = document.getElementById("bgColor");
-  if (bgColorInput) bgColorInput.oninput = e => {
-    if (state.scene) state.scene.background.set(e.target.value);
-  };
+  if (bgColorInput) bgColorInput.oninput = e => { if (state.scene) state.scene.background.set(e.target.value); };
 
-  // Trackpad Sensitivity
   const sensInput = document.getElementById("trackpadSensitivity");
-  if (sensInput) sensInput.oninput = e => {
-    state.trackpadSensitivity = parseFloat(e.target.value);
-  };
+  if (sensInput) sensInput.oninput = e => { state.trackpadSensitivity = parseFloat(e.target.value); };
 
   const toggleWire = document.getElementById("toggleWire");
-  if (toggleWire) toggleWire.onclick = () => { state.wireframe = !state.wireframe; if (state.activeMesh) state.activeMesh.material.wireframe = state.wireframe; };
+  if (toggleWire) toggleWire.onclick = () => { 
+    state.toggleWireframe(); 
+    toggleWire.classList.toggle("active", state.wireframe);
+  };
 
   const newCube = document.getElementById("newCube"), newSphere = document.getElementById("newSphere");
   if (newCube) newCube.onclick = () => { state.createCube(); if (viewGizmo) viewGizmo.updateMesh(state.activeMesh); };
