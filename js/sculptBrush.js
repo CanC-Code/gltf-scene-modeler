@@ -19,14 +19,8 @@ export class SculptBrush {
     this.adjacencyMap = buildAdjacencyMap(this.geometry);
   }
 
-  updateMesh(mesh) {
-    this.setMesh(mesh);
-  }
-
-  rebuildGrid() {
-    this.spatialHash.build(this.geometry);
-  }
-
+  updateMesh(mesh) { this.setMesh(mesh); }
+  rebuildGrid() { this.spatialHash.build(this.geometry); }
   setTool(tool) { this.tool = tool; }
   setRadius(r) { this.radius = r; }
   setStrength(s) { this.strength = s; }
@@ -70,7 +64,6 @@ export class SculptBrush {
           case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
           case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
           case "smooth": 
-            // True Laplacian Smoothing: Move towards average neighbor position
             avgPos.set(0,0,0);
             let neighbors = 0;
             if (this.adjacencyMap[i] && this.geometry.index) {
@@ -88,9 +81,17 @@ export class SculptBrush {
             }
             if (neighbors > 0) {
               avgPos.divideScalar(neighbors);
-              ox = (avgPos.x - v.x) * influence;
-              oy = (avgPos.y - v.y) * influence;
-              oz = (avgPos.z - v.z) * influence;
+              // FIX: Clamp the movement to prevent tearing/inversion
+              const maxDist = this.radius * 0.3; // Maximum distance vertex can move in one step
+              let dx = (avgPos.x - v.x) * influence;
+              let dy = (avgPos.y - v.y) * influence;
+              let dz = (avgPos.z - v.z) * influence;
+              const moveDist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+              if (moveDist > maxDist) {
+                const scale = maxDist / moveDist;
+                dx *= scale; dy *= scale; dz *= scale;
+              }
+              ox = dx; oy = dy; oz = dz;
             }
             break;
           case "flatten": ox = -avgNormal.x * dist * influence; oy = -avgNormal.y * dist * influence; oz = -avgNormal.z * dist * influence; break;
