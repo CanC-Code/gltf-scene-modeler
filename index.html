@@ -16,7 +16,13 @@
 
     #menu { position: absolute; top: 44px; left: 0; width: 260px; bottom: 0; background: #2b2b2b; padding: 15px; padding-bottom: 250px; overflow-y: auto; transition: transform 0.2s; z-index: 9; color: #ddd; box-sizing: border-box; }
     #menu.collapsed { transform: translateX(-100%); }
-    #menu h3 { margin: 15px 0 8px 0; font-size: 14px; color: #fff; border-bottom: 1px solid #444; padding-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;}
+    
+    /* Accordion Styles */
+    details { margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+    summary { font-size: 14px; color: #fff; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; padding: 5px 0; outline: none; }
+    summary::-webkit-details-marker { color: #4a90e2; }
+    .details-content { padding-top: 10px; }
+    
     #menu label { display: block; margin-top: 10px; margin-bottom: 4px; font-size: 12px; color: #aaa; }
     #menu input[type="range"] { width: 100%; margin-bottom: 10px; }
     #menu button { margin-bottom: 6px; width: 100%; padding: 10px; background: #3a3a3a; color: white; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 13px; }
@@ -98,23 +104,39 @@
 
   <div id="menu" class="collapsed">
     <div id="scene-panel" class="panel-section active">
-      <h3>Scene Objects</h3>
-      <div id="object-list"></div>
-      <button id="duplicateObject">Duplicate Active</button>
-      <button id="deleteObject" style="background: #d32f2f;">Delete Active</button>
+      <details open>
+        <summary>Scene Objects</summary>
+        <div class="details-content">
+          <div id="object-list"></div>
+          <button id="duplicateObject">Duplicate Active</button>
+          <button id="deleteObject" style="background: #d32f2f;">Delete Active</button>
+        </div>
+      </details>
 
-      <h3>Add Object</h3>
-      <button id="newCube">Add Cube</button>
-      <button id="newSphere">Add Sphere</button>
+      <details>
+        <summary>Add Object</summary>
+        <div class="details-content">
+          <button id="newCube">Add Cube</button>
+          <button id="newSphere">Add Sphere</button>
+        </div>
+      </details>
 
-      <h3>Scene Settings</h3>
-      <label>Background Color</label>
-      <input type="color" id="bgColor" value="#b0c4de" />
-      <button id="toggleWire">▦ Toggle Wireframe</button>
+      <details>
+        <summary>Scene Settings</summary>
+        <div class="details-content">
+          <label>Background Color</label>
+          <input type="color" id="bgColor" value="#b0c4de" />
+          <button id="toggleWire">▦ Toggle Wireframe</button>
+        </div>
+      </details>
 
-      <h3>File</h3>
-      <button id="exportGLTF">Export GLTF</button>
-      <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-top: 5px;" />
+      <details open>
+        <summary>File</summary>
+        <div class="details-content">
+          <button id="exportGLTF" style="background: #2e7d32;">Export Scene (GLTF)</button>
+          <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-top: 5px;" />
+        </div>
+      </details>
     </div>
 
     <div id="edit-panel" class="panel-section">
@@ -138,8 +160,10 @@
       <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 5px;">Active: None</p>
       <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
 
-      <h3>Bone Settings</h3>
-      <button id="showSkeleton" class="active">Toggle Skeleton View</button>
+      <h3>Animation</h3>
+      <button id="addKeyframe" style="background: #03a9f4;">Add Keyframe</button>
+      <button id="playAnim" style="background: #00bcd4;">Play Animation</button>
+      <button id="resetAnim">Reset Pose</button>
     </div>
 
     <div id="sculpt-panel" class="panel-section">
@@ -222,6 +246,6 @@
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
-  <script type="module" src="./js/main.js?v=20"></script>
+  <script type="module" src="./js/main.js?v=21"></script>
 </body>
 </html>

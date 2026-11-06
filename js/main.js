@@ -170,6 +170,8 @@ const state = {
   activeBoneIndex: 0,
   selectedVertices: new Set(),
   lastDummyPos: new THREE.Vector3(),
+  mixer: null,
+  keyframes: [],
   undo,
   redo,
 
@@ -187,6 +189,18 @@ const state = {
       if (this.activeMesh) this.activeMesh.visible = true;
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
+      
+      if (mode === "weight_paint") {
+        this.updateWeightVisuals();
+      } else {
+        // Restore normal material if leaving weight paint
+        if (this.activeMesh && this.activeMesh.geometry.attributes.color) {
+          this.activeMesh.material.vertexColors = true;
+        } else if (this.activeMesh) {
+          this.activeMesh.material.vertexColors = false;
+        }
+        this.activeMesh.material.needsUpdate = true;
+      }
     } else if (mode === "edit") {
       pointsCloud.visible = true;
       if (this.activeMesh) this.activeMesh.visible = false;
@@ -238,7 +252,7 @@ const state = {
     const center = box.getCenter(new THREE.Vector3());
     const fitHeightDistance = size / (2 * Math.tan(Math.PI * camera.fov / 360));
     const fitWidthDistance = fitHeightDistance / camera.aspect;
-    const distance = Math.max(fitHeightDistance, fitWidthDistance) * 1.2; // 20% padding
+    const distance = Math.max(fitHeightDistance, fitWidthDistance) * 1.2;
     
     const direction = camera.position.clone().sub(center).normalize().multiplyScalar(distance);
     camera.position.copy(center).add(direction);
@@ -418,7 +432,6 @@ const state = {
       list.appendChild(div);
     });
     
-    // Update Active Bone Label
     const label = document.getElementById("active-bone-label");
     if (label) label.textContent = `Active: ${names[this.activeBoneIndex]}`;
   },
@@ -430,6 +443,90 @@ const state = {
     transform.attach(this.currentBones[index]);
     transform.setMode('translate');
     this.updateBoneList();
+    if (this.mode === 'weight_paint') this.updateWeightVisuals();
+  },
+
+  updateWeightVisuals() {
+    if (!this.activeMesh || !this.activeMesh.geometry.attributes.skinWeight) return;
+    
+    const geo = this.activeMesh.geometry;
+    const weights = geo.attributes.skinWeight;
+    const indices = geo.attributes.skinIndex;
+    
+    if (!geo.attributes.color) {
+      const colors = new Float32Array(geo.attributes.position.count * 3);
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    }
+    
+    const colors = geo.attributes.color;
+    
+    for (let i = 0; i < geo.attributes.position.count; i++) {
+      // Find weight for active bone
+      let w = 0;
+      for (let j = 0; j < 4; j++) {
+        if (indices.array[i * 4 + j] === this.activeBoneIndex) {
+          w = weights.array[i * 4 + j];
+          break;
+        }
+      }
+      
+      // Heatmap: Blue (0) -> Red (1)
+      colors.setXYZ(i, w, 0, 1 - w);
+    }
+    colors.needsUpdate = true;
+    this.activeMesh.material.vertexColors = true;
+    this.activeMesh.material.needsUpdate = true;
+  },
+
+  addKeyframe() {
+    if (!this.currentBones) return;
+    const time = this.keyframes.length; // Simple timeline: 0, 1, 2...
+    const frame = { time, bones: [] };
+    
+    this.currentBones.forEach(bone => {
+      frame.bones.push({
+        pos: bone.position.clone(),
+        quat: bone.quaternion.clone()
+      });
+    });
+    
+    this.keyframes.push(frame);
+    if (window.showToast) window.showToast(`Keyframe ${time} added!`);
+  },
+
+  playAnimation() {
+    if (this.keyframes.length < 2) {
+      if (window.showToast) window.showToast("Need at least 2 keyframes to play.");
+      return;
+    }
+    
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+    }
+    
+    const tracks = [];
+    for (let i = 0; i < this.currentBones.length; i++) {
+      const posValues = [];
+      const quatValues = [];
+      const times = [];
+      
+      this.keyframes.forEach(frame => {
+        times.push(frame.time);
+        posValues.push(frame.bones[i].pos.x, frame.bones[i].pos.y, frame.bones[i].pos.z);
+        quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
+      });
+      
+      tracks.push(new THREE.VectorKeyframeTrack(`.bones[${i}].position`, times, posValues));
+      tracks.push(new THREE.QuaternionKeyframeTrack(`.bones[${i}].quaternion`, times, quatValues));
+    }
+    
+    const clip = new THREE.AnimationClip('Action', -1, tracks);
+    this.mixer = new THREE.AnimationMixer(this.activeMesh);
+    const action = this.mixer.clipAction(clip);
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    action.play();
+    this.mixer.update(0); // Apply first frame
   },
 
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
@@ -437,9 +534,46 @@ const state = {
 
   exportGLTF() {
     if (!this.activeMesh) return;
-    new GLTFExporter().parse(this.activeMesh, gltf => {
-      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "application/json" })); a.download = "model.gltf"; a.click();
-    });
+    // Create a temporary group to hold the active mesh and its skeleton
+    const exportGroup = new THREE.Group();
+    
+    // Clone the mesh to avoid messing up the scene state
+    const clone = this.activeMesh.clone();
+    if (this.activeMesh.skeleton) {
+       const clonedBones = this.activeMesh.skeleton.bones.map(b => b.clone());
+       const clonedSkeleton = new THREE.Skeleton(clonedBones, this.activeMesh.skeleton.boneInverses);
+       clone.bind(clonedSkeleton);
+       
+       // Add bones to the clone so the exporter sees them
+       clonedBones.forEach(b => clone.add(b));
+    }
+    
+    exportGroup.add(clone);
+    
+    // If there are keyframes, create an animation clip to export
+    const options = {};
+    if (this.keyframes.length >= 2) {
+        const tracks = [];
+        for (let i = 0; i < this.currentBones.length; i++) {
+          const posValues = [];
+          const quatValues = [];
+          const times = [];
+          
+          this.keyframes.forEach(frame => {
+            times.push(frame.time);
+            posValues.push(frame.bones[i].pos.x, frame.bones[i].pos.y, frame.bones[i].pos.z);
+            quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
+          });
+          
+          tracks.push(new THREE.VectorKeyframeTrack(`.bones[${i}].position`, times, posValues));
+          tracks.push(new THREE.QuaternionKeyframeTrack(`.bones[${i}].quaternion`, times, quatValues));
+        }
+        options.animations = [new THREE.AnimationClip('Action', -1, tracks)];
+    }
+
+    new GLTFExporter().parse(exportGroup, gltf => {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "application/json" })); a.download = "scene.gltf"; a.click();
+    }, options);
   },
 
   importGLTF(e) {
@@ -500,7 +634,11 @@ if (actionArea) {
     e.preventDefault(); isActionActive = true; saveState(state.activeMesh); handleAction();
   });
   actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
-  actionArea.addEventListener("pointerup", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
+  actionArea.addEventListener("pointerup", () => { 
+    isActionActive = false; 
+    if(state.brush) state.brush.rebuildGrid(); 
+    if (state.mode === 'weight_paint') state.updateWeightVisuals();
+  });
   actionArea.addEventListener("pointercancel", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
 }
 
@@ -524,8 +662,6 @@ if (trackpadSurface) {
     mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
     
     raycaster.setFromCamera(mouse, camera);
-    
-    // Dynamic threshold based on camera distance
     const distToMesh = camera.position.distanceTo(state.activeMesh.position);
     raycaster.params.Points.threshold = distToMesh * 0.03;
 
@@ -628,8 +764,22 @@ document.getElementById("toggleWeightPaint").onclick = (e) => {
   }
 };
 
+// Animation UI Listeners
+document.getElementById("addKeyframe").onclick = () => state.addKeyframe();
+document.getElementById("playAnim").onclick = () => state.playAnimation();
+document.getElementById("resetAnim").onclick = () => {
+  if (state.mixer) state.mixer.stopAllAction();
+  state.keyframes = [];
+  state.setMode('rig'); // Resets bones to default pose visually if in rig mode
+  if (window.showToast) window.showToast("Animation reset.");
+};
+
+const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (state.mixer) state.mixer.update(delta);
+  
   if (state.trackpadMode === 'camera' && controls) controls.update();
   if (state.activeMesh && selectionBox.visible && state.mode !== 'edit') {
     selectionBox.setFromObject(state.activeMesh);
