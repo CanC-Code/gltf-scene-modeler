@@ -160,6 +160,7 @@ const state = {
   brush: null,
   wireframe: false,
   symmetryEnabled: false,
+  snapEnabled: false, // New Snap State
   scene,
   controls,
   transform,
@@ -174,6 +175,18 @@ const state = {
   keyframes: [],
   undo,
   redo,
+
+  updateSnap() {
+    if (this.snapEnabled) {
+      transform.setTranslationSnap(0.5);
+      transform.setRotationSnap(THREE.MathUtils.degToRad(15));
+      transform.setScaleSnap(0.25);
+    } else {
+      transform.setTranslationSnap(null);
+      transform.setRotationSnap(null);
+      transform.setScaleSnap(null);
+    }
+  },
 
   setMode(mode) {
     this.mode = mode;
@@ -193,7 +206,6 @@ const state = {
       if (mode === "weight_paint") {
         this.updateWeightVisuals();
       } else {
-        // Restore normal material if leaving weight paint
         if (this.activeMesh && this.activeMesh.geometry.attributes.color) {
           this.activeMesh.material.vertexColors = true;
         } else if (this.activeMesh) {
@@ -461,7 +473,6 @@ const state = {
     const colors = geo.attributes.color;
     
     for (let i = 0; i < geo.attributes.position.count; i++) {
-      // Find weight for active bone
       let w = 0;
       for (let j = 0; j < 4; j++) {
         if (indices.array[i * 4 + j] === this.activeBoneIndex) {
@@ -469,8 +480,6 @@ const state = {
           break;
         }
       }
-      
-      // Heatmap: Blue (0) -> Red (1)
       colors.setXYZ(i, w, 0, 1 - w);
     }
     colors.needsUpdate = true;
@@ -480,7 +489,7 @@ const state = {
 
   addKeyframe() {
     if (!this.currentBones) return;
-    const time = this.keyframes.length; // Simple timeline: 0, 1, 2...
+    const time = this.keyframes.length;
     const frame = { time, bones: [] };
     
     this.currentBones.forEach(bone => {
@@ -500,9 +509,7 @@ const state = {
       return;
     }
     
-    if (this.mixer) {
-      this.mixer.stopAllAction();
-    }
+    if (this.mixer) this.mixer.stopAllAction();
     
     const tracks = [];
     for (let i = 0; i < this.currentBones.length; i++) {
@@ -526,7 +533,7 @@ const state = {
     action.setLoop(THREE.LoopOnce);
     action.clampWhenFinished = true;
     action.play();
-    this.mixer.update(0); // Apply first frame
+    this.mixer.update(0);
   },
 
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
@@ -534,23 +541,16 @@ const state = {
 
   exportGLTF() {
     if (!this.activeMesh) return;
-    // Create a temporary group to hold the active mesh and its skeleton
     const exportGroup = new THREE.Group();
-    
-    // Clone the mesh to avoid messing up the scene state
     const clone = this.activeMesh.clone();
     if (this.activeMesh.skeleton) {
        const clonedBones = this.activeMesh.skeleton.bones.map(b => b.clone());
        const clonedSkeleton = new THREE.Skeleton(clonedBones, this.activeMesh.skeleton.boneInverses);
        clone.bind(clonedSkeleton);
-       
-       // Add bones to the clone so the exporter sees them
        clonedBones.forEach(b => clone.add(b));
     }
-    
     exportGroup.add(clone);
     
-    // If there are keyframes, create an animation clip to export
     const options = {};
     if (this.keyframes.length >= 2) {
         const tracks = [];
@@ -596,10 +596,10 @@ function syncPointsCloud() {
   }
   const colors = pointsCloud.geometry.attributes.color;
   for (let i = 0; i < colors.count; i++) {
-    colors.setXYZ(i, 1.0, 1.0, 1.0); // White
+    colors.setXYZ(i, 1.0, 1.0, 1.0);
   }
   state.selectedVertices.forEach(idx => {
-    colors.setXYZ(idx, 1.0, 0.0, 0.0); // Red
+    colors.setXYZ(idx, 1.0, 0.0, 0.0);
   });
   colors.needsUpdate = true;
 }
@@ -764,13 +764,12 @@ document.getElementById("toggleWeightPaint").onclick = (e) => {
   }
 };
 
-// Animation UI Listeners
 document.getElementById("addKeyframe").onclick = () => state.addKeyframe();
 document.getElementById("playAnim").onclick = () => state.playAnimation();
 document.getElementById("resetAnim").onclick = () => {
   if (state.mixer) state.mixer.stopAllAction();
   state.keyframes = [];
-  state.setMode('rig'); // Resets bones to default pose visually if in rig mode
+  state.setMode('rig');
   if (window.showToast) window.showToast("Animation reset.");
 };
 

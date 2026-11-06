@@ -92,24 +92,60 @@ export function initUI(state, viewGizmo) {
     };
   });
 
+  // --- Top Bar Toggles ---
+  const toggleWire = document.getElementById("toggleWire");
+  if (toggleWire) toggleWire.onclick = () => { state.toggleWireframe(); toggleWire.classList.toggle("active", state.wireframe); };
+
+  const toggleSnap = document.getElementById("toggleSnap");
+  if (toggleSnap) toggleSnap.onclick = () => {
+    state.snapEnabled = !state.snapEnabled;
+    toggleSnap.classList.toggle("active", state.snapEnabled);
+    state.updateSnap();
+  };
+
   // --- Focus Camera Button ---
   const focusBtn = document.getElementById("focus-camera-btn");
   if (focusBtn) focusBtn.onclick = () => state.focusCamera();
 
-  // --- Custom Color Picker UI ---
+  // --- Unified Custom Color Picker UI ---
   const colorBtn = document.getElementById("color-picker-btn");
+  const bgBtn = document.getElementById("btn-bg-color");
   const colorModal = document.getElementById("color-picker-modal");
   const colorClose = document.getElementById("color-picker-close");
   const cpApply = document.getElementById("cp-apply");
   const cpR = document.getElementById("cp-r"), cpG = document.getElementById("cp-g"), cpB = document.getElementById("cp-b");
   const colorPreview = document.getElementById("color-preview");
   const colorWheel = document.getElementById("color-wheel");
+  const pickerTitle = document.getElementById("color-picker-title");
+
+  let colorTarget = 'paint'; // 'paint' or 'background'
+
+  const openColorPicker = (target) => {
+    colorTarget = target;
+    pickerTitle.textContent = target === 'paint' ? "Paint Color" : "Background Color";
+    
+    // Initialize sliders with current color
+    const currentColor = target === 'paint' ? state.paintColor : state.scene.background;
+    cpR.value = Math.round(currentColor.r * 255);
+    cpG.value = Math.round(currentColor.g * 255);
+    cpB.value = Math.round(currentColor.b * 255);
+    updatePreview();
+    
+    colorModal.classList.add("show");
+  };
 
   if (colorBtn && colorModal) {
-    colorBtn.onclick = () => colorModal.classList.add("show");
+    colorBtn.onclick = () => openColorPicker('paint');
+    if (bgBtn) bgBtn.onclick = () => openColorPicker('background');
+    
     colorClose.onclick = () => colorModal.classList.remove("show");
     cpApply.onclick = () => {
-      state.setPaintColor(`rgb(${cpR.value}, ${cpG.value}, ${cpB.value})`);
+      const hex = `rgb(${cpR.value}, ${cpG.value}, ${cpB.value})`;
+      if (colorTarget === 'paint') {
+        state.setPaintColor(hex);
+      } else {
+        if (state.scene) state.scene.background.set(hex);
+      }
       colorModal.classList.remove("show");
     };
 
@@ -153,22 +189,17 @@ export function initUI(state, viewGizmo) {
     };
   }
 
-  const bgColorInput = document.getElementById("bgColor");
-  if (bgColorInput) bgColorInput.oninput = e => { if (state.scene) state.scene.background.set(e.target.value); };
-
+  // --- Sliders in Bottom Panel ---
   const sensInput = document.getElementById("trackpadSensitivity");
   if (sensInput) sensInput.oninput = e => { state.trackpadSensitivity = parseFloat(e.target.value); };
-
-  const toggleWire = document.getElementById("toggleWire");
-  if (toggleWire) toggleWire.onclick = () => { state.toggleWireframe(); toggleWire.classList.toggle("active", state.wireframe); };
-
-  const newCube = document.getElementById("newCube"), newSphere = document.getElementById("newSphere");
-  if (newCube) newCube.onclick = () => state.addCube();
-  if (newSphere) newSphere.onclick = () => state.addSphere();
 
   const brushSize = document.getElementById("brushSize"), brushStrength = document.getElementById("brushStrength");
   if (brushSize) brushSize.oninput = () => state.setRadius(parseFloat(brushSize.value));
   if (brushStrength) brushStrength.oninput = () => state.setStrength(parseFloat(brushStrength.value));
+
+  const newCube = document.getElementById("newCube"), newSphere = document.getElementById("newSphere");
+  if (newCube) newCube.onclick = () => state.addCube();
+  if (newSphere) newSphere.onclick = () => state.addSphere();
 
   const exportGltf = document.getElementById("exportGLTF"), importGltf = document.getElementById("importGLTF");
   if (exportGltf) exportGltf.onclick = () => state.exportGLTF();

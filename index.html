@@ -16,13 +16,13 @@
 
     #menu { position: absolute; top: 44px; left: 0; width: 260px; bottom: 0; background: #2b2b2b; padding: 15px; padding-bottom: 250px; overflow-y: auto; transition: transform 0.2s; z-index: 9; color: #ddd; box-sizing: border-box; }
     #menu.collapsed { transform: translateX(-100%); }
-    
+
     /* Accordion Styles */
     details { margin-bottom: 10px; border-bottom: 1px solid #444; padding-bottom: 10px; }
     summary { font-size: 14px; color: #fff; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; padding: 5px 0; outline: none; }
     summary::-webkit-details-marker { color: #4a90e2; }
     .details-content { padding-top: 10px; }
-    
+
     #menu label { display: block; margin-top: 10px; margin-bottom: 4px; font-size: 12px; color: #aaa; }
     #menu input[type="range"] { width: 100%; margin-bottom: 10px; }
     #menu button { margin-bottom: 6px; width: 100%; padding: 10px; background: #3a3a3a; color: white; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 13px; }
@@ -38,7 +38,8 @@
     .list-item:hover { background: #333; }
     .list-item.active { background: #4a90e2; color: white; }
 
-    #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 260px; background: rgba(43, 43, 43, 0.95); z-index: 20; display: flex; flex-direction: column; transform: translateY(220px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
+    /* Bottom Panel */
+    #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 300px; background: rgba(43, 43, 43, 0.95); z-index: 20; display: flex; flex-direction: column; transform: translateY(260px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
     #bottom-panel.expanded { transform: translateY(0); pointer-events: auto; }
 
     #panel-handle { height: 44px; background: #1e1e1e; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #fff; user-select: none; pointer-events: auto; border-bottom: 1px solid #333; padding: 0 15px; position: relative; }
@@ -55,6 +56,12 @@
     #color-picker-btn { width: 32px; height: 32px; border-radius: 4px; border: 2px solid #fff; cursor: pointer; background: #ff0000; }
     #focus-camera-btn { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #555; cursor: pointer; background: #444; color: #fff; font-size: 16px; display: flex; align-items: center; justify-content: center; }
     #focus-camera-btn:hover { background: #4a90e2; }
+
+    /* Sliders in Bottom Panel */
+    #brush-sliders { display: flex; gap: 15px; padding: 10px 15px; background: #2a2a2a; border-bottom: 1px solid #444; }
+    .slider-container { flex: 1; display: flex; flex-direction: column; }
+    .slider-container label { font-size: 11px; color: #aaa; margin-bottom: 4px; text-transform: uppercase; }
+    .slider-container input[type="range"] { width: 100%; }
 
     #panel-content { flex: 1; display: flex; padding: 0; min-height: 0; }
     #trackpad-area, #action-area-wrapper { flex: 1; display: flex; flex-direction: column; margin: 10px; min-width: 0; }
@@ -100,6 +107,10 @@
       <button id="toolRotate" class="tool">Rotate</button>
       <button id="toolScale" class="tool">Scale</button>
     </div>
+    <div class="tool-group">
+      <button id="toggleWire" class="tool">▦ Wire</button>
+      <button id="toggleSnap" class="tool">📐 Snap</button>
+    </div>
   </div>
 
   <div id="menu" class="collapsed">
@@ -124,9 +135,7 @@
       <details>
         <summary>Scene Settings</summary>
         <div class="details-content">
-          <label>Background Color</label>
-          <input type="color" id="bgColor" value="#b0c4de" />
-          <button id="toggleWire">▦ Toggle Wireframe</button>
+          <button id="btn-bg-color">Background Color</button>
         </div>
       </details>
 
@@ -170,12 +179,6 @@
       <h3>Trackpad</h3>
       <label>Cursor Speed</label>
       <input type="range" id="trackpadSensitivity" min="0.2" max="1.5" step="0.1" value="0.6" />
-
-      <h3>Brush Settings</h3>
-      <label>Brush Size</label>
-      <input type="range" id="brushSize" min="0.05" max="1.5" step="0.05" value="0.2" />
-      <label>Strength</label>
-      <input type="range" id="brushStrength" min="0.01" max="1" step="0.01" value="0.5" />
       <button id="toggleSymmetry">⇋ Toggle Symmetry</button>
     </div>
   </div>
@@ -198,6 +201,17 @@
       </div>
       <span class="handle-arrow">▲</span>
       <div style="width: 120px;"></div>
+    </div>
+
+    <div id="brush-sliders">
+      <div class="slider-container">
+        <label>Brush Size</label>
+        <input type="range" id="brushSize" min="0.05" max="1.5" step="0.05" value="0.2" />
+      </div>
+      <div class="slider-container">
+        <label>Strength</label>
+        <input type="range" id="brushStrength" min="0.01" max="1" step="0.01" value="0.5" />
+      </div>
     </div>
 
     <div id="panel-content">
@@ -227,7 +241,7 @@
 
   <div id="color-picker-modal">
     <div id="color-picker-header">
-      <span>Color Picker</span>
+      <span id="color-picker-title">Paint Color</span>
       <span id="color-picker-close">✕</span>
     </div>
     <div class="color-picker-content">
@@ -246,6 +260,6 @@
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
-  <script type="module" src="./js/main.js?v=21"></script>
+  <script type="module" src="./js/main.js?v=22"></script>
 </body>
 </html>
