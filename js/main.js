@@ -8,12 +8,15 @@ import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
 import { FontLoader } from "../three/FontLoader.js";
 import { TextGeometry } from "../three/TextGeometry.js";
-import { mergeVertices } from "../three/utils/BufferGeometryUtils.js"; // <--- IMPORT FOR WELDING
+import { mergeVertices } from "../three/utils/BufferGeometryUtils.js";
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
+// Improve color and lighting
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb0c4de);
@@ -49,10 +52,22 @@ const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 transform.addEventListener('dragging-changed', e => controls.enabled = !e.value);
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+/* ===============================
+   Lighting Enhancements
+================================ */
+// Ambient base
+scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+
+// Hemisphere light for natural sky/ground lighting
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
+hemiLight.position.set(0, 20, 0);
+scene.add(hemiLight);
+
+// Strong directional light for shadows and highlights
+const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
+
 scene.add(new THREE.GridHelper(20, 20));
 
 const compassLabels = [];
@@ -108,6 +123,7 @@ function redo() {
 
 const state = {
   mode: "sculpt", 
+  activeTool: "inflate", // Track active sculpt tool
   trackpadMode: "camera", 
   trackpadSensitivity: 0.6,
   activeMesh: null, 
@@ -151,17 +167,20 @@ const state = {
     if (this.brush) this.brush.setPaintColor(this.paintColor); 
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
   },
+  setTool(tool) {
+    this.activeTool = tool;
+    if (this.brush) this.brush.setTool(tool);
+  },
   toggleWireframe() { 
     this.wireframe = !this.wireframe; 
     if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe; 
   },
   createCube() {
     clearActiveMesh();
-    // FIX: Merge vertices to prevent hard edges from ripping apart during sculpt
     let geo = new THREE.BoxGeometry(2, 2, 2, 24, 24, 24);
     geo = mergeVertices(geo); 
     
-    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
   createSphere() {
@@ -169,10 +188,9 @@ const state = {
     let geo = new THREE.SphereGeometry(1.5, 64, 64);
     geo = mergeVertices(geo);
     
-    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ff88, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
-  setTool(tool) { if (this.brush) this.brush.setTool(tool); },
   setRadius(r) { 
     if (this.brush) this.brush.setRadius(r); 
     if (cursorGroup.visible) cursorGroup.scale.setScalar(r); 
@@ -189,7 +207,7 @@ const state = {
     reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
       const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
       if (mesh) { 
-        mesh.geometry = mergeVertices(mesh.geometry); // Weld on import too
+        mesh.geometry = mergeVertices(mesh.geometry); 
         setActiveMesh(mesh); 
         if (viewGizmo) viewGizmo.updateMesh(mesh); 
       }
@@ -213,6 +231,7 @@ function setActiveMesh(mesh) {
   state.brush.setPaintColor(state.paintColor);
   state.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
   state.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
+  state.brush.setTool(state.activeTool);
   
   pointsOverlay.geometry = mesh.geometry;
   pointsOverlay.material.size = 0.08; 
@@ -294,7 +313,7 @@ try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.rende
 
 state.createCube();
 
-// FIX: Explicitly sync UI state to Camera
+// Explicitly sync UI state to Camera
 state.setTrackpadMode("camera"); 
 const btnModeCam = document.getElementById("btnModeCamera");
 const btnModeBrsh = document.getElementById("btnModeBrush");

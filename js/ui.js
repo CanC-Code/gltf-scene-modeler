@@ -5,6 +5,7 @@ export function initUI(state, viewGizmo) {
   const bottomPanel = document.getElementById("bottom-panel"), panelHandle = document.getElementById("panel-handle");
   if (bottomPanel && panelHandle) panelHandle.addEventListener("pointerdown", () => bottomPanel.classList.toggle("expanded"));
 
+  // --- Trackpad Modes ---
   const btnModeCamera = document.getElementById("btnModeCamera"), btnModeBrush = document.getElementById("btnModeBrush");
   if (btnModeCamera && btnModeBrush) {
     btnModeCamera.onclick = () => {
@@ -13,10 +14,51 @@ export function initUI(state, viewGizmo) {
     };
     btnModeBrush.onclick = () => {
       state.setTrackpadMode('brush'); btnModeBrush.classList.add("active"); btnModeCamera.classList.remove("active");
-      const span = document.querySelector("#trackpad-surface span"); if (span) span.textContent = "Guide Brush / Select";
+      const span = document.querySelector("#trackpad-surface span"); 
+      if (span) span.textContent = `Guide Brush: ${state.activeTool.charAt(0).toUpperCase() + state.activeTool.slice(1)}`;
     };
   }
 
+  // --- Tool Selector Dropdown in Bottom Panel ---
+  const toolSelBtn = document.getElementById("tool-selector-btn");
+  const toolDropdown = document.getElementById("tool-dropdown");
+  const toolOpts = document.querySelectorAll(".tool-opt");
+
+  if (toolSelBtn && toolDropdown) {
+    toolSelBtn.onclick = (e) => {
+      e.stopPropagation();
+      toolDropdown.classList.toggle("show");
+    };
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!toolDropdown.contains(e.target) && e.target !== toolSelBtn) {
+        toolDropdown.classList.remove("show");
+      }
+    });
+
+    toolOpts.forEach(opt => {
+      opt.onclick = () => {
+        const toolName = opt.getAttribute("data-tool");
+        state.setTool(toolName);
+        
+        // Update UI
+        toolOpts.forEach(o => o.classList.remove("active"));
+        opt.classList.add("active");
+        toolSelBtn.textContent = `Tool: ${opt.textContent} ▼`;
+        
+        // If currently in brush mode, update the trackpad text
+        if (state.trackpadMode === 'brush') {
+          const span = document.querySelector("#trackpad-surface span"); 
+          if (span) span.textContent = `Guide Brush: ${opt.textContent}`;
+        }
+        
+        toolDropdown.classList.remove("show");
+      };
+    });
+  }
+
+  // --- Top Bar Modes ---
   const pUndo = document.getElementById("panelUndoBtn"), pRedo = document.getElementById("panelRedoBtn");
   if (pUndo) pUndo.onclick = () => state.undo();
   if (pRedo) pRedo.onclick = () => state.redo();
@@ -32,6 +74,7 @@ export function initUI(state, viewGizmo) {
     };
   });
 
+  // --- Settings ---
   const paintColorInput = document.getElementById("paintColor");
   if (paintColorInput) paintColorInput.oninput = e => state.setPaintColor(e.target.value);
 
@@ -50,9 +93,6 @@ export function initUI(state, viewGizmo) {
   const newCube = document.getElementById("newCube"), newSphere = document.getElementById("newSphere");
   if (newCube) newCube.onclick = () => { state.createCube(); if (viewGizmo) viewGizmo.updateMesh(state.activeMesh); };
   if (newSphere) newSphere.onclick = () => { state.createSphere(); if (viewGizmo) viewGizmo.updateMesh(state.activeMesh); };
-
-  const tools = ["Inflate", "Deflate", "Smooth", "Flatten", "Pinch"];
-  tools.forEach(t => { const btn = document.getElementById("tool" + t); if (btn) btn.onclick = () => state.brush?.setTool(t.toLowerCase()); });
 
   const brushSize = document.getElementById("brushSize"), brushStrength = document.getElementById("brushStrength");
   if (brushSize) brushSize.oninput = () => state.setRadius(parseFloat(brushSize.value));
