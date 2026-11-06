@@ -55,12 +55,11 @@ export function initUI(state, viewGizmo) {
     });
   }
 
-  // --- Top Bar Modes ---
+  // --- Main Modes ---
   const pUndo = document.getElementById("panelUndoBtn"), pRedo = document.getElementById("panelRedoBtn");
   if (pUndo) pUndo.onclick = () => state.undo();
   if (pRedo) pRedo.onclick = () => state.redo();
 
-  // Removed Edit Mode from here
   const modes = ["Sculpt", "Paint", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
@@ -72,7 +71,7 @@ export function initUI(state, viewGizmo) {
     };
   });
 
-  // --- Settings ---
+  // --- Settings & Scene ---
   const paintColorInput = document.getElementById("paintColor");
   if (paintColorInput) paintColorInput.oninput = e => state.setPaintColor(e.target.value);
 
@@ -102,5 +101,8 @@ export function initUI(state, viewGizmo) {
 
   const symmetryBtn = document.getElementById("toggleSymmetry");
   let symmetryEnabled = false;
-  if (symmetryBtn) symmetryBtn.onclick = () => { symmetryEnabled = !symmetryEnabled; symmetryBtn.classList.toggle("active"); };
+  if (symmetryBtn) symmetryBtn.onclick = () => { 
+    symmetryEnabled = !symmetryEnabled; 
+    symmetryBtn.classList.toggle("active", symmetryEnabled);
+  };
 }
