@@ -8,7 +8,7 @@ export class SculptBrush {
     this.strength = 0.5;
     this.tool = "inflate";
     this.paintColor = new THREE.Color("#ff0000");
-    this.activeBoneIndex = 0; // For weight painting
+    this.activeBoneIndex = 0;
   }
 
   setMesh(mesh) {
@@ -137,9 +137,11 @@ export class SculptBrush {
   }
 
   paintWeight(localPoint) {
-    if (!this.geometry.attributes.skinWeight) return;
+    if (!this.geometry.attributes.skinWeight || !this.geometry.attributes.skinIndex) return;
+    
     const pos = this.position;
     const weightAttr = this.geometry.attributes.skinWeight;
+    const indexAttr = this.geometry.attributes.skinIndex;
     const v = new THREE.Vector3();
     
     const region = this.spatialHash.query(localPoint, this.radius);
@@ -149,19 +151,31 @@ export class SculptBrush {
       if (dist <= this.radius) {
         const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
         
-        // Update weights for the active bone
-        for (let j = 0; j < 4; j++) {
-          const idx = i * 4 + j;
-          if (weightAttr.array[idx] === this.activeBoneIndex) {
-             // Simple additive weighting for now
-             let currentW = weightAttr.getX(i); 
-             // Reset others (simplified logic for prototype)
-             weightAttr.setXYZW(i, this.activeBoneIndex === 0 ? 1 : 0, this.activeBoneIndex === 1 ? 1 : 0, this.activeBoneIndex === 2 ? 1 : 0, 0);
-             break;
-          }
+        // Simple soft weight blending
+        const currentW0 = weightAttr.getX(i);
+        const currentW1 = weightAttr.getY(i);
+        const currentW2 = weightAttr.getZ(i);
+        
+        // Calculate new weights
+        let newW0 = currentW0, newW1 = currentW1, newW2 = currentW2;
+        
+        if (this.activeBoneIndex === 0) newW0 = THREE.MathUtils.lerp(currentW0, 1.0, falloff);
+        if (this.activeBoneIndex === 1) newW1 = THREE.MathUtils.lerp(currentW1, 1.0, falloff);
+        if (this.activeBoneIndex === 2) newW2 = THREE.MathUtils.lerp(currentW2, 1.0, falloff);
+        
+        // Normalize to ensure total weight is 1.0
+        const total = newW0 + newW1 + newW2;
+        if (total > 0) {
+           newW0 /= total; newW1 /= total; newW2 /= total;
         }
+        
+        weightAttr.setXYZW(i, newW0, newW1, newW2, 0);
+        
+        // Ensure skin index is set correctly (0, 1, 2)
+        indexAttr.setXYZW(i, 0, 1, 2, 0); 
       }
     }
     weightAttr.needsUpdate = true;
+    indexAttr.needsUpdate = true;
   }
 }

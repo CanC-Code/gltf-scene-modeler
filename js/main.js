@@ -29,23 +29,20 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
-// Selection Bounding Box
 const selectionBox = new THREE.BoxHelper(new THREE.Object3D(), 0x4a90e2);
 selectionBox.raycast = () => {};
 selectionBox.visible = false;
 scene.add(selectionBox);
 
-// Edit Mode Points Cloud
-const pointsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, vertexColors: true, transparent: true, opacity: 0.8 });
+// FIX: depthTest: false makes points visible through the mesh
+const pointsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, vertexColors: true, depthTest: false, transparent: true, opacity: 1.0 });
 const pointsCloud = new THREE.Points(new THREE.BufferGeometry(), pointsMat);
 pointsCloud.visible = false;
 scene.add(pointsCloud);
 
-// Dummy Gizmo for Edit Mode
 const editDummy = new THREE.Object3D();
 scene.add(editDummy);
 
-// 3D Brush Cursor
 const cursorGroup = new THREE.Group();
 const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false });
 cursorGroup.add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 32), cursorMat));
@@ -58,41 +55,40 @@ cursorGroup.add(new THREE.LineSegments(crossGeo, crossMat));
 cursorGroup.visible = false;
 scene.add(cursorGroup);
 
-// Transform Controls
 const transform = new TransformControls(camera, renderer.domElement);
 transform.setMode('translate');
 transform.setSpace('local');
 transform.setSize(0.8);
 scene.add(transform);
-transform.addEventListener('dragging-changed', e => controls.enabled = !e.value);
+
+transform.addEventListener('dragging-changed', e => {
+  controls.enabled = !e.value;
+  // FIX: Only recalculate normals when the drag finishes to prevent lag
+  if (!e.value && state.mode === 'edit' && state.activeMesh) {
+    state.activeMesh.geometry.computeVertexNormals();
+    state.brush.rebuildGrid();
+  }
+});
+
 transform.addEventListener('objectChange', () => {
   if (state.mode === 'edit' && state.selectedVertices.size > 0) {
-    // Move selected vertices
     const delta = new THREE.Vector3().subVectors(editDummy.position, state.lastDummyPos);
     const pos = state.activeMesh.geometry.attributes.position;
-    const colors = state.activeMesh.geometry.attributes.color;
     
     state.selectedVertices.forEach(idx => {
       pos.setXYZ(idx, pos.getX(idx) + delta.x, pos.getY(idx) + delta.y, pos.getZ(idx) + delta.z);
-      if (colors) colors.setXYZ(idx, 1.0, 0.0, 0.0); // Keep red while moving
     });
     
     pos.needsUpdate = true;
-    if (colors) colors.needsUpdate = true;
-    state.activeMesh.geometry.computeVertexNormals();
     
     // Update points cloud
     pointsCloud.geometry.attributes.position.needsUpdate = true;
-    pointsCloud.geometry.attributes.color.needsUpdate = true;
-    
     state.lastDummyPos.copy(editDummy.position);
-    state.brush.rebuildGrid();
   } else if (state.activeMesh) {
     selectionBox.setFromObject(state.activeMesh);
   }
 });
 
-// Lighting
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
 hemiLight.position.set(0, 20, 0);
@@ -102,13 +98,13 @@ dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 scene.add(new THREE.GridHelper(20, 20));
 
-/* Memory Safe Undo/Redo */
 const undoStack = [], redoStack = [];
 function captureState(mesh) {
   const pos = mesh.geometry.attributes.position;
   const norm = mesh.geometry.attributes.normal;
   const col = mesh.geometry.attributes.color;
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null };
+  const sw = mesh.geometry.attributes.skinWeight;
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -130,6 +126,7 @@ function undo() {
     state.activeMesh.geometry.deleteAttribute('color');
     state.activeMesh.material.vertexColors = false;
   }
+  if (prev.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', prev.skinWeight);
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
@@ -149,6 +146,7 @@ function redo() {
     state.activeMesh.geometry.deleteAttribute('color');
     state.activeMesh.material.vertexColors = false;
   }
+  if (next.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', next.skinWeight);
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
@@ -182,12 +180,12 @@ const state = {
   setMode(mode) {
     this.mode = mode;
 
-    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit");
-    document.getElementById("rig-panel").classList.toggle("active", mode === "rig");
+    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit" && mode !== "weight_paint");
+    document.getElementById("rig-panel").classList.toggle("active", mode === "rig" || mode === "weight_paint");
     document.getElementById("edit-panel").classList.toggle("active", mode === "edit");
-    document.getElementById("sculpt-panel").classList.toggle("active", mode === "sculpt" || mode === "paint");
+    document.getElementById("sculpt-panel").classList.toggle("active", mode === "sculpt" || mode === "paint" || mode === "weight_paint");
 
-    if (mode === "sculpt" || mode === "paint") {
+    if (mode === "sculpt" || mode === "paint" || mode === "weight_paint") {
       transform.detach();
       pointsCloud.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
@@ -223,7 +221,7 @@ const state = {
   setTrackpadMode(mode) {
     this.trackpadMode = mode;
     if (mode === "camera") { controls.enabled = true; cursorGroup.visible = false; this.lastHit = null; }
-    else { if (this.mode === "sculpt" || this.mode === "paint") controls.enabled = false; }
+    else { if (this.mode === "sculpt" || this.mode === "paint" || this.mode === "weight_paint") controls.enabled = false; }
   },
 
   setPaintColor(hex) {
@@ -262,7 +260,7 @@ const state = {
 
   selectObject(mesh) {
     this.activeMesh = mesh;
-    if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig" && this.mode !== "edit") transform.attach(mesh);
+    if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig" && this.mode !== "edit" && this.mode !== "weight_paint") transform.attach(mesh);
 
     this.brush = new SculptBrush(mesh);
     this.brush.setPaintColor(this.paintColor);
@@ -442,18 +440,15 @@ const state = {
 function syncPointsCloud() {
   if (!state.activeMesh) return;
   pointsCloud.geometry = state.activeMesh.geometry;
-  // Ensure there's a color attribute for selection highlighting
   if (!pointsCloud.geometry.attributes.color) {
     const colors = new Float32Array(pointsCloud.geometry.attributes.position.count * 3);
     colors.fill(1.0);
     pointsCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   }
-  // Reset colors to white
   const colors = pointsCloud.geometry.attributes.color;
   for (let i = 0; i < colors.count; i++) {
     colors.setXYZ(i, 1.0, 1.0, 1.0); // White
   }
-  // Set selected to red
   state.selectedVertices.forEach(idx => {
     colors.setXYZ(idx, 1.0, 0.0, 0.0); // Red
   });
@@ -465,7 +460,7 @@ let isActionActive = false;
 
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointermove", e => {
-    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush || (state.mode !== 'sculpt' && state.mode !== 'paint')) return;
+    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush || (state.mode !== 'sculpt' && state.mode !== 'paint' && state.mode !== 'weight_paint')) return;
     const rect = trackpadSurface.getBoundingClientRect();
     const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
@@ -501,14 +496,13 @@ function handleAction() {
   const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
   if (state.mode === "sculpt") state.brush.apply(localPoint, state.symmetryEnabled);
   else if (state.mode === "paint") state.brush.paint(localPoint, state.symmetryEnabled);
+  // FIX: Route weight painting correctly
+  else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
 }
 
-// Edit Mode Pointer Handling (Trackpad Area)
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointerdown", e => {
     if (state.mode !== 'edit' || !state.activeMesh) return;
-    
-    // Raycast against points
     const rect = trackpadSurface.getBoundingClientRect();
     const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
@@ -521,15 +515,10 @@ if (trackpadSurface) {
     
     if (hit) {
       const idx = hit.index;
-      if (state.selectedVertices.has(idx)) {
-        state.selectedVertices.delete(idx);
-      } else {
-        state.selectedVertices.add(idx);
-      }
-      
+      if (state.selectedVertices.has(idx)) state.selectedVertices.delete(idx);
+      else state.selectedVertices.add(idx);
       syncPointsCloud();
       
-      // Update dummy gizmo
       if (state.selectedVertices.size > 0) {
         const avgPos = new THREE.Vector3();
         const pos = state.activeMesh.geometry.attributes.position;
@@ -550,11 +539,8 @@ if (trackpadSurface) {
   });
 }
 
-// Extrude Function
 function extrudeSelected() {
   if (!state.activeMesh || state.selectedVertices.size === 0) return;
-  
-  // Find face indices that contain all 3 selected vertices (or just use the first face found)
   const geometry = state.activeMesh.geometry;
   if (!geometry.index) {
     alert("Extrude requires an indexed geometry.");
@@ -563,8 +549,6 @@ function extrudeSelected() {
   
   const index = geometry.index.array;
   let selectedFace = -1;
-  
-  // Simplified: Find the first face that contains a selected vertex
   const v0 = Array.from(state.selectedVertices)[0];
   for (let i = 0; i < index.length; i += 3) {
     if (index[i] === v0 || index[i+1] === v0 || index[i+2] === v0) {
@@ -576,8 +560,6 @@ function extrudeSelected() {
   if (selectedFace !== -1) {
     saveState(state.activeMesh);
     extrudeFaces(geometry, [selectedFace]);
-    
-    // Update state
     state.selectedVertices.clear();
     syncPointsCloud();
     transform.detach();
@@ -610,7 +592,6 @@ if (btnModeCam && btnModeBrsh) {
   document.querySelector("#trackpad-surface span").textContent = "Move Camera (Trackpad)";
 }
 
-// Wire up Extrude button
 document.getElementById("extrudeBtn").onclick = extrudeSelected;
 document.getElementById("clearSelection").onclick = () => {
   state.selectedVertices.clear();
@@ -618,15 +599,12 @@ document.getElementById("clearSelection").onclick = () => {
   transform.detach();
 };
 
-// Wire up Weight Paint toggle
 let weightPaintMode = false;
 document.getElementById("toggleWeightPaint").onclick = (e) => {
   weightPaintMode = !weightPaintMode;
   e.target.classList.toggle("active", weightPaintMode);
   if (weightPaintMode) {
-    state.setMode("paint"); // Use brush in paint mode for weights
-    // Override the action handler for weight paint
-    state.mode = "weight_paint"; 
+    state.setMode("weight_paint"); 
   } else {
     state.setMode("rig");
   }
