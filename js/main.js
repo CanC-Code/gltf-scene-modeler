@@ -41,8 +41,14 @@ cursorGroup.add(new THREE.LineSegments(crossGeo, crossMat));
 cursorGroup.visible = false;
 scene.add(cursorGroup);
 
+// Transform Controls (Gizmo)
 const transform = new TransformControls(camera, renderer.domElement);
+transform.setMode('translate'); // Default but detach initially
+transform.setSpace('local');
+transform.setSize(0.8);
 scene.add(transform);
+
+// Disable orbit controls only when actively dragging the gizmo
 transform.addEventListener('dragging-changed', e => controls.enabled = !e.value);
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
@@ -103,6 +109,8 @@ function redo() {
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 
+const actionArea = document.getElementById("action-area");
+
 const state = {
   mode: "sculpt", 
   activeTool: "inflate", 
@@ -125,16 +133,18 @@ const state = {
     if (mode === "sculpt" || mode === "paint") {
       transform.detach();
       controls.enabled = (this.trackpadMode === 'camera');
-      document.getElementById("action-area").style.pointerEvents = "auto";
+      // Allow action area to capture touches for sculpting
+      if (actionArea) actionArea.style.pointerEvents = "auto";
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
       transform.setMode(mode);
-      controls.enabled = true; // Always allow camera movement with gizmo
-      document.getElementById("action-area").style.pointerEvents = "none"; // Allow touches to pass through to the gizmo
+      controls.enabled = true; 
+      // MUST disable action area so touches pass through to the 3D canvas/gizmo
+      if (actionArea) actionArea.style.pointerEvents = "none"; 
     } else {
       transform.detach();
       controls.enabled = true;
-      document.getElementById("action-area").style.pointerEvents = "auto";
+      if (actionArea) actionArea.style.pointerEvents = "auto";
     }
   },
   
@@ -145,7 +155,6 @@ const state = {
       cursorGroup.visible = false; 
       this.lastHit = null; 
     } else {
-      // Only disable camera if we are in sculpt/paint mode
       if (this.mode === "sculpt" || this.mode === "paint") {
         controls.enabled = false;
       }
@@ -222,6 +231,8 @@ function clearActiveMesh() {
 function setActiveMesh(mesh) {
   state.activeMesh = mesh; 
   scene.add(mesh);
+  
+  // Re-attach gizmo if we are currently in a transform mode
   if (state.mode !== "sculpt" && state.mode !== "paint") {
      transform.attach(mesh);
      transform.setMode(state.mode);
@@ -265,7 +276,6 @@ if (trackpadSurface) {
   });
 }
 
-const actionArea = document.getElementById("action-area");
 if (actionArea) {
   actionArea.addEventListener("pointerdown", e => {
     if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale") return;
@@ -293,7 +303,6 @@ try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.rende
 
 state.createCube();
 
-// Explicitly sync UI state to Camera
 state.setTrackpadMode("camera"); 
 const btnModeCam = document.getElementById("btnModeCamera");
 const btnModeBrsh = document.getElementById("btnModeBrush");

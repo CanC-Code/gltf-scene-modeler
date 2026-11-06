@@ -19,7 +19,7 @@ export function initUI(state, viewGizmo) {
     };
   }
 
-  // --- Tool Selector Dropdown in Top Bar ---
+  // --- Tool Selector Dropdown in Bottom Panel ---
   const toolSelBtn = document.getElementById("tool-selector-btn");
   const toolDropdown = document.getElementById("tool-dropdown");
   const toolOpts = document.querySelectorAll(".tool-opt");
@@ -55,7 +55,7 @@ export function initUI(state, viewGizmo) {
     });
   }
 
-  // --- Main Modes ---
+  // --- Top Bar Modes ---
   const pUndo = document.getElementById("panelUndoBtn"), pRedo = document.getElementById("panelRedoBtn");
   if (pUndo) pUndo.onclick = () => state.undo();
   if (pRedo) pRedo.onclick = () => state.redo();
