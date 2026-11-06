@@ -25,12 +25,45 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
-const cursorGeo = new THREE.RingGeometry(0.8, 1.0, 32);
-cursorGeo.rotateX(-Math.PI / 2);
-const cursorMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthTest: false });
-const brushCursor = new THREE.Mesh(cursorGeo, cursorMat);
-brushCursor.visible = false;
-scene.add(brushCursor);
+/* ===============================
+   Professional 3D Brush Cursor
+================================ */
+const cursorGroup = new THREE.Group();
+
+// 1. Outer Ring
+const outerRingGeo = new THREE.RingGeometry(0.9, 1.0, 32);
+const cursorMat = new THREE.MeshBasicMaterial({ 
+  color: 0xffffff, 
+  side: THREE.DoubleSide, 
+  transparent: true, 
+  opacity: 0.9, 
+  depthTest: true, 
+  depthWrite: false 
+});
+const outerRing = new THREE.Mesh(outerRingGeo, cursorMat);
+cursorGroup.add(outerRing);
+
+// 2. Inner Dot (Precise center)
+const innerDotGeo = new THREE.CircleGeometry(0.05, 16);
+const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: true, depthWrite: false });
+const innerDot = new THREE.Mesh(innerDotGeo, dotMat);
+cursorGroup.add(innerDot);
+
+// 3. Crosshairs
+const crossGeo = new THREE.BufferGeometry();
+const crossVertices = new Float32Array([
+  -1.2, 0, 0,  -0.2, 0, 0,
+   0.2, 0, 0,   1.2, 0, 0,
+   0, -1.2, 0,   0, -0.2, 0,
+   0,  0.2, 0,   0,  1.2, 0
+]);
+crossGeo.setAttribute('position', new THREE.BufferAttribute(crossVertices, 3));
+const crossMat = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: true, depthWrite: false, transparent: true, opacity: 0.6 });
+const crosshairs = new THREE.LineSegments(crossGeo, crossMat);
+cursorGroup.add(crosshairs);
+
+cursorGroup.visible = false;
+scene.add(cursorGroup);
 
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
@@ -102,9 +135,17 @@ const state = {
   },
   setTrackpadMode(mode) {
     this.trackpadMode = mode;
-    if (mode === "camera") { controls.enabled = true; brushCursor.visible = false; this.lastHit = null; } else controls.enabled = false;
+    if (mode === "camera") { controls.enabled = true; cursorGroup.visible = false; this.lastHit = null; } 
+    else controls.enabled = false;
   },
-  setPaintColor(hex) { this.paintColor.set(hex); if (this.brush) this.brush.setPaintColor(this.paintColor); },
+  setPaintColor(hex) { 
+    this.paintColor.set(hex); 
+    if (this.brush) this.brush.setPaintColor(this.paintColor); 
+    // Update cursor color to match paint
+    cursorMat.color.set(hex);
+    dotMat.color.set(hex);
+    crossMat.color.set(hex);
+  },
   toggleWireframe() { this.wireframe = !this.wireframe; if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe; },
   createCube() {
     clearActiveMesh();
@@ -117,7 +158,10 @@ const state = {
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
   setTool(tool) { if (this.brush) this.brush.setTool(tool); },
-  setRadius(r) { if (this.brush) this.brush.setRadius(r); if (this.lastHit) brushCursor.scale.setScalar(r); },
+  setRadius(r) { 
+    if (this.brush) this.brush.setRadius(r); 
+    if (cursorGroup.visible) cursorGroup.scale.setScalar(r); 
+  },
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
   exportGLTF() {
     if (!this.activeMesh) return;
@@ -137,13 +181,22 @@ const state = {
 
 function clearActiveMesh() {
   if (!state.activeMesh) return;
-  transform.detach(); scene.remove(state.activeMesh); state.activeMesh.geometry.dispose(); state.activeMesh.material.dispose();
-  state.activeMesh = null; state.brush = null; if (viewGizmo) viewGizmo.updateMesh(null);
+  transform.detach(); 
+  scene.remove(state.activeMesh); 
+  state.activeMesh.geometry.dispose(); 
+  state.activeMesh.material.dispose();
+  state.activeMesh = null; 
+  state.brush = null; 
+  cursorGroup.visible = false;
+  if (viewGizmo) viewGizmo.updateMesh(null);
 }
 function setActiveMesh(mesh) {
   state.activeMesh = mesh; scene.add(mesh);
   if (state.mode !== "sculpt" && state.mode !== "paint") transform.attach(mesh);
-  state.brush = new SculptBrush(mesh); state.brush.setPaintColor(state.paintColor);
+  state.brush = new SculptBrush(mesh); 
+  state.brush.setPaintColor(state.paintColor);
+  state.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
+  state.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
 }
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -167,16 +220,16 @@ if (trackpadSurface) {
     
     if (hit) {
       state.lastHit = hit;
-      brushCursor.visible = true;
+      cursorGroup.visible = true;
       
       // Offset slightly to prevent z-fighting
       const normal = hit.face.normal.clone().transformDirection(state.activeMesh.matrixWorld);
-      brushCursor.position.copy(hit.point).addScaledVector(normal, 0.01);
-      brushCursor.lookAt(hit.point.clone().addScaledVector(normal, 1));
-      brushCursor.scale.setScalar(state.brush.radius);
+      cursorGroup.position.copy(hit.point).addScaledVector(normal, 0.02);
+      cursorGroup.lookAt(hit.point.clone().addScaledVector(normal, 1));
+      cursorGroup.scale.setScalar(state.brush.radius);
     } else {
       state.lastHit = null;
-      brushCursor.visible = false;
+      cursorGroup.visible = false;
     }
   });
 }
@@ -194,7 +247,7 @@ if (actionArea) {
 }
 
 function handleAction() {
-  if (state.trackpadMode !== 'brush') return; // Only apply if trackpad is guiding
+  if (state.trackpadMode !== 'brush') return; 
   const hit = state.lastHit;
   if (!hit) return;
   
