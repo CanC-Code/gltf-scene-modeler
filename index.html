@@ -31,18 +31,23 @@
     /* Bottom Panel */
     #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 260px; background: rgba(43, 43, 43, 0.95); z-index: 20; display: flex; flex-direction: column; transform: translateY(220px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
     #bottom-panel.expanded { transform: translateY(0); pointer-events: auto; }
-    #panel-handle { height: 40px; background: #1e1e1e; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; user-select: none; pointer-events: auto; border-bottom: 1px solid #333; font-size: 12px; }
+    
+    /* Panel Handle (Now contains the tool selector) */
+    #panel-handle { height: 44px; background: #1e1e1e; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #fff; user-select: none; pointer-events: auto; border-bottom: 1px solid #333; padding: 0 15px; position: relative; }
+    .handle-arrow { font-size: 12px; position: absolute; left: 50%; transform: translateX(-50%); }
+    .handle-spacer { width: 120px; } /* Spacer to balance the tool selector and keep arrow centered */
+
+    /* Tool Selector inside Panel Handle */
+    #tool-selector-container { position: relative; flex-shrink: 0; z-index: 25; }
+    #tool-selector-btn { padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    #tool-dropdown { display: none; position: absolute; bottom: 100%; left: 0; width: 120px; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; z-index: 100; flex-direction: column; box-shadow: 0 -4px 10px rgba(0,0,0,0.5); }
+    #tool-dropdown.show { display: flex; }
+    #tool-dropdown button { padding: 12px; background: transparent; color: #ddd; border: none; border-bottom: 1px solid #444; text-align: left; cursor: pointer; font-size: 14px; }
+    #tool-dropdown button:hover, #tool-dropdown button.active { background: #4a90e2; color: white; }
+
     #panel-content { flex: 1; display: flex; padding: 0; min-height: 0; }
     #trackpad-area, #action-area-wrapper { flex: 1; display: flex; flex-direction: column; margin: 10px; min-width: 0; }
     
-    /* Tool Selector inside Bottom Panel */
-    #tool-selector-container { position: relative; margin-bottom: 8px; flex-shrink: 0; }
-    #tool-selector-btn { width: 100%; padding: 8px; background: #4a90e2; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; }
-    #tool-dropdown { display: none; position: absolute; bottom: 100%; left: 0; width: 100%; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; margin-bottom: 4px; z-index: 30; flex-direction: column; box-shadow: 0 -4px 6px rgba(0,0,0,0.3); }
-    #tool-dropdown.show { display: flex; }
-    #tool-dropdown button { padding: 10px; background: transparent; color: #ddd; border: none; border-bottom: 1px solid #444; text-align: left; cursor: pointer; font-size: 13px; }
-    #tool-dropdown button:hover, #tool-dropdown button.active { background: #4a90e2; color: white; }
-
     .panel-header { display: flex; gap: 6px; margin-bottom: 8px; height: 34px; flex-shrink: 0; }
     .panel-header button { flex: 1; background: #444; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; padding: 0; }
     .panel-header button.active { background: #4a90e2; border-color: #4a90e2; }
@@ -98,24 +103,30 @@
   </div>
 
   <div id="bottom-panel">
-    <div id="panel-handle">▲</div>
-    <div id="panel-content">
+    
+    <!-- The Handle Bar -->
+    <div id="panel-handle">
       
-      <!-- Left Trackpad & Tool Selector -->
-      <div id="trackpad-area">
-        
-        <!-- Tool Selector Dropdown (Drop-up) -->
-        <div id="tool-selector-container">
-          <button id="tool-selector-btn">Tool: Inflate ▼</button>
-          <div id="tool-dropdown">
-            <button class="tool-opt active" data-tool="inflate">Inflate</button>
-            <button class="tool-opt" data-tool="deflate">Deflate</button>
-            <button class="tool-opt" data-tool="smooth">Smooth</button>
-            <button class="tool-opt" data-tool="flatten">Flatten</button>
-            <button class="tool-opt" data-tool="pinch">Pinch</button>
-          </div>
+      <!-- Tool Selector is now INSIDE the handle bar -->
+      <div id="tool-selector-container">
+        <button id="tool-selector-btn">Tool: Inflate ▼</button>
+        <div id="tool-dropdown">
+          <button class="tool-opt active" data-tool="inflate">Inflate</button>
+          <button class="tool-opt" data-tool="deflate">Deflate</button>
+          <button class="tool-opt" data-tool="smooth">Smooth</button>
+          <button class="tool-opt" data-tool="flatten">Flatten</button>
+          <button class="tool-opt" data-tool="pinch">Pinch</button>
         </div>
+      </div>
 
+      <!-- Centered Arrow -->
+      <span class="handle-arrow">▲</span>
+      <div class="handle-spacer"></div> <!-- Balances the flexbox -->
+    </div>
+
+    <!-- The Panel Content -->
+    <div id="panel-content">
+      <div id="trackpad-area">
         <div class="panel-header">
           <button id="btnModeCamera" class="active">Camera</button>
           <button id="btnModeBrush">Brush</button>
@@ -125,7 +136,6 @@
         </div>
       </div>
 
-      <!-- Right Action Area -->
       <div id="action-area-wrapper">
         <div class="panel-header">
           <button id="panelUndoBtn">⟲ Undo</button>
@@ -135,12 +145,12 @@
           <span>Sculpt / Paint</span>
         </div>
       </div>
-
     </div>
+
   </div>
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
-  <script type="module" src="./js/main.js?v=12"></script>
+  <script type="module" src="./js/main.js?v=13"></script>
 </body>
 </html>

@@ -3,7 +3,14 @@ export function initUI(state, viewGizmo) {
   if (toggleMenu && menu) toggleMenu.onclick = () => menu.classList.toggle("collapsed");
 
   const bottomPanel = document.getElementById("bottom-panel"), panelHandle = document.getElementById("panel-handle");
-  if (bottomPanel && panelHandle) panelHandle.addEventListener("pointerdown", () => bottomPanel.classList.toggle("expanded"));
+  
+  // Only trigger expand/collapse if clicking the handle or arrow, not the tool selector
+  if (bottomPanel && panelHandle) {
+    panelHandle.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("#tool-selector-container")) return; // Ignore clicks on the dropdown
+      bottomPanel.classList.toggle("expanded");
+    });
+  }
 
   // --- Trackpad Modes ---
   const btnModeCamera = document.getElementById("btnModeCamera"), btnModeBrush = document.getElementById("btnModeBrush");
@@ -19,14 +26,14 @@ export function initUI(state, viewGizmo) {
     };
   }
 
-  // --- Tool Selector Dropdown in Bottom Panel ---
+  // --- Tool Selector Dropdown ---
   const toolSelBtn = document.getElementById("tool-selector-btn");
   const toolDropdown = document.getElementById("tool-dropdown");
   const toolOpts = document.querySelectorAll(".tool-opt");
 
   if (toolSelBtn && toolDropdown) {
     toolSelBtn.onclick = (e) => {
-      e.stopPropagation();
+      e.stopPropagation(); // Prevent panel from collapsing
       toolDropdown.classList.toggle("show");
     };
 
