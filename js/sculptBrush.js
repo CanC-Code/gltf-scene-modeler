@@ -1,5 +1,5 @@
 import * as THREE from "../three/three.module.js";
-import { updateNormals } from "./topology.js"; // Use optimized normal recalculation
+import { updateNormals, SpatialHash } from "./topology.js";
 
 export class SculptBrush {
   constructor(mesh) {
@@ -15,10 +15,15 @@ export class SculptBrush {
     this.geometry = mesh.geometry;
     this.position = this.geometry.attributes.position;
     this.normal = this.geometry.attributes.normal;
+    this.spatialHash = new SpatialHash(this.geometry, 0.5);
   }
 
   updateMesh(mesh) {
     this.setMesh(mesh);
+  }
+
+  rebuildGrid() {
+    this.spatialHash.build(this.geometry);
   }
 
   setTool(tool) { this.tool = tool; }
@@ -29,38 +34,35 @@ export class SculptBrush {
   apply(point, symmetry = false) {
     const pos = this.position;
     const norm = this.normal;
-    const center = point;
-    const affectedVertices = new Set(); // Track all affected for optimized normal update
+    const centers = [point.clone()];
+    if (symmetry) centers.push(new THREE.Vector3(-point.x, point.y, point.z));
 
-    const centers = [center.clone()];
-    if (symmetry) centers.push(new THREE.Vector3(-center.x, center.y, center.z));
+    const affectedVertices = new Set();
+    const v = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const avgNormal = new THREE.Vector3();
 
     for (const c of centers) {
-      const region = [];
-      const avgNormal = new THREE.Vector3();
-      const v = new THREE.Vector3();
-      const n = new THREE.Vector3();
-
-      for (let i = 0; i < pos.count; i++) {
-        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-        if (v.distanceTo(c) > this.radius) continue;
-        region.push(i);
-        affectedVertices.add(i);
+      const region = this.spatialHash.query(c, this.radius);
+      if (region.length === 0) continue;
+      avgNormal.set(0,0,0);
+      
+      for (const i of region) {
         n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
         avgNormal.add(n);
       }
-
-      if (region.length === 0) continue;
       avgNormal.normalize();
 
       for (const i of region) {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         const dist = v.distanceTo(c);
+        if (dist > this.radius) continue;
+        
+        affectedVertices.add(i);
         const falloff = Math.pow(1 - dist / this.radius, 2);
         const influence = falloff * this.strength;
 
         let ox = 0, oy = 0, oz = 0;
-
         switch (this.tool) {
           case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
           case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
@@ -71,19 +73,13 @@ export class SculptBrush {
         pos.setXYZ(i, v.x + ox, v.y + oy, v.z + oz);
       }
     }
-
     pos.needsUpdate = true;
-    
-    // PERF FIX: Only update normals for the vertices we touched
-    if (affectedVertices.size > 0) {
-      updateNormals(this.geometry, Array.from(affectedVertices));
-    }
+    if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices));
   }
 
-  paint(hit) {
+  paint(hit, symmetry = false) {
     const geometry = this.mesh.geometry;
     const pos = geometry.attributes.position;
-
     if (!geometry.attributes.color) {
       const colors = new Float32Array(pos.count * 3);
       colors.fill(1.0);
@@ -91,24 +87,25 @@ export class SculptBrush {
       this.mesh.material.vertexColors = true;
       this.mesh.material.needsUpdate = true;
     }
-
     const colorAttr = geometry.attributes.color;
-    const center = hit.point;
+    const centers = [hit.point.clone()];
+    if (symmetry) centers.push(new THREE.Vector3(-hit.point.x, hit.point.y, hit.point.z));
+
     const v = new THREE.Vector3();
-    
-    for (let i = 0; i < pos.count; i++) {
-      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-      const dist = v.distanceTo(center);
-      
-      if (dist <= this.radius) {
-        const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
-        const r = colorAttr.getX(i), g = colorAttr.getY(i), b = colorAttr.getZ(i);
-        
-        colorAttr.setXYZ(i, 
-          THREE.MathUtils.lerp(r, this.paintColor.r, falloff),
-          THREE.MathUtils.lerp(g, this.paintColor.g, falloff),
-          THREE.MathUtils.lerp(b, this.paintColor.b, falloff)
-        );
+    for (const c of centers) {
+      const region = this.spatialHash.query(c, this.radius);
+      for (const i of region) {
+        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+        const dist = v.distanceTo(c);
+        if (dist <= this.radius) {
+          const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
+          const r = colorAttr.getX(i), g = colorAttr.getY(i), b = colorAttr.getZ(i);
+          colorAttr.setXYZ(i, 
+            THREE.MathUtils.lerp(r, this.paintColor.r, falloff),
+            THREE.MathUtils.lerp(g, this.paintColor.g, falloff),
+            THREE.MathUtils.lerp(b, this.paintColor.b, falloff)
+          );
+        }
       }
     }
     colorAttr.needsUpdate = true;
