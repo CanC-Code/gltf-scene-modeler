@@ -10,6 +10,28 @@ export function initUI(state, viewGizmo) {
     bottomPanel.classList.toggle("expanded");
   });
 
+  // Trackpad Mode Toggle
+  const btnModeCamera = document.getElementById("btnModeCamera");
+  const btnModeBrush = document.getElementById("btnModeBrush");
+  
+  btnModeCamera.onclick = () => {
+    state.setTrackpadMode('camera');
+    btnModeCamera.classList.add("active");
+    btnModeBrush.classList.remove("active");
+    document.querySelector(".area-surface span").textContent = "Move Camera (Trackpad)";
+  };
+  
+  btnModeBrush.onclick = () => {
+    state.setTrackpadMode('brush');
+    btnModeBrush.classList.add("active");
+    btnModeCamera.classList.remove("active");
+    document.querySelector(".area-surface span").textContent = "Guide Brush Cursor";
+  };
+
+  // Right Panel Undo/Redo
+  document.getElementById("panelUndoBtn").onclick = () => state.undo();
+  document.getElementById("panelRedoBtn").onclick = () => state.redo();
+
   // Mode buttons
   const modes = ["Sculpt", "Paint", "Move", "Rotate", "Scale"];
   const paintOptions = document.getElementById("paintOptions");
@@ -19,27 +41,19 @@ export function initUI(state, viewGizmo) {
     if (btn) {
       btn.onclick = () => {
         state.setMode(m.toLowerCase());
-        
         modes.forEach(x => {
           const b = document.getElementById("tool" + x);
           if (b) b.classList.remove("active");
         });
         btn.classList.add("active");
-        
-        if (m === "Paint") {
-          paintOptions.style.display = "block";
-        } else {
-          paintOptions.style.display = "none";
-        }
+        paintOptions.style.display = (m === "Paint") ? "block" : "none";
       };
     }
   });
 
   // Paint Color Picker
   const paintColorInput = document.getElementById("paintColor");
-  if (paintColorInput) {
-    paintColorInput.oninput = (e) => state.setPaintColor(e.target.value);
-  }
+  if (paintColorInput) paintColorInput.oninput = (e) => state.setPaintColor(e.target.value);
 
   // Wireframe toggle
   document.getElementById("toggleWire").onclick = () => {
@@ -74,15 +88,6 @@ export function initUI(state, viewGizmo) {
   // Export / Import
   document.getElementById("exportGLTF").onclick = () => state.exportGLTF();
   document.getElementById("importGLTF").onchange = e => state.importGLTF?.(e);
-
-  /* ===============================
-     Undo / Redo Buttons
-  ================================= */
-  const undoBtn = document.getElementById("undoBtn");
-  const redoBtn = document.getElementById("redoBtn");
-  
-  undoBtn.onclick = () => state.undo();
-  redoBtn.onclick = () => state.redo();
 
   // Symmetry toggle
   const symmetryBtn = document.getElementById("toggleSymmetry");

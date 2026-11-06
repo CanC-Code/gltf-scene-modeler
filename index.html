@@ -22,8 +22,6 @@
     </div>
 
     <button id="toggleWire">▦</button>
-    <button id="undoBtn">⟲ Undo</button>
-    <button id="redoBtn">⟳ Redo</button>
     <button id="toggleSymmetry">⇋ Symmetry</button>
   </div>
 
@@ -62,12 +60,29 @@
   <div id="bottom-panel">
     <div id="panel-handle">▲</div>
     <div id="panel-content">
+      
+      <!-- Left Trackpad -->
       <div id="trackpad-area">
-        <span>Move Camera (Trackpad)</span>
+        <div class="panel-header">
+          <button id="btnModeCamera" class="active">Camera</button>
+          <button id="btnModeBrush">Brush</button>
+        </div>
+        <div class="area-surface">
+          <span>Move Camera (Trackpad)</span>
+        </div>
       </div>
-      <div id="action-area">
-        <span>Sculpt / Paint</span>
+
+      <!-- Right Action Area -->
+      <div id="action-area-wrapper">
+        <div class="panel-header">
+          <button id="panelUndoBtn">⟲ Undo</button>
+          <button id="panelRedoBtn">⟳ Redo</button>
+        </div>
+        <div id="action-area">
+          <span>Sculpt / Paint</span>
+        </div>
       </div>
+
     </div>
   </div>
 

@@ -30,10 +30,26 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(4, 4, 6);
 
 // Attach OrbitControls to the left trackpad area
-const trackpadArea = document.getElementById("trackpad-area");
-const controls = new OrbitControls(camera, trackpadArea);
+const trackpadSurface = document.querySelector(".area-surface");
+const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
-controls.rotateSpeed = 0.5; // Adjust for smaller area
+controls.rotateSpeed = 0.5;
+
+/* ===============================
+   3D Brush Cursor
+================================ */
+const cursorGeo = new THREE.RingGeometry(0.8, 1.0, 32);
+cursorGeo.rotateX(-Math.PI / 2);
+const cursorMat = new THREE.MeshBasicMaterial({ 
+  color: 0xff0000, 
+  side: THREE.DoubleSide, 
+  transparent: true, 
+  opacity: 0.8, 
+  depthTest: false 
+});
+const brushCursor = new THREE.Mesh(cursorGeo, cursorMat);
+brushCursor.visible = false;
+scene.add(brushCursor);
 
 /* ===============================
    Transform Controls
@@ -64,11 +80,7 @@ const fontLoader = new FontLoader();
 
 fontLoader.load("./three/fonts/helvetiker_regular.typeface.json", font => {
   const labelMaterial = new THREE.MeshBasicMaterial({ 
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.7,
-    depthTest: true,
-    depthWrite: false
+    color: 0xffffff, transparent: true, opacity: 0.7, depthTest: true, depthWrite: false
   });
   
   const directions = [
@@ -79,11 +91,7 @@ fontLoader.load("./three/fonts/helvetiker_regular.typeface.json", font => {
   ];
   
   directions.forEach(dir => {
-    const textGeo = new TextGeometry(dir.text, {
-      font: font,
-      size: 0.8,
-      height: 0.05
-    });
+    const textGeo = new TextGeometry(dir.text, { font: font, size: 0.8, height: 0.05 });
     textGeo.computeBoundingBox();
     const centerOffset = -(textGeo.boundingBox.max.x - textGeo.boundingBox.min.x) / 2;
     
@@ -105,10 +113,7 @@ const MAX_UNDO = 20;
 
 function saveState(mesh) {
   if (!mesh) return;
-  const state = {
-    geometry: mesh.geometry.clone(),
-    hasColors: !!mesh.geometry.attributes.color
-  };
+  const state = { geometry: mesh.geometry.clone(), hasColors: !!mesh.geometry.attributes.color };
   undoStack.push(state);
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
@@ -116,11 +121,7 @@ function saveState(mesh) {
 
 function undo() {
   if (!state.activeMesh || undoStack.length === 0) return;
-  
-  const currentState = {
-    geometry: state.activeMesh.geometry.clone(),
-    hasColors: !!state.activeMesh.geometry.attributes.color
-  };
+  const currentState = { geometry: state.activeMesh.geometry.clone(), hasColors: !!state.activeMesh.geometry.attributes.color };
   redoStack.push(currentState);
   
   const prev = undoStack.pop();
@@ -134,11 +135,7 @@ function undo() {
 
 function redo() {
   if (!state.activeMesh || redoStack.length === 0) return;
-  
-  const currentState = {
-    geometry: state.activeMesh.geometry.clone(),
-    hasColors: !!state.activeMesh.geometry.attributes.color
-  };
+  const currentState = { geometry: state.activeMesh.geometry.clone(), hasColors: !!state.activeMesh.geometry.attributes.color };
   undoStack.push(currentState);
   
   const next = redoStack.pop();
@@ -155,12 +152,14 @@ function redo() {
 ================================ */
 const state = {
   mode: "sculpt",
+  trackpadMode: "camera", // 'camera' or 'brush'
   activeMesh: null,
   brush: null,
   wireframe: false,
   controls,
   transform,
   paintColor: new THREE.Color("#ff0000"),
+  lastHit: null, // Stores the raycast hit from the trackpad
 
   undo,
   redo,
@@ -169,12 +168,25 @@ const state = {
     this.mode = mode;
     if (mode === "sculpt" || mode === "paint") {
       transform.detach();
-      controls.enabled = true;
+      if (this.trackpadMode === 'camera') controls.enabled = true;
     } else {
       if (this.activeMesh) {
         transform.attach(this.activeMesh);
         transform.setMode(mode);
+        controls.enabled = false;
       }
+    }
+  },
+
+  setTrackpadMode(mode) {
+    this.trackpadMode = mode;
+    if (mode === "camera") {
+      controls.enabled = true;
+      brushCursor.visible = false;
+      this.lastHit = null;
+    } else {
+      controls.enabled = false;
+      // Cursor visibility handled by raycast in pointermove
     }
   },
 
@@ -185,20 +197,14 @@ const state = {
 
   toggleWireframe() {
     this.wireframe = !this.wireframe;
-    if (this.activeMesh) {
-      this.activeMesh.material.wireframe = this.wireframe;
-    }
+    if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe;
   },
 
   createCube() {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x88ccff,
-        wireframe: this.wireframe,
-        vertexColors: false
-      })
+      new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe, vertexColors: false })
     );
     setActiveMesh(mesh);
     saveState(mesh);
@@ -209,35 +215,24 @@ const state = {
     clearActiveMesh();
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1.5, 64, 64),
-      new THREE.MeshStandardMaterial({
-        color: 0x88ff88,
-        wireframe: this.wireframe,
-        vertexColors: false
-      })
+      new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe, vertexColors: false })
     );
     setActiveMesh(mesh);
     saveState(mesh);
     viewGizmo.updateMesh(mesh);
   },
 
-  setTool(tool) {
-    if (this.brush) this.brush.setTool(tool);
-  },
-
-  setRadius(r) {
+  setTool(tool) { if (this.brush) this.brush.setTool(tool); },
+  setRadius(r) { 
     if (this.brush) this.brush.setRadius(r);
+    if (this.lastHit) brushCursor.scale.setScalar(r);
   },
-
-  setStrength(s) {
-    if (this.brush) this.brush.setStrength(s);
-  },
+  setStrength(s) { if (this.brush) this.brush.setStrength(s); },
 
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], {
-        type: "application/json"
-      });
+      const blob = new Blob([JSON.stringify(gltf)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "model.gltf";
@@ -277,20 +272,54 @@ function clearActiveMesh() {
 function setActiveMesh(mesh) {
   state.activeMesh = mesh;
   scene.add(mesh);
-  if (state.mode !== "sculpt" && state.mode !== "paint") {
-    transform.attach(mesh);
-  }
+  if (state.mode !== "sculpt" && state.mode !== "paint") transform.attach(mesh);
   state.brush = new SculptBrush(mesh);
   state.brush.setPaintColor(state.paintColor);
 }
 
 /* ===============================
-   Action Logic (Right Side Area)
+   Action Logic & Cursor Tracking
 ================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let isActionActive = false;
 
+// 1. Trackpad Cursor Tracking (Left Side)
+trackpadSurface.addEventListener("pointermove", e => {
+  if (state.trackpadMode !== 'brush' || !state.activeMesh) return;
+  
+  // Map trackpad touch to full screen coordinates
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObject(state.activeMesh)[0];
+  
+  if (hit) {
+    state.lastHit = hit;
+    brushCursor.visible = true;
+    brushCursor.position.copy(hit.point);
+    
+    // Align cursor to surface normal
+    const normal = hit.face.normal.clone();
+    normal.transformDirection(state.activeMesh.matrixWorld);
+    brushCursor.lookAt(hit.point.clone().add(normal));
+    brushCursor.scale.setScalar(state.brush.radius);
+  } else {
+    state.lastHit = null;
+    brushCursor.visible = false;
+  }
+});
+
+// Hide cursor when finger lifts from trackpad
+trackpadSurface.addEventListener("pointerup", () => {
+  if (state.trackpadMode === 'brush') {
+    // Keep cursor visible but stop tracking if they lift?
+    // Actually, keep it visible so they know where it is
+  }
+});
+
+// 2. Action Area Execution (Right Side)
 const actionArea = document.getElementById("action-area");
 
 actionArea.addEventListener("pointerdown", e => {
@@ -308,21 +337,19 @@ actionArea.addEventListener("pointermove", e => {
   }
 });
 
-actionArea.addEventListener("pointerup", () => {
-  isActionActive = false;
-});
-
-actionArea.addEventListener("pointercancel", () => {
-  isActionActive = false;
-});
+actionArea.addEventListener("pointerup", () => { isActionActive = false; });
+actionArea.addEventListener("pointercancel", () => { isActionActive = false; });
 
 function handleAction(e) {
-  // Maps the action area touch directly to the screen viewport for raycasting
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  let hit = state.lastHit;
   
-  raycaster.setFromCamera(mouse, camera);
-  const hit = raycaster.intersectObject(state.activeMesh)[0];
+  // If NOT in brush mode (or no hit tracked), fallback to raycasting from the right touch
+  if (!hit || state.trackpadMode !== 'brush') {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    hit = raycaster.intersectObject(state.activeMesh)[0];
+  }
   
   if (!hit) return;
   
@@ -337,12 +364,8 @@ function handleAction(e) {
    Keyboard Shortcuts
 ================================ */
 window.addEventListener("keydown", e => {
-  if (e.ctrlKey && e.key === "z") {
-    undo();
-  }
-  if (e.ctrlKey && e.key === "y") {
-    redo();
-  }
+  if (e.ctrlKey && e.key === "z") undo();
+  if (e.ctrlKey && e.key === "y") redo();
 });
 
 /* ===============================
@@ -358,7 +381,6 @@ window.addEventListener("resize", () => {
    Init
 ================================ */
 const viewGizmo = new ViewGizmo(camera, controls);
-
 state.createCube();
 initUI(state, viewGizmo);
 
@@ -367,11 +389,9 @@ initUI(state, viewGizmo);
 ================================ */
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
+  if (state.trackpadMode === 'camera') controls.update();
   
-  compassLabels.forEach(label => {
-    label.lookAt(camera.position);
-  });
+  compassLabels.forEach(label => label.lookAt(camera.position));
   
   renderer.render(scene, camera);
   viewGizmo.update();

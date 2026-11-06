@@ -60,26 +60,18 @@ canvas {
   z-index: 5;
 }
 
-.mirroredCursor {
-  border: 1px dashed #4a90e2;
-  border-radius: 50%;
-  pointer-events: none;
-  position: absolute;
-  z-index: 5;
-}
-
 /* Bottom Panel Styles */
 #bottom-panel {
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 200px;
+  height: 220px;
   background: rgba(43, 43, 43, 0.95);
   z-index: 20;
   display: flex;
   flex-direction: column;
-  transform: translateY(160px); /* Hide content, show handle */
+  transform: translateY(180px); /* Hide content, show handle */
   transition: transform 0.3s ease;
   pointer-events: none;
   border-top: 1px solid #555;
@@ -110,7 +102,40 @@ canvas {
   padding: 0;
 }
 
-#trackpad-area, #action-area {
+/* Left and Right Wrappers */
+#trackpad-area, #action-area-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 10px;
+}
+
+/* Panel Headers (Mode buttons / Undo Redo) */
+.panel-header {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  height: 32px;
+}
+
+.panel-header button {
+  flex: 1;
+  background: #444;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.panel-header button.active {
+  background: #4a90e2;
+  border-color: #4a90e2;
+}
+
+/* Surface Areas */
+.area-surface, #action-area {
   flex: 1;
   display: flex;
   align-items: center;
@@ -121,10 +146,9 @@ canvas {
   touch-action: none;
   border: 1px dashed #555;
   border-radius: 8px;
-  margin: 10px;
 }
 
-#trackpad-area {
+.area-surface {
   background: rgba(255, 255, 255, 0.02);
 }
 
