@@ -1,5 +1,5 @@
 import * as THREE from "../three/three.module.js";
-import { updateNormals, SpatialHash } from "./topology.js";
+import { updateNormals, SpatialHash, buildAdjacencyMap } from "./topology.js";
 
 export class SculptBrush {
   constructor(mesh) {
@@ -16,6 +16,7 @@ export class SculptBrush {
     this.position = this.geometry.attributes.position;
     this.normal = this.geometry.attributes.normal;
     this.spatialHash = new SpatialHash(this.geometry, 0.5);
+    this.adjacencyMap = buildAdjacencyMap(this.geometry);
   }
 
   updateMesh(mesh) {
@@ -35,7 +36,6 @@ export class SculptBrush {
     const pos = this.position;
     const norm = this.normal;
     
-    // localPoint is already in Local Space. Mirroring is perfect here.
     const centers = [localPoint.clone()];
     if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
 
@@ -43,12 +43,13 @@ export class SculptBrush {
     const v = new THREE.Vector3();
     const n = new THREE.Vector3();
     const avgNormal = new THREE.Vector3();
+    const avgPos = new THREE.Vector3();
 
     for (const c of centers) {
       const region = this.spatialHash.query(c, this.radius);
       if (region.length === 0) continue;
+      
       avgNormal.set(0,0,0);
-
       for (const i of region) {
         n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
         avgNormal.add(n);
@@ -68,7 +69,30 @@ export class SculptBrush {
         switch (this.tool) {
           case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
           case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
-          case "smooth": ox = (avgNormal.x - v.x) * influence * 0.5; oy = (avgNormal.y - v.y) * influence * 0.5; oz = (avgNormal.z - v.z) * influence * 0.5; break;
+          case "smooth": 
+            // True Laplacian Smoothing: Move towards average neighbor position
+            avgPos.set(0,0,0);
+            let neighbors = 0;
+            if (this.adjacencyMap[i] && this.geometry.index) {
+              this.adjacencyMap[i].forEach(faceIndex => {
+                for (let j = 0; j < 3; j++) {
+                  const neighborIdx = this.geometry.index.array[faceIndex * 3 + j];
+                  if (neighborIdx !== i) {
+                    avgPos.x += pos.getX(neighborIdx);
+                    avgPos.y += pos.getY(neighborIdx);
+                    avgPos.z += pos.getZ(neighborIdx);
+                    neighbors++;
+                  }
+                }
+              });
+            }
+            if (neighbors > 0) {
+              avgPos.divideScalar(neighbors);
+              ox = (avgPos.x - v.x) * influence;
+              oy = (avgPos.y - v.y) * influence;
+              oz = (avgPos.z - v.z) * influence;
+            }
+            break;
           case "flatten": ox = -avgNormal.x * dist * influence; oy = -avgNormal.y * dist * influence; oz = -avgNormal.z * dist * influence; break;
           case "pinch": ox = -(v.x - c.x) * influence; oy = -(v.y - c.y) * influence; oz = -(v.z - c.z) * influence; break;
         }
@@ -76,7 +100,7 @@ export class SculptBrush {
       }
     }
     pos.needsUpdate = true;
-    if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices));
+    if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices), this.adjacencyMap);
   }
 
   paint(localPoint, symmetry = false) {

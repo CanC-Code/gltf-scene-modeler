@@ -28,6 +28,12 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
+// Selection Bounding Box
+const selectionBox = new THREE.BoxHelper(new THREE.Object3D(), 0x4a90e2);
+selectionBox.raycast = () => {}; // Prevent interfering with raycasting
+selectionBox.visible = false;
+scene.add(selectionBox);
+
 const cursorGroup = new THREE.Group();
 const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false });
 cursorGroup.add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 32), cursorMat));
@@ -46,6 +52,9 @@ transform.setSpace('local');
 transform.setSize(0.8);
 scene.add(transform);
 transform.addEventListener('dragging-changed', e => controls.enabled = !e.value);
+transform.addEventListener('objectChange', () => {
+  if (state.activeMesh) selectionBox.setFromObject(state.activeMesh);
+});
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
@@ -56,24 +65,33 @@ dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 scene.add(new THREE.GridHelper(20, 20));
 
-/* Memory Safe Undo/Redo */
+/* Memory Safe Undo/Redo (Clones Position, Normal, Color) */
 const undoStack = [], redoStack = [];
+function captureState(mesh) {
+  const pos = mesh.geometry.attributes.position;
+  const norm = mesh.geometry.attributes.normal;
+  const col = mesh.geometry.attributes.color;
+  return {
+    position: pos.clone(),
+    normal: norm ? norm.clone() : null,
+    color: col ? col.clone() : null
+  };
+}
 function saveState(mesh) {
   if (!mesh) return;
-  const pos = mesh.geometry.attributes.position;
-  const col = mesh.geometry.attributes.color;
-  undoStack.push({ position: pos.clone(), color: col ? col.clone() : null });
+  undoStack.push(captureState(mesh));
   if (undoStack.length > 20) undoStack.shift();
   redoStack.length = 0;
 }
 function undo() {
   if (!state.activeMesh || !undoStack.length) return;
-  const pos = state.activeMesh.geometry.attributes.position;
-  const col = state.activeMesh.geometry.attributes.color;
-  redoStack.push({ position: pos.clone(), color: col ? col.clone() : null });
+  redoStack.push(captureState(state.activeMesh));
 
   const prev = undoStack.pop();
   state.activeMesh.geometry.setAttribute('position', prev.position);
+  if (prev.normal) state.activeMesh.geometry.setAttribute('normal', prev.normal);
+  else state.activeMesh.geometry.computeVertexNormals();
+  
   if (prev.color) {
     state.activeMesh.geometry.setAttribute('color', prev.color);
     state.activeMesh.material.vertexColors = true;
@@ -82,19 +100,20 @@ function undo() {
     state.activeMesh.material.vertexColors = false;
   }
   state.activeMesh.material.needsUpdate = true;
-  state.activeMesh.geometry.computeVertexNormals();
 
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
+  selectionBox.setFromObject(state.activeMesh);
 }
 function redo() {
   if (!state.activeMesh || !redoStack.length) return;
-  const pos = state.activeMesh.geometry.attributes.position;
-  const col = state.activeMesh.geometry.attributes.color;
-  undoStack.push({ position: pos.clone(), color: col ? col.clone() : null });
+  undoStack.push(captureState(state.activeMesh));
 
   const next = redoStack.pop();
   state.activeMesh.geometry.setAttribute('position', next.position);
+  if (next.normal) state.activeMesh.geometry.setAttribute('normal', next.normal);
+  else state.activeMesh.geometry.computeVertexNormals();
+  
   if (next.color) {
     state.activeMesh.geometry.setAttribute('color', next.color);
     state.activeMesh.material.vertexColors = true;
@@ -103,10 +122,10 @@ function redo() {
     state.activeMesh.material.vertexColors = false;
   }
   state.activeMesh.material.needsUpdate = true;
-  state.activeMesh.geometry.computeVertexNormals();
 
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
+  selectionBox.setFromObject(state.activeMesh);
 }
 
 const actionArea = document.getElementById("action-area");
@@ -194,7 +213,13 @@ const state = {
     this.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
     this.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
     this.brush.setTool(this.activeTool);
+    
     if (viewGizmo) viewGizmo.updateMesh(mesh);
+    
+    // Update Selection Box
+    selectionBox.setFromObject(mesh);
+    selectionBox.visible = true;
+    
     this.updateObjectList();
   },
 
@@ -218,7 +243,11 @@ const state = {
     this.brush = null;
 
     if (this.objects.length > 0) this.selectObject(this.objects[0]);
-    else { transform.detach(); if (viewGizmo) viewGizmo.updateMesh(null); }
+    else { 
+      transform.detach(); 
+      selectionBox.visible = false;
+      if (viewGizmo) viewGizmo.updateMesh(null); 
+    }
     this.updateObjectList();
   },
 
@@ -285,17 +314,23 @@ if (actionArea) {
     e.preventDefault(); isActionActive = true; saveState(state.activeMesh); handleAction();
   });
   actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
-  actionArea.addEventListener("pointerup", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
-  actionArea.addEventListener("pointercancel", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
+  actionArea.addEventListener("pointerup", () => { 
+    isActionActive = false; 
+    if(state.brush) state.brush.rebuildGrid(); 
+    if(state.activeMesh) selectionBox.setFromObject(state.activeMesh);
+  });
+  actionArea.addEventListener("pointercancel", () => { 
+    isActionActive = false; 
+    if(state.brush) state.brush.rebuildGrid(); 
+    if(state.activeMesh) selectionBox.setFromObject(state.activeMesh);
+  });
 }
 
 function handleAction() {
   if (state.trackpadMode !== 'brush') return;
   const hit = state.lastHit;
   if (!hit) return;
-  
-  // FIX: Convert the World Space hit point into the Local Space of the mesh
-  // This ensures math matches the vertices perfectly, fixing Pinch and Symmetry
+
   const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
 
   if (state.mode === "sculpt") {
@@ -311,8 +346,8 @@ window.addEventListener("resize", () => { camera.aspect = window.innerWidth / wi
 let viewGizmo = null;
 try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.renderer.domElement.style.top = "60px"; } catch (e) { console.warn("Gizmo error", e); }
 
-state.addCube(); 
-state.setTrackpadMode("camera"); 
+state.addCube();
+state.setTrackpadMode("camera");
 
 initUI(state, viewGizmo);
 
