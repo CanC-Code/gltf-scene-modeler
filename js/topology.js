@@ -117,21 +117,28 @@ export function extrudeFaces(geometry, faceIndices) {
     const c = index[faceIdx * 3 + 2];
     
     // Duplicate vertices
+    const va = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
+    const vb = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
+    const vc = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
+    const fn = new THREE.Vector3().subVectors(vb, va)
+                                  .cross(new THREE.Vector3().subVectors(vc, va))
+                                  .normalize();
+
     const na = newPositions.length / 3;
     newPositions.push(pos.getX(a), pos.getY(a), pos.getZ(a));
-    newNormals.push(norm.getX(a), norm.getY(a), norm.getZ(a));
+    newNormals.push(fn.x, fn.y, fn.z);
     
     const nb = newPositions.length / 3;
     newPositions.push(pos.getX(b), pos.getY(b), pos.getZ(b));
-    newNormals.push(norm.getX(b), norm.getY(b), norm.getZ(b));
+    newNormals.push(fn.x, fn.y, fn.z);
     
     const nc = newPositions.length / 3;
     newPositions.push(pos.getX(c), pos.getY(c), pos.getZ(c));
-    newNormals.push(norm.getX(c), norm.getY(c), norm.getZ(c));
+    newNormals.push(fn.x, fn.y, fn.z);
     
-    // Move along normal
+    // Move along FACE normal
     const offset = 0.5;
-    const nx = norm.getX(a), ny = norm.getY(a), nz = norm.getZ(a);
+    const nx = fn.x, ny = fn.y, nz = fn.z;
     
     newPositions[na*3] += nx * offset; newPositions[na*3+1] += ny * offset; newPositions[na*3+2] += nz * offset;
     newPositions[nb*3] += nx * offset; newPositions[nb*3+1] += ny * offset; newPositions[nb*3+2] += nz * offset;

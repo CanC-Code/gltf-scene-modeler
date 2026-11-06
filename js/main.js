@@ -69,12 +69,14 @@ transform.addEventListener('dragging-changed', e => {
 });
 
 transform.addEventListener('objectChange', () => {
-  if (state.mode === 'edit' && state.selectedVertices.size > 0) {
-    const delta = new THREE.Vector3().subVectors(editDummy.position, state.lastDummyPos);
+  if (state.mode === 'edit' && state.selectedVertices.size > 0 && state.activeMesh) {
+    const worldDelta = new THREE.Vector3().subVectors(editDummy.position, state.lastDummyPos);
+    const M3 = new THREE.Matrix3().setFromMatrix4(state.activeMesh.matrixWorld).invert();
+    const localDelta = worldDelta.clone().applyMatrix3(M3);
     const pos = state.activeMesh.geometry.attributes.position;
     
     state.selectedVertices.forEach(idx => {
-      pos.setXYZ(idx, pos.getX(idx) + delta.x, pos.getY(idx) + delta.y, pos.getZ(idx) + delta.z);
+      pos.setXYZ(idx, pos.getX(idx) + localDelta.x, pos.getY(idx) + localDelta.y, pos.getZ(idx) + localDelta.z);
     });
     
     pos.needsUpdate = true;
@@ -189,6 +191,16 @@ const state = {
   },
 
   setMode(mode) {
+    if (mode === "weight_paint" && !this._savedColors && this.activeMesh && this.activeMesh.geometry.attributes.color) {
+      this._savedColors = this.activeMesh.geometry.attributes.color.clone();
+    }
+    if (this.mode === "weight_paint" && mode !== "weight_paint" && this._savedColors && this.activeMesh) {
+      this.activeMesh.geometry.setAttribute('color', this._savedColors);
+      this._savedColors = null;
+      this.activeMesh.geometry.attributes.color.needsUpdate = true;
+      this.activeMesh.material.vertexColors = true;
+      this.activeMesh.material.needsUpdate = true;
+    }
     this.mode = mode;
 
     document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit" && mode !== "weight_paint");
@@ -211,7 +223,7 @@ const state = {
         } else if (this.activeMesh) {
           this.activeMesh.material.vertexColors = false;
         }
-        this.activeMesh.material.needsUpdate = true;
+        if (this.activeMesh) this.activeMesh.material.needsUpdate = true;
       }
     } else if (mode === "edit") {
       pointsCloud.visible = true;
@@ -330,6 +342,8 @@ const state = {
     scene.remove(this.activeMesh);
     this.activeMesh.geometry.dispose();
     this.activeMesh.material.dispose();
+    if (this.skeletonHelper) { scene.remove(this.skeletonHelper); this.skeletonHelper = null; }
+    if (this.tempSkin)       { scene.remove(this.tempSkin);       this.tempSkin = null; }
     this.activeMesh = null;
     this.brush = null;
 
@@ -357,13 +371,16 @@ const state = {
 
   addBoneChain() {
     if (!this.activeMesh) return;
-    const box = new THREE.Box3().setFromObject(this.activeMesh);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    const height = box.max.y - box.min.y;
-    const bottomY = -height/3, midY = 0, topY = height/3;
+    const geo0 = this.activeMesh.geometry;
+    geo0.computeBoundingBox();
+    const bb = geo0.boundingBox;
+    const cx = (bb.min.x + bb.max.x) / 2;
+    const cz = (bb.min.z + bb.max.z) / 2;
+    const cy = (bb.min.y + bb.max.y) / 2;
+    const height = bb.max.y - bb.min.y;
+    const bottomY = cy - height/3, midY = cy, topY = cy + height/3;
 
-    const rootBone = new THREE.Bone(); rootBone.position.set(0, bottomY, 0);
+    const rootBone = new THREE.Bone(); rootBone.position.set(cx, bottomY, cz);
     const midBone = new THREE.Bone(); midBone.position.set(0, midY - bottomY, 0); rootBone.add(midBone);
     const endBone = new THREE.Bone(); endBone.position.set(0, topY - midY, 0); midBone.add(endBone);
 
@@ -371,7 +388,9 @@ const state = {
     this.currentBones = bones;
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
 
-    const tempSkin = new THREE.SkinnedMesh(this.activeMesh.geometry, this.activeMesh.material);
+    if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
+    this.tempSkin = new THREE.SkinnedMesh(this.activeMesh.geometry, this.activeMesh.material);
+    const tempSkin = this.tempSkin;
     tempSkin.position.copy(this.activeMesh.position);
     tempSkin.rotation.copy(this.activeMesh.rotation);
     tempSkin.scale.copy(this.activeMesh.scale);
@@ -389,15 +408,16 @@ const state = {
 
   bindSkin() {
     if (!this.activeMesh || !this.currentBones) return;
+    if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
     const skeleton = new THREE.Skeleton(this.currentBones);
     const geo = this.activeMesh.geometry;
     const posCount = geo.attributes.position.count;
     const skinIndices = new Uint16Array(posCount * 4);
     const skinWeights = new Float32Array(posCount * 4);
 
-    const box = new THREE.Box3().setFromObject(this.activeMesh);
-    const minY = box.min.y; const maxY = box.max.y;
-    const range = maxY - minY;
+    geo.computeBoundingBox();
+    const minY = geo.boundingBox.min.y, maxY = geo.boundingBox.max.y;
+    const range = Math.max(1e-6, maxY - minY);
 
     for (let i = 0; i < posCount; i++) {
       const y = geo.attributes.position.getY(i);
@@ -451,7 +471,7 @@ const state = {
   selectBone(index) {
     if (!this.currentBones || !this.currentBones[index]) return;
     this.activeBoneIndex = index;
-    this.brush.setActiveBone(index);
+    if (this.brush) this.brush.setActiveBone(index);
     transform.attach(this.currentBones[index]);
     transform.setMode('translate');
     this.updateBoneList();
@@ -540,19 +560,24 @@ const state = {
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
 
   exportGLTF() {
-    if (!this.activeMesh) return;
+    if (!this.objects.length) return;
     const exportGroup = new THREE.Group();
-    const clone = this.activeMesh.clone();
-    if (this.activeMesh.skeleton) {
-       const clonedBones = this.activeMesh.skeleton.bones.map(b => b.clone());
-       const clonedSkeleton = new THREE.Skeleton(clonedBones, this.activeMesh.skeleton.boneInverses);
-       clone.bind(clonedSkeleton);
-       clonedBones.forEach(b => clone.add(b));
-    }
-    exportGroup.add(clone);
+    this.objects.forEach(obj => {
+      const clone = obj.clone();
+      clone.geometry = obj.geometry.clone();
+      if (obj.isSkinnedMesh && obj.skeleton) {
+        const rootBone = obj.skeleton.bones[0].clone(true);
+        const clonedBones = [];
+        rootBone.traverse(o => { if (o.isBone) clonedBones.push(o); });
+        const skel = new THREE.Skeleton(clonedBones, obj.skeleton.boneInverses);
+        clone.bind(skel, obj.bindMatrix);
+        clone.add(rootBone);
+      }
+      exportGroup.add(clone);
+    });
     
     const options = {};
-    if (this.keyframes.length >= 2) {
+    if (this.keyframes.length >= 2 && this.currentBones) {
         const tracks = [];
         for (let i = 0; i < this.currentBones.length; i++) {
           const posValues = [];
@@ -572,15 +597,26 @@ const state = {
     }
 
     new GLTFExporter().parse(exportGroup, gltf => {
-      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "application/json" })); a.download = "scene.gltf"; a.click();
+      const blob = new Blob([JSON.stringify(gltf)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'scene.gltf';
+      a.click();
+      URL.revokeObjectURL(a.href);
     }, options);
   },
 
   importGLTF(e) {
     const reader = new FileReader();
     reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
-      const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
-      if (mesh) { mesh.geometry = mergeVertices(mesh.geometry); this.addObject(mesh); }
+      let mesh = null;
+      gltf.scene.traverse(o => { if (!mesh && o.isMesh) mesh = o; });
+      if (mesh) {
+        if (!mesh.isSkinnedMesh && !mesh.geometry.attributes.skinIndex) {
+          mesh.geometry = mergeVertices(mesh.geometry);
+        }
+        this.addObject(mesh);
+      }
     });
     reader.readAsArrayBuffer(e.target.files[0]);
   }
@@ -588,19 +624,26 @@ const state = {
 
 function syncPointsCloud() {
   if (!state.activeMesh) return;
-  pointsCloud.geometry = state.activeMesh.geometry;
-  if (!pointsCloud.geometry.attributes.color) {
-    const colors = new Float32Array(pointsCloud.geometry.attributes.position.count * 3);
-    colors.fill(1.0);
-    pointsCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const meshGeo = state.activeMesh.geometry;
+  const pGeo = pointsCloud.geometry;
+
+  pointsCloud.position.copy(state.activeMesh.position);
+  pointsCloud.quaternion.copy(state.activeMesh.quaternion);
+  pointsCloud.scale.copy(state.activeMesh.scale);
+
+  if (pGeo.attributes.position !== meshGeo.attributes.position) {
+    pGeo.setAttribute('position', meshGeo.attributes.position);
+    pGeo.setAttribute('color',
+      new THREE.BufferAttribute(new Float32Array(meshGeo.attributes.position.count * 3), 3));
   }
-  const colors = pointsCloud.geometry.attributes.color;
-  for (let i = 0; i < colors.count; i++) {
-    colors.setXYZ(i, 1.0, 1.0, 1.0);
+  if (!pGeo.attributes.color) {
+    pGeo.setAttribute('color',
+      new THREE.BufferAttribute(new Float32Array(meshGeo.attributes.position.count * 3), 3));
   }
-  state.selectedVertices.forEach(idx => {
-    colors.setXYZ(idx, 1.0, 0.0, 0.0);
-  });
+
+  const colors = pGeo.attributes.color;
+  for (let i = 0; i < colors.count; i++) colors.setXYZ(i, 1, 1, 1);
+  state.selectedVertices.forEach(idx => colors.setXYZ(idx, 1, 0, 0));
   colors.needsUpdate = true;
 }
 
@@ -666,6 +709,7 @@ if (trackpadSurface) {
     raycaster.params.Points.threshold = distToMesh * 0.03;
 
     const hit = raycaster.intersectObject(pointsCloud)[0];
+    raycaster.params.Points.threshold = 1;
     
     if (hit) {
       const idx = hit.index;
@@ -703,11 +747,12 @@ function extrudeSelected() {
   
   const index = geometry.index.array;
   let selectedFace = -1;
-  const v0 = Array.from(state.selectedVertices)[0];
+  const sel = Array.from(state.selectedVertices);
   for (let i = 0; i < index.length; i += 3) {
-    if (index[i] === v0 || index[i+1] === v0 || index[i+2] === v0) {
-       selectedFace = i / 3;
-       break;
+    const fv = [index[i], index[i+1], index[i+2]];
+    if (sel.every(v => fv.includes(v))) {
+      selectedFace = i / 3;
+      break;
     }
   }
   
@@ -737,6 +782,7 @@ state.setTrackpadMode("camera");
 initUI(state, viewGizmo);
 
 state.setPaintColor("#ff0000");
+state.setMode('sculpt');
 
 const btnModeCam = document.getElementById("btnModeCamera");
 const btnModeBrsh = document.getElementById("btnModeBrush");
