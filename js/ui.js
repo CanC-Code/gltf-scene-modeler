@@ -23,7 +23,6 @@ export function initUI(state, viewGizmo) {
     };
   }
 
-  // --- Tool Selector ---
   const toolSelBtn = document.getElementById("tool-selector-btn"), toolDropdown = document.getElementById("tool-dropdown"), toolOpts = document.querySelectorAll(".tool-opt");
   if (toolSelBtn && toolDropdown) {
     toolSelBtn.onclick = (e) => { e.stopPropagation(); toolDropdown.classList.toggle("show"); };
@@ -44,14 +43,6 @@ export function initUI(state, viewGizmo) {
     });
   }
 
-  // --- Bottom Panel Color Picker ---
-  const colorBtn = document.getElementById("color-picker-btn");
-  const hiddenPicker = document.getElementById("hidden-color-picker");
-  if (colorBtn && hiddenPicker) {
-    colorBtn.onclick = () => hiddenPicker.click();
-    hiddenPicker.oninput = (e) => state.setPaintColor(e.target.value);
-  }
-
   const pUndo = document.getElementById("panelUndoBtn"), pRedo = document.getElementById("panelRedoBtn");
   if (pUndo) pUndo.onclick = () => state.undo();
   if (pRedo) pRedo.onclick = () => state.redo();
@@ -64,6 +55,9 @@ export function initUI(state, viewGizmo) {
   // Rigging UI
   const addBoneBtn = document.getElementById("addBoneChain");
   if (addBoneBtn) addBoneBtn.onclick = () => state.addBoneChain();
+
+  const bindBtn = document.getElementById("bindSkin");
+  if (bindBtn) bindBtn.onclick = () => state.bindSkin();
 
   const showSkelBtn = document.getElementById("showSkeleton");
   if (showSkelBtn) showSkelBtn.onclick = () => {
@@ -82,6 +76,65 @@ export function initUI(state, viewGizmo) {
       btn.classList.add("active");
     };
   });
+
+  // --- Custom Color Picker UI ---
+  const colorBtn = document.getElementById("color-picker-btn");
+  const colorModal = document.getElementById("color-picker-modal");
+  const colorClose = document.getElementById("color-picker-close");
+  const cpApply = document.getElementById("cp-apply");
+  const cpR = document.getElementById("cp-r"), cpG = document.getElementById("cp-g"), cpB = document.getElementById("cp-b");
+  const colorPreview = document.getElementById("color-preview");
+  const colorWheel = document.getElementById("color-wheel");
+
+  if (colorBtn && colorModal) {
+    colorBtn.onclick = () => colorModal.classList.add("show");
+    colorClose.onclick = () => colorModal.classList.remove("show");
+    cpApply.onclick = () => {
+      state.setPaintColor(`rgb(${cpR.value}, ${cpG.value}, ${cpB.value})`);
+      colorModal.classList.remove("show");
+    };
+
+    const updatePreview = () => {
+      const hex = `rgb(${cpR.value}, ${cpG.value}, ${cpB.value})`;
+      colorPreview.style.background = hex;
+    };
+
+    cpR.oninput = updatePreview;
+    cpG.oninput = updatePreview;
+    cpB.oninput = updatePreview;
+
+    // Draw Color Wheel
+    const ctx = colorWheel.getContext('2d');
+    const radius = colorWheel.width / 2;
+    for (let angle = 0; angle < 360; angle++) {
+      const startAngle = (angle - 1) * Math.PI / 180;
+      const endAngle = (angle + 1) * Math.PI / 180;
+      ctx.beginPath();
+      ctx.moveTo(radius, radius);
+      ctx.arc(radius, radius, radius, startAngle, endAngle);
+      ctx.fillStyle = `hsl(${angle}, 100%, 50%)`;
+      ctx.fill();
+    }
+    // Draw inner white/black gradient
+    const grad = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(radius, radius, radius, 0, 2 * Math.PI);
+    ctx.fill();
+
+    colorWheel.onpointerdown = (e) => {
+       // Simple hex grab from wheel
+       const rect = colorWheel.getBoundingClientRect();
+       const x = e.clientX - rect.left;
+       const y = e.clientY - rect.top;
+       const data = ctx.getImageData(x, y, 1, 1).data;
+       cpR.value = data[0]; cpG.value = data[1]; cpB.value = data[2];
+       updatePreview();
+    };
+  }
 
   const bgColorInput = document.getElementById("bgColor");
   if (bgColorInput) bgColorInput.oninput = e => { if (state.scene) state.scene.background.set(e.target.value); };

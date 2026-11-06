@@ -28,6 +28,7 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
+// Selection Bounding Box
 const selectionBox = new THREE.BoxHelper(new THREE.Object3D(), 0x4a90e2);
 selectionBox.raycast = () => {};
 selectionBox.visible = false;
@@ -154,12 +155,11 @@ const state = {
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
     } else if (mode === "rig") {
-      this.selectBone(this.activeBoneIndex); // Re-attach gizmo to current bone
+      this.selectBone(this.activeBoneIndex);
       controls.enabled = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
-      // FIX: Map "move" to "translate" for Three.js
       transform.setMode(mode === "move" ? "translate" : mode);
       controls.enabled = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
@@ -181,11 +181,8 @@ const state = {
     if (this.brush) this.brush.setPaintColor(this.paintColor);
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
     
-    // Sync Color Picker UI
     const btn = document.getElementById("color-picker-btn");
     if (btn) btn.style.background = hex;
-    const input = document.getElementById("hidden-color-picker");
-    if (input) input.value = hex;
   },
 
   setTool(tool) { this.activeTool = tool; if (this.brush) this.brush.setTool(tool); },
@@ -275,55 +272,109 @@ const state = {
   addBoneChain() {
     if (!this.activeMesh) return;
 
+    // Calculate Mesh Bounding Box to spawn bones precisely inside
+    const box = new THREE.Box3().setFromObject(this.activeMesh);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const height = box.max.y - box.min.y;
+
+    // Local space spawn positions
+    const bottomY = -height/3;
+    const midY = 0;
+    const topY = height/3;
+
     const rootBone = new THREE.Bone();
-    rootBone.position.set(0, -1, 0);
+    rootBone.position.set(0, bottomY, 0);
+    
     const midBone = new THREE.Bone();
-    midBone.position.set(0, 1, 0);
+    midBone.position.set(0, midY - bottomY, 0); // Relative to root
     rootBone.add(midBone);
+    
     const endBone = new THREE.Bone();
-    endBone.position.set(0, 1, 0);
+    endBone.position.set(0, topY - midY, 0); // Relative to mid
     midBone.add(endBone);
 
     const bones = [rootBone, midBone, endBone];
     this.currentBones = bones;
-    const skeleton = new THREE.Skeleton(bones);
+    
+    // Visualize bones immediately
+    if (this.skeletonHelper) scene.remove(this.skeletonHelper);
+    
+    // Create a temp skinned mesh just to show the helper (will be replaced on bind)
+    const tempSkin = new THREE.SkinnedMesh(this.activeMesh.geometry, this.activeMesh.material);
+    tempSkin.position.copy(this.activeMesh.position);
+    tempSkin.rotation.copy(this.activeMesh.rotation);
+    tempSkin.scale.copy(this.activeMesh.scale);
+    tempSkin.add(rootBone);
+    scene.add(tempSkin); // Add temporarily to show helper
+    
+    this.skeletonHelper = new THREE.SkeletonHelper(tempSkin);
+    this.skeletonHelper.material.linewidth = 3;
+    scene.add(this.skeletonHelper);
 
+    this.updateBoneList();
+    this.selectBone(0);
+    alert("Armature created! Now click 'Bind Skin to Bones' to attach it.");
+  },
+
+  bindSkin() {
+    if (!this.activeMesh || !this.currentBones) return;
+
+    const skeleton = new THREE.Skeleton(this.currentBones);
     const geo = this.activeMesh.geometry;
     const posCount = geo.attributes.position.count;
 
-    if (!geo.attributes.skinIndex) {
-      const skinIndices = new Uint16Array(posCount * 4);
-      const skinWeights = new Float32Array(posCount * 4);
+    const skinIndices = new Uint16Array(posCount * 4);
+    const skinWeights = new Float32Array(posCount * 4);
 
-      for (let i = 0; i < posCount; i++) {
-        const y = geo.attributes.position.getY(i);
-        let weight = 0; let index = 0;
-        if (y < -0.5) { weight = 1; index = 0; }
-        else if (y < 0.5) { weight = 1; index = 1; }
-        else { weight = 1; index = 2; }
-        skinIndices[i * 4] = index;
-        skinWeights[i * 4] = weight;
+    // Smooth Weight Painting based on Y position
+    const box = new THREE.Box3().setFromObject(this.activeMesh);
+    const minY = box.min.y; const maxY = box.max.y;
+    const range = maxY - minY;
+
+    for (let i = 0; i < posCount; i++) {
+      const y = geo.attributes.position.getY(i);
+      const normalizedY = (y - minY) / range; // 0 to 1
+
+      // Smooth interpolation between bones
+      if (normalizedY < 0.33) {
+        // Root bone area
+        skinIndices[i * 4] = 0; skinWeights[i * 4] = 1;
+      } else if (normalizedY < 0.66) {
+        // Mid bone area
+        skinIndices[i * 4] = 1; skinWeights[i * 4] = 1;
+      } else {
+        // Top bone area
+        skinIndices[i * 4] = 2; skinWeights[i * 4] = 1;
       }
-      geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
-      geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
     }
+
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
 
     const skinnedMesh = new THREE.SkinnedMesh(geo, this.activeMesh.material);
     skinnedMesh.position.copy(this.activeMesh.position);
     skinnedMesh.rotation.copy(this.activeMesh.rotation);
     skinnedMesh.scale.copy(this.activeMesh.scale);
-    skinnedMesh.add(rootBone);
+    
+    // Attach bones to the skinned mesh
+    skinnedMesh.add(this.currentBones[0]);
     skinnedMesh.bind(skeleton);
 
+    // Replace in scene
     scene.remove(this.activeMesh);
+    // Clean up temp skeleton helper
+    if (this.skeletonHelper) scene.remove(this.skeletonHelper);
+    
     scene.add(skinnedMesh);
     this.activeMesh = skinnedMesh;
 
+    // Re-add helper for the real mesh
     this.skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
     this.skeletonHelper.material.linewidth = 3;
     scene.add(this.skeletonHelper);
 
-    this.updateBoneList();
+    alert("Skin bound successfully! Select Move/Rotate to pose.");
     this.selectBone(0);
   },
 
@@ -424,6 +475,9 @@ state.addCube();
 state.setTrackpadMode("camera");
 initUI(state, viewGizmo);
 
+// Initialize Color Picker UI State
+state.setPaintColor("#ff0000");
+
 const btnModeCam = document.getElementById("btnModeCamera");
 const btnModeBrsh = document.getElementById("btnModeBrush");
 if (btnModeCam && btnModeBrsh) {
@@ -435,6 +489,12 @@ if (btnModeCam && btnModeBrsh) {
 function animate() {
   requestAnimationFrame(animate);
   if (state.trackpadMode === 'camera' && controls) controls.update();
+  
+  // FIX: Update selection box dynamically to hug the deformed mesh
+  if (state.activeMesh && selectionBox.visible) {
+    selectionBox.setFromObject(state.activeMesh);
+  }
+  
   if (state.skeletonHelper) state.skeletonHelper.update();
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
