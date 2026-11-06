@@ -34,7 +34,7 @@
 
     #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 260px; background: rgba(43, 43, 43, 0.95); z-index: 20; display: flex; flex-direction: column; transform: translateY(220px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
     #bottom-panel.expanded { transform: translateY(0); pointer-events: auto; }
-    
+
     #panel-handle { height: 44px; background: #1e1e1e; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #fff; user-select: none; pointer-events: auto; border-bottom: 1px solid #333; padding: 0 15px; position: relative; }
     .handle-arrow { font-size: 12px; position: absolute; left: 50%; transform: translateX(-50%); }
     .handle-left-group { display: flex; align-items: center; gap: 8px; z-index: 25; }
@@ -81,6 +81,7 @@
     <div class="tool-group">
       <button id="toolSculpt" class="tool active">Sculpt</button>
       <button id="toolPaint" class="tool">Paint</button>
+      <button id="toolEdit" class="tool">Edit</button>
       <button id="toolRig" class="tool">Rig</button>
       <button id="toolMove" class="tool">Move</button>
       <button id="toolRotate" class="tool">Rotate</button>
@@ -109,6 +110,14 @@
       <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-top: 5px;" />
     </div>
 
+    <!-- Edit Panel -->
+    <div id="edit-panel" class="panel-section">
+      <h3>Topology</h3>
+      <button id="extrudeBtn" style="background: #9c27b0;">Extrude Selected Face</button>
+      <button id="clearSelection">Clear Selection</button>
+      <p style="font-size: 12px; color: #aaa; margin-top: 10px;">Select 3 vertices of a face to extrude.</p>
+    </div>
+
     <div id="rig-panel" class="panel-section">
       <h3>Armature</h3>
       <button id="addBoneChain" style="background: #4caf50;">Create Armature</button>
@@ -118,6 +127,9 @@
       <div id="bone-list">
         <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
       </div>
+
+      <h3>Weight Paint</h3>
+      <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
 
       <h3>Bone Settings</h3>
       <button id="showSkeleton" class="active">Toggle Skeleton View</button>
@@ -179,7 +191,6 @@
     </div>
   </div>
 
-  <!-- Floating Color Picker -->
   <div id="color-picker-modal">
     <div id="color-picker-header">
       <span>Color Picker</span>
@@ -201,6 +212,6 @@
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
-  <script type="module" src="./js/main.js?v=18"></script>
+  <script type="module" src="./js/main.js?v=19"></script>
 </body>
 </html>

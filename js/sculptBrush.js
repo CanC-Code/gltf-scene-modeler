@@ -8,6 +8,7 @@ export class SculptBrush {
     this.strength = 0.5;
     this.tool = "inflate";
     this.paintColor = new THREE.Color("#ff0000");
+    this.activeBoneIndex = 0; // For weight painting
   }
 
   setMesh(mesh) {
@@ -25,11 +26,11 @@ export class SculptBrush {
   setRadius(r) { this.radius = r; }
   setStrength(s) { this.strength = s; }
   setPaintColor(color) { this.paintColor.copy(color); }
+  setActiveBone(index) { this.activeBoneIndex = index; }
 
   apply(localPoint, symmetry = false) {
     const pos = this.position;
     const norm = this.normal;
-    
     const centers = [localPoint.clone()];
     if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
 
@@ -42,7 +43,6 @@ export class SculptBrush {
     for (const c of centers) {
       const region = this.spatialHash.query(c, this.radius);
       if (region.length === 0) continue;
-      
       avgNormal.set(0,0,0);
       for (const i of region) {
         n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
@@ -54,7 +54,6 @@ export class SculptBrush {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         const dist = v.distanceTo(c);
         if (dist > this.radius) continue;
-
         affectedVertices.add(i);
         const falloff = Math.pow(1 - dist / this.radius, 2);
         const influence = falloff * this.strength;
@@ -63,7 +62,7 @@ export class SculptBrush {
         switch (this.tool) {
           case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
           case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
-          case "smooth": 
+          case "smooth":
             avgPos.set(0,0,0);
             let neighbors = 0;
             if (this.adjacencyMap[i] && this.geometry.index) {
@@ -81,8 +80,7 @@ export class SculptBrush {
             }
             if (neighbors > 0) {
               avgPos.divideScalar(neighbors);
-              // FIX: Clamp the movement to prevent tearing/inversion
-              const maxDist = this.radius * 0.3; // Maximum distance vertex can move in one step
+              const maxDist = this.radius * 0.3;
               let dx = (avgPos.x - v.x) * influence;
               let dy = (avgPos.y - v.y) * influence;
               let dz = (avgPos.z - v.z) * influence;
@@ -115,7 +113,6 @@ export class SculptBrush {
       this.mesh.material.needsUpdate = true;
     }
     const colorAttr = geometry.attributes.color;
-    
     const centers = [localPoint.clone()];
     if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
 
@@ -137,5 +134,34 @@ export class SculptBrush {
       }
     }
     colorAttr.needsUpdate = true;
+  }
+
+  paintWeight(localPoint) {
+    if (!this.geometry.attributes.skinWeight) return;
+    const pos = this.position;
+    const weightAttr = this.geometry.attributes.skinWeight;
+    const v = new THREE.Vector3();
+    
+    const region = this.spatialHash.query(localPoint, this.radius);
+    for (const i of region) {
+      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      const dist = v.distanceTo(localPoint);
+      if (dist <= this.radius) {
+        const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
+        
+        // Update weights for the active bone
+        for (let j = 0; j < 4; j++) {
+          const idx = i * 4 + j;
+          if (weightAttr.array[idx] === this.activeBoneIndex) {
+             // Simple additive weighting for now
+             let currentW = weightAttr.getX(i); 
+             // Reset others (simplified logic for prototype)
+             weightAttr.setXYZW(i, this.activeBoneIndex === 0 ? 1 : 0, this.activeBoneIndex === 1 ? 1 : 0, this.activeBoneIndex === 2 ? 1 : 0, 0);
+             break;
+          }
+        }
+      }
+    }
+    weightAttr.needsUpdate = true;
   }
 }

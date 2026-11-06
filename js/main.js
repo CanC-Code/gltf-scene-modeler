@@ -9,6 +9,7 @@ import { ViewGizmo } from "./viewGizmo.js";
 import { FontLoader } from "../three/FontLoader.js";
 import { TextGeometry } from "../three/TextGeometry.js";
 import { mergeVertices } from "../three/utils/BufferGeometryUtils.js";
+import { extrudeFaces } from "./topology.js";
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -34,6 +35,16 @@ selectionBox.raycast = () => {};
 selectionBox.visible = false;
 scene.add(selectionBox);
 
+// Edit Mode Points Cloud
+const pointsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05, vertexColors: true, transparent: true, opacity: 0.8 });
+const pointsCloud = new THREE.Points(new THREE.BufferGeometry(), pointsMat);
+pointsCloud.visible = false;
+scene.add(pointsCloud);
+
+// Dummy Gizmo for Edit Mode
+const editDummy = new THREE.Object3D();
+scene.add(editDummy);
+
 // 3D Brush Cursor
 const cursorGroup = new THREE.Group();
 const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false });
@@ -55,7 +66,30 @@ transform.setSize(0.8);
 scene.add(transform);
 transform.addEventListener('dragging-changed', e => controls.enabled = !e.value);
 transform.addEventListener('objectChange', () => {
-  if (state.activeMesh) selectionBox.setFromObject(state.activeMesh);
+  if (state.mode === 'edit' && state.selectedVertices.size > 0) {
+    // Move selected vertices
+    const delta = new THREE.Vector3().subVectors(editDummy.position, state.lastDummyPos);
+    const pos = state.activeMesh.geometry.attributes.position;
+    const colors = state.activeMesh.geometry.attributes.color;
+    
+    state.selectedVertices.forEach(idx => {
+      pos.setXYZ(idx, pos.getX(idx) + delta.x, pos.getY(idx) + delta.y, pos.getZ(idx) + delta.z);
+      if (colors) colors.setXYZ(idx, 1.0, 0.0, 0.0); // Keep red while moving
+    });
+    
+    pos.needsUpdate = true;
+    if (colors) colors.needsUpdate = true;
+    state.activeMesh.geometry.computeVertexNormals();
+    
+    // Update points cloud
+    pointsCloud.geometry.attributes.position.needsUpdate = true;
+    pointsCloud.geometry.attributes.color.needsUpdate = true;
+    
+    state.lastDummyPos.copy(editDummy.position);
+    state.brush.rebuildGrid();
+  } else if (state.activeMesh) {
+    selectionBox.setFromObject(state.activeMesh);
+  }
 });
 
 // Lighting
@@ -99,7 +133,7 @@ function undo() {
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
-  selectionBox.setFromObject(state.activeMesh);
+  if (state.mode === 'edit') syncPointsCloud();
 }
 function redo() {
   if (!state.activeMesh || !redoStack.length) return;
@@ -118,7 +152,7 @@ function redo() {
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
-  selectionBox.setFromObject(state.activeMesh);
+  if (state.mode === 'edit') syncPointsCloud();
 }
 
 const actionArea = document.getElementById("action-area");
@@ -140,28 +174,44 @@ const state = {
   skeletonHelper: null,
   currentBones: null,
   activeBoneIndex: 0,
+  selectedVertices: new Set(),
+  lastDummyPos: new THREE.Vector3(),
   undo,
   redo,
 
   setMode(mode) {
     this.mode = mode;
-    
-    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig");
+
+    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit");
     document.getElementById("rig-panel").classList.toggle("active", mode === "rig");
+    document.getElementById("edit-panel").classList.toggle("active", mode === "edit");
     document.getElementById("sculpt-panel").classList.toggle("active", mode === "sculpt" || mode === "paint");
 
     if (mode === "sculpt" || mode === "paint") {
       transform.detach();
+      pointsCloud.visible = false;
+      if (this.activeMesh) this.activeMesh.visible = true;
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
+    } else if (mode === "edit") {
+      pointsCloud.visible = true;
+      if (this.activeMesh) this.activeMesh.visible = false;
+      syncPointsCloud();
+      controls.enabled = true;
+      transform.detach();
+      if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (mode === "rig") {
       this.selectBone(this.activeBoneIndex);
       controls.enabled = true;
+      pointsCloud.visible = false;
+      if (this.activeMesh) this.activeMesh.visible = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
       transform.setMode(mode === "move" ? "translate" : mode);
       controls.enabled = true;
+      pointsCloud.visible = false;
+      if (this.activeMesh) this.activeMesh.visible = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else {
       transform.detach();
@@ -180,7 +230,6 @@ const state = {
     this.paintColor.set(hex);
     if (this.brush) this.brush.setPaintColor(this.paintColor);
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
-    
     const btn = document.getElementById("color-picker-btn");
     if (btn) btn.style.background = hex;
   },
@@ -213,7 +262,7 @@ const state = {
 
   selectObject(mesh) {
     this.activeMesh = mesh;
-    if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig") transform.attach(mesh);
+    if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig" && this.mode !== "edit") transform.attach(mesh);
 
     this.brush = new SculptBrush(mesh);
     this.brush.setPaintColor(this.paintColor);
@@ -224,6 +273,8 @@ const state = {
     if (viewGizmo) viewGizmo.updateMesh(mesh);
     selectionBox.setFromObject(mesh);
     selectionBox.visible = true;
+    this.selectedVertices.clear();
+    if (this.mode === 'edit') syncPointsCloud();
 
     this.updateObjectList();
   },
@@ -271,43 +322,27 @@ const state = {
 
   addBoneChain() {
     if (!this.activeMesh) return;
-
-    // Calculate Mesh Bounding Box to spawn bones precisely inside
     const box = new THREE.Box3().setFromObject(this.activeMesh);
     const center = new THREE.Vector3();
     box.getCenter(center);
     const height = box.max.y - box.min.y;
+    const bottomY = -height/3, midY = 0, topY = height/3;
 
-    // Local space spawn positions
-    const bottomY = -height/3;
-    const midY = 0;
-    const topY = height/3;
-
-    const rootBone = new THREE.Bone();
-    rootBone.position.set(0, bottomY, 0);
-    
-    const midBone = new THREE.Bone();
-    midBone.position.set(0, midY - bottomY, 0); // Relative to root
-    rootBone.add(midBone);
-    
-    const endBone = new THREE.Bone();
-    endBone.position.set(0, topY - midY, 0); // Relative to mid
-    midBone.add(endBone);
+    const rootBone = new THREE.Bone(); rootBone.position.set(0, bottomY, 0);
+    const midBone = new THREE.Bone(); midBone.position.set(0, midY - bottomY, 0); rootBone.add(midBone);
+    const endBone = new THREE.Bone(); endBone.position.set(0, topY - midY, 0); midBone.add(endBone);
 
     const bones = [rootBone, midBone, endBone];
     this.currentBones = bones;
-    
-    // Visualize bones immediately
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
-    
-    // Create a temp skinned mesh just to show the helper (will be replaced on bind)
+
     const tempSkin = new THREE.SkinnedMesh(this.activeMesh.geometry, this.activeMesh.material);
     tempSkin.position.copy(this.activeMesh.position);
     tempSkin.rotation.copy(this.activeMesh.rotation);
     tempSkin.scale.copy(this.activeMesh.scale);
     tempSkin.add(rootBone);
-    scene.add(tempSkin); // Add temporarily to show helper
-    
+    scene.add(tempSkin);
+
     this.skeletonHelper = new THREE.SkeletonHelper(tempSkin);
     this.skeletonHelper.material.linewidth = 3;
     scene.add(this.skeletonHelper);
@@ -319,34 +354,22 @@ const state = {
 
   bindSkin() {
     if (!this.activeMesh || !this.currentBones) return;
-
     const skeleton = new THREE.Skeleton(this.currentBones);
     const geo = this.activeMesh.geometry;
     const posCount = geo.attributes.position.count;
-
     const skinIndices = new Uint16Array(posCount * 4);
     const skinWeights = new Float32Array(posCount * 4);
 
-    // Smooth Weight Painting based on Y position
     const box = new THREE.Box3().setFromObject(this.activeMesh);
     const minY = box.min.y; const maxY = box.max.y;
     const range = maxY - minY;
 
     for (let i = 0; i < posCount; i++) {
       const y = geo.attributes.position.getY(i);
-      const normalizedY = (y - minY) / range; // 0 to 1
-
-      // Smooth interpolation between bones
-      if (normalizedY < 0.33) {
-        // Root bone area
-        skinIndices[i * 4] = 0; skinWeights[i * 4] = 1;
-      } else if (normalizedY < 0.66) {
-        // Mid bone area
-        skinIndices[i * 4] = 1; skinWeights[i * 4] = 1;
-      } else {
-        // Top bone area
-        skinIndices[i * 4] = 2; skinWeights[i * 4] = 1;
-      }
+      const normalizedY = (y - minY) / range;
+      if (normalizedY < 0.33) { skinIndices[i * 4] = 0; skinWeights[i * 4] = 1; }
+      else if (normalizedY < 0.66) { skinIndices[i * 4] = 1; skinWeights[i * 4] = 1; }
+      else { skinIndices[i * 4] = 2; skinWeights[i * 4] = 1; }
     }
 
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
@@ -356,20 +379,14 @@ const state = {
     skinnedMesh.position.copy(this.activeMesh.position);
     skinnedMesh.rotation.copy(this.activeMesh.rotation);
     skinnedMesh.scale.copy(this.activeMesh.scale);
-    
-    // Attach bones to the skinned mesh
     skinnedMesh.add(this.currentBones[0]);
     skinnedMesh.bind(skeleton);
 
-    // Replace in scene
     scene.remove(this.activeMesh);
-    // Clean up temp skeleton helper
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
-    
     scene.add(skinnedMesh);
     this.activeMesh = skinnedMesh;
 
-    // Re-add helper for the real mesh
     this.skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
     this.skeletonHelper.material.linewidth = 3;
     scene.add(this.skeletonHelper);
@@ -383,7 +400,6 @@ const state = {
     if (!list) return;
     list.innerHTML = "";
     if (!this.currentBones) return;
-
     const names = ["Root Bone", "Mid Bone", "End Bone"];
     this.currentBones.forEach((bone, index) => {
       const div = document.createElement("div");
@@ -397,6 +413,7 @@ const state = {
   selectBone(index) {
     if (!this.currentBones || !this.currentBones[index]) return;
     this.activeBoneIndex = index;
+    this.brush.setActiveBone(index);
     transform.attach(this.currentBones[index]);
     transform.setMode('translate');
     this.updateBoneList();
@@ -421,6 +438,27 @@ const state = {
     reader.readAsArrayBuffer(e.target.files[0]);
   }
 };
+
+function syncPointsCloud() {
+  if (!state.activeMesh) return;
+  pointsCloud.geometry = state.activeMesh.geometry;
+  // Ensure there's a color attribute for selection highlighting
+  if (!pointsCloud.geometry.attributes.color) {
+    const colors = new Float32Array(pointsCloud.geometry.attributes.position.count * 3);
+    colors.fill(1.0);
+    pointsCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  }
+  // Reset colors to white
+  const colors = pointsCloud.geometry.attributes.color;
+  for (let i = 0; i < colors.count; i++) {
+    colors.setXYZ(i, 1.0, 1.0, 1.0); // White
+  }
+  // Set selected to red
+  state.selectedVertices.forEach(idx => {
+    colors.setXYZ(idx, 1.0, 0.0, 0.0); // Red
+  });
+  colors.needsUpdate = true;
+}
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 let isActionActive = false;
@@ -448,7 +486,7 @@ if (trackpadSurface) {
 
 if (actionArea) {
   actionArea.addEventListener("pointerdown", e => {
-    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale" || state.mode === "rig") return;
+    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale" || state.mode === "rig" || state.mode === "edit") return;
     e.preventDefault(); isActionActive = true; saveState(state.activeMesh); handleAction();
   });
   actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
@@ -465,6 +503,93 @@ function handleAction() {
   else if (state.mode === "paint") state.brush.paint(localPoint, state.symmetryEnabled);
 }
 
+// Edit Mode Pointer Handling (Trackpad Area)
+if (trackpadSurface) {
+  trackpadSurface.addEventListener("pointerdown", e => {
+    if (state.mode !== 'edit' || !state.activeMesh) return;
+    
+    // Raycast against points
+    const rect = trackpadSurface.getBoundingClientRect();
+    const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    mouse.x = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
+    mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
+    
+    raycaster.setFromCamera(mouse, camera);
+    raycaster.params.Points.threshold = 0.1;
+    const hit = raycaster.intersectObject(pointsCloud)[0];
+    
+    if (hit) {
+      const idx = hit.index;
+      if (state.selectedVertices.has(idx)) {
+        state.selectedVertices.delete(idx);
+      } else {
+        state.selectedVertices.add(idx);
+      }
+      
+      syncPointsCloud();
+      
+      // Update dummy gizmo
+      if (state.selectedVertices.size > 0) {
+        const avgPos = new THREE.Vector3();
+        const pos = state.activeMesh.geometry.attributes.position;
+        state.selectedVertices.forEach(v => {
+          avgPos.x += pos.getX(v); avgPos.y += pos.getY(v); avgPos.z += pos.getZ(v);
+        });
+        avgPos.divideScalar(state.selectedVertices.size);
+        
+        state.activeMesh.localToWorld(avgPos);
+        editDummy.position.copy(avgPos);
+        transform.attach(editDummy);
+        transform.setMode('translate');
+        state.lastDummyPos.copy(editDummy.position);
+      } else {
+        transform.detach();
+      }
+    }
+  });
+}
+
+// Extrude Function
+function extrudeSelected() {
+  if (!state.activeMesh || state.selectedVertices.size === 0) return;
+  
+  // Find face indices that contain all 3 selected vertices (or just use the first face found)
+  const geometry = state.activeMesh.geometry;
+  if (!geometry.index) {
+    alert("Extrude requires an indexed geometry.");
+    return;
+  }
+  
+  const index = geometry.index.array;
+  let selectedFace = -1;
+  
+  // Simplified: Find the first face that contains a selected vertex
+  const v0 = Array.from(state.selectedVertices)[0];
+  for (let i = 0; i < index.length; i += 3) {
+    if (index[i] === v0 || index[i+1] === v0 || index[i+2] === v0) {
+       selectedFace = i / 3;
+       break;
+    }
+  }
+  
+  if (selectedFace !== -1) {
+    saveState(state.activeMesh);
+    extrudeFaces(geometry, [selectedFace]);
+    
+    // Update state
+    state.selectedVertices.clear();
+    syncPointsCloud();
+    transform.detach();
+    selectionBox.setFromObject(state.activeMesh);
+    state.brush.updateMesh(state.activeMesh);
+    state.brush.rebuildGrid();
+    if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
+  } else {
+    alert("Could not find a face for the selected vertices.");
+  }
+}
+
 window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });
 window.addEventListener("resize", () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
@@ -475,7 +600,6 @@ state.addCube();
 state.setTrackpadMode("camera");
 initUI(state, viewGizmo);
 
-// Initialize Color Picker UI State
 state.setPaintColor("#ff0000");
 
 const btnModeCam = document.getElementById("btnModeCamera");
@@ -486,15 +610,34 @@ if (btnModeCam && btnModeBrsh) {
   document.querySelector("#trackpad-surface span").textContent = "Move Camera (Trackpad)";
 }
 
+// Wire up Extrude button
+document.getElementById("extrudeBtn").onclick = extrudeSelected;
+document.getElementById("clearSelection").onclick = () => {
+  state.selectedVertices.clear();
+  syncPointsCloud();
+  transform.detach();
+};
+
+// Wire up Weight Paint toggle
+let weightPaintMode = false;
+document.getElementById("toggleWeightPaint").onclick = (e) => {
+  weightPaintMode = !weightPaintMode;
+  e.target.classList.toggle("active", weightPaintMode);
+  if (weightPaintMode) {
+    state.setMode("paint"); // Use brush in paint mode for weights
+    // Override the action handler for weight paint
+    state.mode = "weight_paint"; 
+  } else {
+    state.setMode("rig");
+  }
+};
+
 function animate() {
   requestAnimationFrame(animate);
   if (state.trackpadMode === 'camera' && controls) controls.update();
-  
-  // FIX: Update selection box dynamically to hug the deformed mesh
-  if (state.activeMesh && selectionBox.visible) {
+  if (state.activeMesh && selectionBox.visible && state.mode !== 'edit') {
     selectionBox.setFromObject(state.activeMesh);
   }
-  
   if (state.skeletonHelper) state.skeletonHelper.update();
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();

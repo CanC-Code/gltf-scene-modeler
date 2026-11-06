@@ -67,7 +67,7 @@ export function initUI(state, viewGizmo) {
     }
   };
 
-  const modes = ["Sculpt", "Paint", "Rig", "Move", "Rotate", "Scale"];
+  const modes = ["Sculpt", "Paint", "Edit", "Rig", "Move", "Rotate", "Scale"];
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {
@@ -115,7 +115,6 @@ export function initUI(state, viewGizmo) {
       ctx.fillStyle = `hsl(${angle}, 100%, 50%)`;
       ctx.fill();
     }
-    // Draw inner white/black gradient
     const grad = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
     grad.addColorStop(0, 'rgba(255,255,255,1)');
     grad.addColorStop(0.5, 'rgba(255,255,255,0)');
@@ -126,7 +125,6 @@ export function initUI(state, viewGizmo) {
     ctx.fill();
 
     colorWheel.onpointerdown = (e) => {
-       // Simple hex grab from wheel
        const rect = colorWheel.getBoundingClientRect();
        const x = e.clientX - rect.left;
        const y = e.clientY - rect.top;
