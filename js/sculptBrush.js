@@ -31,11 +31,13 @@ export class SculptBrush {
   setStrength(s) { this.strength = s; }
   setPaintColor(color) { this.paintColor.copy(color); }
 
-  apply(point, symmetry = false) {
+  apply(localPoint, symmetry = false) {
     const pos = this.position;
     const norm = this.normal;
-    const centers = [point.clone()];
-    if (symmetry) centers.push(new THREE.Vector3(-point.x, point.y, point.z));
+    
+    // localPoint is already in Local Space. Mirroring is perfect here.
+    const centers = [localPoint.clone()];
+    if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
 
     const affectedVertices = new Set();
     const v = new THREE.Vector3();
@@ -46,7 +48,7 @@ export class SculptBrush {
       const region = this.spatialHash.query(c, this.radius);
       if (region.length === 0) continue;
       avgNormal.set(0,0,0);
-      
+
       for (const i of region) {
         n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
         avgNormal.add(n);
@@ -57,7 +59,7 @@ export class SculptBrush {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         const dist = v.distanceTo(c);
         if (dist > this.radius) continue;
-        
+
         affectedVertices.add(i);
         const falloff = Math.pow(1 - dist / this.radius, 2);
         const influence = falloff * this.strength;
@@ -77,7 +79,7 @@ export class SculptBrush {
     if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices));
   }
 
-  paint(hit, symmetry = false) {
+  paint(localPoint, symmetry = false) {
     const geometry = this.mesh.geometry;
     const pos = geometry.attributes.position;
     if (!geometry.attributes.color) {
@@ -88,8 +90,9 @@ export class SculptBrush {
       this.mesh.material.needsUpdate = true;
     }
     const colorAttr = geometry.attributes.color;
-    const centers = [hit.point.clone()];
-    if (symmetry) centers.push(new THREE.Vector3(-hit.point.x, hit.point.y, hit.point.z));
+    
+    const centers = [localPoint.clone()];
+    if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
 
     const v = new THREE.Vector3();
     for (const c of centers) {
@@ -100,7 +103,7 @@ export class SculptBrush {
         if (dist <= this.radius) {
           const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
           const r = colorAttr.getX(i), g = colorAttr.getY(i), b = colorAttr.getZ(i);
-          colorAttr.setXYZ(i, 
+          colorAttr.setXYZ(i,
             THREE.MathUtils.lerp(r, this.paintColor.r, falloff),
             THREE.MathUtils.lerp(g, this.paintColor.g, falloff),
             THREE.MathUtils.lerp(b, this.paintColor.b, falloff)

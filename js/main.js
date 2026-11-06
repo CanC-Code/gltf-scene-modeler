@@ -56,16 +56,13 @@ dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 scene.add(new THREE.GridHelper(20, 20));
 
-/* Memory Safe Undo/Redo (Only clones Position & Color) */
+/* Memory Safe Undo/Redo */
 const undoStack = [], redoStack = [];
 function saveState(mesh) {
   if (!mesh) return;
   const pos = mesh.geometry.attributes.position;
   const col = mesh.geometry.attributes.color;
-  undoStack.push({
-    position: pos.clone(),
-    color: col ? col.clone() : null
-  });
+  undoStack.push({ position: pos.clone(), color: col ? col.clone() : null });
   if (undoStack.length > 20) undoStack.shift();
   redoStack.length = 0;
 }
@@ -73,11 +70,8 @@ function undo() {
   if (!state.activeMesh || !undoStack.length) return;
   const pos = state.activeMesh.geometry.attributes.position;
   const col = state.activeMesh.geometry.attributes.color;
-  redoStack.push({
-    position: pos.clone(),
-    color: col ? col.clone() : null
-  });
-  
+  redoStack.push({ position: pos.clone(), color: col ? col.clone() : null });
+
   const prev = undoStack.pop();
   state.activeMesh.geometry.setAttribute('position', prev.position);
   if (prev.color) {
@@ -89,7 +83,7 @@ function undo() {
   }
   state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
-  
+
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
@@ -97,11 +91,8 @@ function redo() {
   if (!state.activeMesh || !redoStack.length) return;
   const pos = state.activeMesh.geometry.attributes.position;
   const col = state.activeMesh.geometry.attributes.color;
-  undoStack.push({
-    position: pos.clone(),
-    color: col ? col.clone() : null
-  });
-  
+  undoStack.push({ position: pos.clone(), color: col ? col.clone() : null });
+
   const next = redoStack.pop();
   state.activeMesh.geometry.setAttribute('position', next.position);
   if (next.color) {
@@ -113,30 +104,30 @@ function redo() {
   }
   state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
-  
+
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 
 const actionArea = document.getElementById("action-area");
 const state = {
-  mode: "sculpt", 
-  activeTool: "inflate", 
-  trackpadMode: "camera", 
+  mode: "sculpt",
+  activeTool: "inflate",
+  trackpadMode: "camera",
   trackpadSensitivity: 0.6,
-  activeMesh: null, 
-  objects: [], // Scene Objects list
-  brush: null, 
-  wireframe: false, 
+  activeMesh: null,
+  objects: [],
+  brush: null,
+  wireframe: false,
   symmetryEnabled: false,
-  scene, 
-  controls, 
-  transform, 
-  paintColor: new THREE.Color("#ff0000"), 
-  lastHit: null, 
-  undo, 
+  scene,
+  controls,
+  transform,
+  paintColor: new THREE.Color("#ff0000"),
+  lastHit: null,
+  undo,
   redo,
-  
+
   setMode(mode) {
     this.mode = mode;
     if (mode === "sculpt" || mode === "paint") {
@@ -146,39 +137,39 @@ const state = {
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
       transform.setMode(mode);
-      controls.enabled = true; 
-      if (actionArea) actionArea.style.pointerEvents = "none"; 
+      controls.enabled = true;
+      if (actionArea) actionArea.style.pointerEvents = "none";
     } else {
       transform.detach();
       controls.enabled = true;
       if (actionArea) actionArea.style.pointerEvents = "auto";
     }
   },
-  
+
   setTrackpadMode(mode) {
     this.trackpadMode = mode;
-    if (mode === "camera") { controls.enabled = true; cursorGroup.visible = false; this.lastHit = null; } 
+    if (mode === "camera") { controls.enabled = true; cursorGroup.visible = false; this.lastHit = null; }
     else { if (this.mode === "sculpt" || this.mode === "paint") controls.enabled = false; }
   },
-  
-  setPaintColor(hex) { 
-    this.paintColor.set(hex); 
-    if (this.brush) this.brush.setPaintColor(this.paintColor); 
+
+  setPaintColor(hex) {
+    this.paintColor.set(hex);
+    if (this.brush) this.brush.setPaintColor(this.paintColor);
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
   },
-  
+
   setTool(tool) { this.activeTool = tool; if (this.brush) this.brush.setTool(tool); },
-  
+
   toggleWireframe() { this.wireframe = !this.wireframe; this.objects.forEach(m => m.material.wireframe = this.wireframe); },
-  
+
   addCube() {
     let geo = new THREE.BoxGeometry(2, 2, 2, 24, 24, 24);
-    geo = mergeVertices(geo); 
+    geo = mergeVertices(geo);
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
     this.addObject(mesh);
   },
-  
+
   addSphere() {
     let geo = new THREE.SphereGeometry(1.5, 64, 64);
     geo = mergeVertices(geo);
@@ -197,8 +188,8 @@ const state = {
   selectObject(mesh) {
     this.activeMesh = mesh;
     if (this.mode !== "sculpt" && this.mode !== "paint") transform.attach(mesh);
-    
-    this.brush = new SculptBrush(mesh); 
+
+    this.brush = new SculptBrush(mesh);
     this.brush.setPaintColor(this.paintColor);
     this.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
     this.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
@@ -225,13 +216,9 @@ const state = {
     this.activeMesh.material.dispose();
     this.activeMesh = null;
     this.brush = null;
-    
-    if (this.objects.length > 0) {
-      this.selectObject(this.objects[0]);
-    } else {
-      transform.detach();
-      if (viewGizmo) viewGizmo.updateMesh(null);
-    }
+
+    if (this.objects.length > 0) this.selectObject(this.objects[0]);
+    else { transform.detach(); if (viewGizmo) viewGizmo.updateMesh(null); }
     this.updateObjectList();
   },
 
@@ -247,17 +234,17 @@ const state = {
       list.appendChild(div);
     });
   },
-  
+
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
-  
+
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "application/json" })); a.download = "model.gltf"; a.click();
     });
   },
-  
+
   importGLTF(e) {
     const reader = new FileReader();
     reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
@@ -303,11 +290,19 @@ if (actionArea) {
 }
 
 function handleAction() {
-  if (state.trackpadMode !== 'brush') return; 
+  if (state.trackpadMode !== 'brush') return;
   const hit = state.lastHit;
   if (!hit) return;
-  if (state.mode === "sculpt") state.brush.apply(hit.point, state.symmetryEnabled);
-  else if (state.mode === "paint") state.brush.paint(hit, state.symmetryEnabled);
+  
+  // FIX: Convert the World Space hit point into the Local Space of the mesh
+  // This ensures math matches the vertices perfectly, fixing Pinch and Symmetry
+  const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
+
+  if (state.mode === "sculpt") {
+    state.brush.apply(localPoint, state.symmetryEnabled);
+  } else if (state.mode === "paint") {
+    state.brush.paint(localPoint, state.symmetryEnabled);
+  }
 }
 
 window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });
@@ -316,13 +311,11 @@ window.addEventListener("resize", () => { camera.aspect = window.innerWidth / wi
 let viewGizmo = null;
 try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.renderer.domElement.style.top = "60px"; } catch (e) { console.warn("Gizmo error", e); }
 
-state.addCube(); // Start with one cube
+state.addCube(); 
 state.setTrackpadMode("camera"); 
 
-// Initialize UI
 initUI(state, viewGizmo);
 
-// Sync UI
 const btnModeCam = document.getElementById("btnModeCamera");
 const btnModeBrsh = document.getElementById("btnModeBrush");
 if (btnModeCam && btnModeBrsh) {
