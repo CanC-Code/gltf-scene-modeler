@@ -5,7 +5,7 @@ export function initUI(state, viewGizmo) {
   const bottomPanel = document.getElementById("bottom-panel"), panelHandle = document.getElementById("panel-handle");
   if (bottomPanel && panelHandle) {
     panelHandle.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("#tool-selector-container")) return;
+      if (e.target.closest("#tool-selector-container") || e.target.closest("#color-picker-btn")) return;
       bottomPanel.classList.toggle("expanded");
     });
   }
@@ -23,6 +23,7 @@ export function initUI(state, viewGizmo) {
     };
   }
 
+  // --- Tool Selector ---
   const toolSelBtn = document.getElementById("tool-selector-btn"), toolDropdown = document.getElementById("tool-dropdown"), toolOpts = document.querySelectorAll(".tool-opt");
   if (toolSelBtn && toolDropdown) {
     toolSelBtn.onclick = (e) => { e.stopPropagation(); toolDropdown.classList.toggle("show"); };
@@ -41,6 +42,14 @@ export function initUI(state, viewGizmo) {
         toolDropdown.classList.remove("show");
       };
     });
+  }
+
+  // --- Bottom Panel Color Picker ---
+  const colorBtn = document.getElementById("color-picker-btn");
+  const hiddenPicker = document.getElementById("hidden-color-picker");
+  if (colorBtn && hiddenPicker) {
+    colorBtn.onclick = () => hiddenPicker.click();
+    hiddenPicker.oninput = (e) => state.setPaintColor(e.target.value);
   }
 
   const pUndo = document.getElementById("panelUndoBtn"), pRedo = document.getElementById("panelRedoBtn");
@@ -64,19 +73,15 @@ export function initUI(state, viewGizmo) {
     }
   };
 
-  const modes = ["Sculpt", "Paint", "Rig", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
+  const modes = ["Sculpt", "Paint", "Rig", "Move", "Rotate", "Scale"];
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {
       state.setMode(m.toLowerCase());
       modes.forEach(x => { const b = document.getElementById("tool" + x); if (b) b.classList.remove("active"); });
       btn.classList.add("active");
-      if (paintOptions) paintOptions.style.display = (m === "Paint") ? "block" : "none";
     };
   });
-
-  const paintColorInput = document.getElementById("paintColor");
-  if (paintColorInput) paintColorInput.oninput = e => state.setPaintColor(e.target.value);
 
   const bgColorInput = document.getElementById("bgColor");
   if (bgColorInput) bgColorInput.oninput = e => { if (state.scene) state.scene.background.set(e.target.value); };

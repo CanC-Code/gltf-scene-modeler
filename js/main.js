@@ -73,11 +73,7 @@ function captureState(mesh) {
   const pos = mesh.geometry.attributes.position;
   const norm = mesh.geometry.attributes.normal;
   const col = mesh.geometry.attributes.color;
-  return {
-    position: pos.clone(),
-    normal: norm ? norm.clone() : null,
-    color: col ? col.clone() : null
-  };
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -92,7 +88,6 @@ function undo() {
   state.activeMesh.geometry.setAttribute('position', prev.position);
   if (prev.normal) state.activeMesh.geometry.setAttribute('normal', prev.normal);
   else state.activeMesh.geometry.computeVertexNormals();
-  
   if (prev.color) {
     state.activeMesh.geometry.setAttribute('color', prev.color);
     state.activeMesh.material.vertexColors = true;
@@ -101,7 +96,6 @@ function undo() {
     state.activeMesh.material.vertexColors = false;
   }
   state.activeMesh.material.needsUpdate = true;
-
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   selectionBox.setFromObject(state.activeMesh);
@@ -113,7 +107,6 @@ function redo() {
   state.activeMesh.geometry.setAttribute('position', next.position);
   if (next.normal) state.activeMesh.geometry.setAttribute('normal', next.normal);
   else state.activeMesh.geometry.computeVertexNormals();
-  
   if (next.color) {
     state.activeMesh.geometry.setAttribute('color', next.color);
     state.activeMesh.material.vertexColors = true;
@@ -122,7 +115,6 @@ function redo() {
     state.activeMesh.material.vertexColors = false;
   }
   state.activeMesh.material.needsUpdate = true;
-
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   selectionBox.setFromObject(state.activeMesh);
@@ -146,14 +138,14 @@ const state = {
   lastHit: null,
   skeletonHelper: null,
   currentBones: null,
+  activeBoneIndex: 0,
   undo,
   redo,
 
   setMode(mode) {
     this.mode = mode;
     
-    // Toggle Side Menu Panels
-    document.getElementById("scene-panel").classList.toggle("active", mode === "sculpt" || mode === "paint" || mode === "move" || mode === "rotate" || mode === "scale");
+    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig");
     document.getElementById("rig-panel").classList.toggle("active", mode === "rig");
     document.getElementById("sculpt-panel").classList.toggle("active", mode === "sculpt" || mode === "paint");
 
@@ -162,20 +154,13 @@ const state = {
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
     } else if (mode === "rig") {
-      // Attach gizmo to selected bone or mesh
-      if (this.activeMesh) {
-        if (this.currentBones && this.currentBones.length > 0) {
-          transform.attach(this.currentBones[0]); // Default to root bone
-        } else {
-          transform.attach(this.activeMesh);
-        }
-      }
-      transform.setMode('translate');
+      this.selectBone(this.activeBoneIndex); // Re-attach gizmo to current bone
       controls.enabled = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
-      transform.setMode(mode);
+      // FIX: Map "move" to "translate" for Three.js
+      transform.setMode(mode === "move" ? "translate" : mode);
       controls.enabled = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else {
@@ -195,6 +180,12 @@ const state = {
     this.paintColor.set(hex);
     if (this.brush) this.brush.setPaintColor(this.paintColor);
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
+    
+    // Sync Color Picker UI
+    const btn = document.getElementById("color-picker-btn");
+    if (btn) btn.style.background = hex;
+    const input = document.getElementById("hidden-color-picker");
+    if (input) input.value = hex;
   },
 
   setTool(tool) { this.activeTool = tool; if (this.brush) this.brush.setTool(tool); },
@@ -232,11 +223,11 @@ const state = {
     this.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
     this.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
     this.brush.setTool(this.activeTool);
-    
+
     if (viewGizmo) viewGizmo.updateMesh(mesh);
     selectionBox.setFromObject(mesh);
     selectionBox.visible = true;
-    
+
     this.updateObjectList();
   },
 
@@ -260,10 +251,10 @@ const state = {
     this.brush = null;
 
     if (this.objects.length > 0) this.selectObject(this.objects[0]);
-    else { 
-      transform.detach(); 
+    else {
+      transform.detach();
       selectionBox.visible = false;
-      if (viewGizmo) viewGizmo.updateMesh(null); 
+      if (viewGizmo) viewGizmo.updateMesh(null);
     }
     this.updateObjectList();
   },
@@ -274,7 +265,7 @@ const state = {
     list.innerHTML = "";
     this.objects.forEach((obj, index) => {
       const div = document.createElement("div");
-      div.className = `object-item ${obj === this.activeMesh ? 'active' : ''}`;
+      div.className = `list-item ${obj === this.activeMesh ? 'active' : ''}`;
       div.innerHTML = `<span>${obj.geometry.type.replace("Geometry", "")} ${index + 1}</span>`;
       div.onclick = () => this.selectObject(obj);
       list.appendChild(div);
@@ -284,46 +275,35 @@ const state = {
   addBoneChain() {
     if (!this.activeMesh) return;
 
-    // 1. Create Bones
     const rootBone = new THREE.Bone();
-    rootBone.position.set(0, -1, 0); // Base
-    
+    rootBone.position.set(0, -1, 0);
     const midBone = new THREE.Bone();
-    midBone.position.set(0, 1, 0); // Relative to root
+    midBone.position.set(0, 1, 0);
     rootBone.add(midBone);
-    
     const endBone = new THREE.Bone();
-    endBone.position.set(0, 1, 0); // Relative to mid
+    endBone.position.set(0, 1, 0);
     midBone.add(endBone);
 
     const bones = [rootBone, midBone, endBone];
     this.currentBones = bones;
-
-    // 2. Create Skeleton
     const skeleton = new THREE.Skeleton(bones);
 
-    // 3. Convert Mesh to SkinnedMesh
     const geo = this.activeMesh.geometry;
     const posCount = geo.attributes.position.count;
-    
-    // Add skinIndex and skinWeight attributes if missing
+
     if (!geo.attributes.skinIndex) {
       const skinIndices = new Uint16Array(posCount * 4);
       const skinWeights = new Float32Array(posCount * 4);
 
       for (let i = 0; i < posCount; i++) {
         const y = geo.attributes.position.getY(i);
-        let weight = 0;
-        let index = 0;
-
-        if (y < -0.5) { weight = 1; index = 0; } // Root
-        else if (y < 0.5) { weight = 1; index = 1; } // Mid
-        else { weight = 1; index = 2; } // End
-
+        let weight = 0; let index = 0;
+        if (y < -0.5) { weight = 1; index = 0; }
+        else if (y < 0.5) { weight = 1; index = 1; }
+        else { weight = 1; index = 2; }
         skinIndices[i * 4] = index;
         skinWeights[i * 4] = weight;
       }
-
       geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
       geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
     }
@@ -332,25 +312,43 @@ const state = {
     skinnedMesh.position.copy(this.activeMesh.position);
     skinnedMesh.rotation.copy(this.activeMesh.rotation);
     skinnedMesh.scale.copy(this.activeMesh.scale);
-    
     skinnedMesh.add(rootBone);
     skinnedMesh.bind(skeleton);
 
-    // Replace in scene
     scene.remove(this.activeMesh);
     scene.add(skinnedMesh);
-    
-    // Update state
     this.activeMesh = skinnedMesh;
-    
-    // Add Skeleton Helper
+
     this.skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
     this.skeletonHelper.material.linewidth = 3;
     scene.add(this.skeletonHelper);
 
-    // Attach gizmo to the root bone
-    transform.attach(rootBone);
+    this.updateBoneList();
+    this.selectBone(0);
+  },
+
+  updateBoneList() {
+    const list = document.getElementById("bone-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!this.currentBones) return;
+
+    const names = ["Root Bone", "Mid Bone", "End Bone"];
+    this.currentBones.forEach((bone, index) => {
+      const div = document.createElement("div");
+      div.className = `list-item ${index === this.activeBoneIndex ? 'active' : ''}`;
+      div.innerHTML = `<span>${names[index]}</span>`;
+      div.onclick = () => this.selectBone(index);
+      list.appendChild(div);
+    });
+  },
+
+  selectBone(index) {
+    if (!this.currentBones || !this.currentBones[index]) return;
+    this.activeBoneIndex = index;
+    transform.attach(this.currentBones[index]);
     transform.setMode('translate');
+    this.updateBoneList();
   },
 
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
@@ -424,7 +422,6 @@ try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.rende
 
 state.addCube();
 state.setTrackpadMode("camera");
-
 initUI(state, viewGizmo);
 
 const btnModeCam = document.getElementById("btnModeCamera");
