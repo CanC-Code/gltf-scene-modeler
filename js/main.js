@@ -8,6 +8,7 @@ import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
 import { FontLoader } from "../three/FontLoader.js";
 import { TextGeometry } from "../three/TextGeometry.js";
+import { mergeVertices } from "../three/utils/BufferGeometryUtils.js"; // <--- IMPORT FOR WELDING
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -107,7 +108,7 @@ function redo() {
 
 const state = {
   mode: "sculpt", 
-  trackpadMode: "camera", // FIX: Default to camera to sync with initial HTML
+  trackpadMode: "camera", 
   trackpadSensitivity: 0.6,
   activeMesh: null, 
   brush: null, 
@@ -123,10 +124,9 @@ const state = {
   setMode(mode) {
     this.mode = mode;
     
-    // Hide/Show Edit overlay
     if (mode === "edit") {
       pointsOverlay.visible = true;
-      if (this.activeMesh) this.activeMesh.visible = false; // Hide solid mesh for pure edit
+      if (this.activeMesh) this.activeMesh.visible = false; 
     } else {
       pointsOverlay.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
@@ -157,12 +157,19 @@ const state = {
   },
   createCube() {
     clearActiveMesh();
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2, 24, 24, 24), new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe }));
+    // FIX: Merge vertices to prevent hard edges from ripping apart during sculpt
+    let geo = new THREE.BoxGeometry(2, 2, 2, 24, 24, 24);
+    geo = mergeVertices(geo); 
+    
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, wireframe: this.wireframe }));
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
   createSphere() {
     clearActiveMesh();
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 64, 64), new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe }));
+    let geo = new THREE.SphereGeometry(1.5, 64, 64);
+    geo = mergeVertices(geo);
+    
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ff88, wireframe: this.wireframe }));
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
   setTool(tool) { if (this.brush) this.brush.setTool(tool); },
@@ -181,7 +188,11 @@ const state = {
     const reader = new FileReader();
     reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
       const mesh = gltf.scene.getObjectByProperty("type", "Mesh");
-      if (mesh) { setActiveMesh(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh); }
+      if (mesh) { 
+        mesh.geometry = mergeVertices(mesh.geometry); // Weld on import too
+        setActiveMesh(mesh); 
+        if (viewGizmo) viewGizmo.updateMesh(mesh); 
+      }
     });
     reader.readAsArrayBuffer(e.target.files[0]);
   }
@@ -203,9 +214,8 @@ function setActiveMesh(mesh) {
   state.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
   state.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
   
-  // Sync points overlay
   pointsOverlay.geometry = mesh.geometry;
-  pointsOverlay.material.size = 0.08; // Adjust point size
+  pointsOverlay.material.size = 0.08; 
 }
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -224,7 +234,6 @@ if (trackpadSurface) {
     
     raycaster.setFromCamera(mouse, camera);
     
-    // If in edit mode, raycast against the points overlay instead
     const target = state.mode === "edit" ? pointsOverlay : state.activeMesh;
     const hit = raycaster.intersectObject(target)[0];
     
@@ -237,7 +246,7 @@ if (trackpadSurface) {
         cursorGroup.lookAt(hit.point.clone().addScaledVector(normal, 1));
         cursorGroup.scale.setScalar(state.brush.radius);
       } else {
-        cursorGroup.visible = false; // Hide sculpt cursor in edit mode
+        cursorGroup.visible = false; 
       }
     } else {
       state.lastHit = null;
@@ -265,7 +274,6 @@ function handleAction() {
   if (state.mode === "sculpt") state.brush.apply(hit.point);
   else if (state.mode === "paint") state.brush.paint(hit);
   else if (state.mode === "edit" && hit.index !== undefined) {
-     // Basic selection highlight: change color of the selected vertex
      if (!pointsOverlay.geometry.attributes.color) {
        const colors = new Float32Array(pointsOverlay.geometry.attributes.position.count * 3);
        colors.fill(1.0);
@@ -273,7 +281,7 @@ function handleAction() {
        pointsOverlay.material.vertexColors = true;
      }
      const colorAttr = pointsOverlay.geometry.attributes.color;
-     colorAttr.setXYZ(hit.index, 1, 0, 0); // Highlight red
+     colorAttr.setXYZ(hit.index, 1, 0, 0); 
      colorAttr.needsUpdate = true;
   }
 }
@@ -286,7 +294,7 @@ try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.rende
 
 state.createCube();
 
-// FIX: Sync initial UI state
+// FIX: Explicitly sync UI state to Camera
 state.setTrackpadMode("camera"); 
 const btnModeCam = document.getElementById("btnModeCamera");
 const btnModeBrsh = document.getElementById("btnModeBrush");
