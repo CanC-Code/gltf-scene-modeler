@@ -47,6 +47,8 @@
     #tool-dropdown button:hover, #tool-dropdown button.active { background: #4a90e2; color: white; }
 
     #color-picker-btn { width: 32px; height: 32px; border-radius: 4px; border: 2px solid #fff; cursor: pointer; background: #ff0000; }
+    #focus-camera-btn { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #555; cursor: pointer; background: #444; color: #fff; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+    #focus-camera-btn:hover { background: #4a90e2; }
 
     #panel-content { flex: 1; display: flex; padding: 0; min-height: 0; }
     #trackpad-area, #action-area-wrapper { flex: 1; display: flex; flex-direction: column; margin: 10px; min-width: 0; }
@@ -72,6 +74,11 @@
     .slider-group input[type="range"] { flex: 1; }
     #color-preview { width: 100%; height: 40px; border-radius: 6px; border: 1px solid #555; }
     #cp-apply { padding: 10px; background: #4a90e2; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 5px; }
+
+    /* Toast Notifications */
+    #toast-container { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; align-items: center; }
+    .toast { background: rgba(0, 0, 0, 0.85); color: white; padding: 10px 24px; border-radius: 20px; font-size: 14px; opacity: 0; transform: translateY(-10px); transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.3); text-align: center; max-width: 80vw; }
+    .toast.show { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 
@@ -110,7 +117,6 @@
       <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-top: 5px;" />
     </div>
 
-    <!-- Edit Panel -->
     <div id="edit-panel" class="panel-section">
       <h3>Topology</h3>
       <button id="extrudeBtn" style="background: #9c27b0;">Extrude Selected Face</button>
@@ -122,13 +128,14 @@
       <h3>Armature</h3>
       <button id="addBoneChain" style="background: #4caf50;">Create Armature</button>
       <button id="bindSkin" style="background: #ff9800;">Bind Skin to Bones</button>
-      
+
       <h3>Select Bone</h3>
       <div id="bone-list">
         <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
       </div>
 
       <h3>Weight Paint</h3>
+      <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 5px;">Active: None</p>
       <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
 
       <h3>Bone Settings</h3>
@@ -163,6 +170,7 @@
           </div>
         </div>
         <button id="color-picker-btn" title="Paint Color"></button>
+        <button id="focus-camera-btn" title="Focus Camera">🎯</button>
       </div>
       <span class="handle-arrow">▲</span>
       <div style="width: 120px;"></div>
@@ -191,6 +199,8 @@
     </div>
   </div>
 
+  <div id="toast-container"></div>
+
   <div id="color-picker-modal">
     <div id="color-picker-header">
       <span>Color Picker</span>
@@ -212,6 +222,6 @@
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
-  <script type="module" src="./js/main.js?v=19"></script>
+  <script type="module" src="./js/main.js?v=20"></script>
 </body>
 </html>

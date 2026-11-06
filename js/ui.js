@@ -5,10 +5,25 @@ export function initUI(state, viewGizmo) {
   const bottomPanel = document.getElementById("bottom-panel"), panelHandle = document.getElementById("panel-handle");
   if (bottomPanel && panelHandle) {
     panelHandle.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("#tool-selector-container") || e.target.closest("#color-picker-btn")) return;
+      if (e.target.closest("#tool-selector-container") || e.target.closest("#color-picker-btn") || e.target.closest("#focus-camera-btn")) return;
       bottomPanel.classList.toggle("expanded");
     });
   }
+
+  // Toast Notification Helper
+  window.showToast = (msg) => {
+    const container = document.getElementById("toast-container");
+    if (!container) return;
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = msg;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("show"));
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
 
   const btnModeCamera = document.getElementById("btnModeCamera"), btnModeBrush = document.getElementById("btnModeBrush");
   if (btnModeCamera && btnModeBrush) {
@@ -76,6 +91,10 @@ export function initUI(state, viewGizmo) {
       btn.classList.add("active");
     };
   });
+
+  // --- Focus Camera Button ---
+  const focusBtn = document.getElementById("focus-camera-btn");
+  if (focusBtn) focusBtn.onclick = () => state.focusCamera();
 
   // --- Custom Color Picker UI ---
   const colorBtn = document.getElementById("color-picker-btn");

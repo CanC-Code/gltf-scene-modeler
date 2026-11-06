@@ -34,7 +34,6 @@ selectionBox.raycast = () => {};
 selectionBox.visible = false;
 scene.add(selectionBox);
 
-// FIX: depthTest: false makes points visible through the mesh
 const pointsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, vertexColors: true, depthTest: false, transparent: true, opacity: 1.0 });
 const pointsCloud = new THREE.Points(new THREE.BufferGeometry(), pointsMat);
 pointsCloud.visible = false;
@@ -63,7 +62,6 @@ scene.add(transform);
 
 transform.addEventListener('dragging-changed', e => {
   controls.enabled = !e.value;
-  // FIX: Only recalculate normals when the drag finishes to prevent lag
   if (!e.value && state.mode === 'edit' && state.activeMesh) {
     state.activeMesh.geometry.computeVertexNormals();
     state.brush.rebuildGrid();
@@ -80,8 +78,6 @@ transform.addEventListener('objectChange', () => {
     });
     
     pos.needsUpdate = true;
-    
-    // Update points cloud
     pointsCloud.geometry.attributes.position.needsUpdate = true;
     state.lastDummyPos.copy(editDummy.position);
   } else if (state.activeMesh) {
@@ -235,6 +231,21 @@ const state = {
   setTool(tool) { this.activeTool = tool; if (this.brush) this.brush.setTool(tool); },
   toggleWireframe() { this.wireframe = !this.wireframe; this.objects.forEach(m => m.material.wireframe = this.wireframe); },
 
+  focusCamera() {
+    if (!this.activeMesh) return;
+    const box = new THREE.Box3().setFromObject(this.activeMesh);
+    const size = box.getSize(new THREE.Vector3()).length();
+    const center = box.getCenter(new THREE.Vector3());
+    const fitHeightDistance = size / (2 * Math.tan(Math.PI * camera.fov / 360));
+    const fitWidthDistance = fitHeightDistance / camera.aspect;
+    const distance = Math.max(fitHeightDistance, fitWidthDistance) * 1.2; // 20% padding
+    
+    const direction = camera.position.clone().sub(center).normalize().multiplyScalar(distance);
+    camera.position.copy(center).add(direction);
+    controls.target.copy(center);
+    controls.update();
+  },
+
   addCube() {
     let geo = new THREE.BoxGeometry(2, 2, 2, 24, 24, 24);
     geo = mergeVertices(geo);
@@ -347,7 +358,7 @@ const state = {
 
     this.updateBoneList();
     this.selectBone(0);
-    alert("Armature created! Now click 'Bind Skin to Bones' to attach it.");
+    if (window.showToast) window.showToast("Armature created! Now click 'Bind Skin to Bones'.");
   },
 
   bindSkin() {
@@ -389,7 +400,7 @@ const state = {
     this.skeletonHelper.material.linewidth = 3;
     scene.add(this.skeletonHelper);
 
-    alert("Skin bound successfully! Select Move/Rotate to pose.");
+    if (window.showToast) window.showToast("Skin bound successfully! Select Move/Rotate to pose.");
     this.selectBone(0);
   },
 
@@ -406,6 +417,10 @@ const state = {
       div.onclick = () => this.selectBone(index);
       list.appendChild(div);
     });
+    
+    // Update Active Bone Label
+    const label = document.getElementById("active-bone-label");
+    if (label) label.textContent = `Active: ${names[this.activeBoneIndex]}`;
   },
 
   selectBone(index) {
@@ -496,7 +511,6 @@ function handleAction() {
   const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
   if (state.mode === "sculpt") state.brush.apply(localPoint, state.symmetryEnabled);
   else if (state.mode === "paint") state.brush.paint(localPoint, state.symmetryEnabled);
-  // FIX: Route weight painting correctly
   else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
 }
 
@@ -510,7 +524,11 @@ if (trackpadSurface) {
     mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
     
     raycaster.setFromCamera(mouse, camera);
-    raycaster.params.Points.threshold = 0.1;
+    
+    // Dynamic threshold based on camera distance
+    const distToMesh = camera.position.distanceTo(state.activeMesh.position);
+    raycaster.params.Points.threshold = distToMesh * 0.03;
+
     const hit = raycaster.intersectObject(pointsCloud)[0];
     
     if (hit) {
@@ -543,7 +561,7 @@ function extrudeSelected() {
   if (!state.activeMesh || state.selectedVertices.size === 0) return;
   const geometry = state.activeMesh.geometry;
   if (!geometry.index) {
-    alert("Extrude requires an indexed geometry.");
+    if (window.showToast) window.showToast("Extrude requires an indexed geometry.");
     return;
   }
   
@@ -568,7 +586,7 @@ function extrudeSelected() {
     state.brush.rebuildGrid();
     if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   } else {
-    alert("Could not find a face for the selected vertices.");
+    if (window.showToast) window.showToast("Could not find a face for the selected vertices.");
   }
 }
 
