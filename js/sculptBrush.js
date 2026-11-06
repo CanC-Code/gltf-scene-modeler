@@ -1,34 +1,30 @@
-// js/sculptBrush.js
 import * as THREE from "../three/three.module.js";
 
 export class SculptBrush {
   constructor(mesh) {
-    this.mesh = mesh;
-    this.geometry = mesh.geometry;
-    this.position = this.geometry.attributes.position;
-    this.normal = this.geometry.attributes.normal;
-
-    this.radius = 1;
-    this.strength = 0.3;
+    this.setMesh(mesh);
+    this.radius = 0.2;
+    this.strength = 0.5;
     this.tool = "inflate";
     this.paintColor = new THREE.Color("#ff0000");
   }
 
-  setTool(tool) {
-    this.tool = tool;
+  setMesh(mesh) {
+    this.mesh = mesh;
+    this.geometry = mesh.geometry;
+    this.position = this.geometry.attributes.position;
+    this.normal = this.geometry.attributes.normal;
   }
 
-  setRadius(r) {
-    this.radius = r;
+  // New method to fix the Undo bug
+  updateMesh(mesh) {
+    this.setMesh(mesh);
   }
 
-  setStrength(s) {
-    this.strength = s;
-  }
-
-  setPaintColor(color) {
-    this.paintColor.copy(color);
-  }
+  setTool(tool) { this.tool = tool; }
+  setRadius(r) { this.radius = r; }
+  setStrength(s) { this.strength = s; }
+  setPaintColor(color) { this.paintColor.copy(color); }
 
   apply(point, symmetry = false) {
     const pos = this.position;
@@ -64,47 +60,17 @@ export class SculptBrush {
         let ox = 0, oy = 0, oz = 0;
 
         switch (this.tool) {
-          case "inflate":
-            ox = avgNormal.x * influence;
-            oy = avgNormal.y * influence;
-            oz = avgNormal.z * influence;
-            break;
-          case "deflate":
-            ox = -avgNormal.x * influence;
-            oy = -avgNormal.y * influence;
-            oz = -avgNormal.z * influence;
-            break;
-          case "smooth":
-            ox = (avgNormal.x - v.x) * influence * 0.5;
-            oy = (avgNormal.y - v.y) * influence * 0.5;
-            oz = (avgNormal.z - v.z) * influence * 0.5;
-            break;
-          case "flatten":
-            ox = -avgNormal.x * dist * influence;
-            oy = -avgNormal.y * dist * influence;
-            oz = -avgNormal.z * dist * influence;
-            break;
-          case "pinch":
-            ox = -(v.x - c.x) * influence;
-            oy = -(v.y - c.y) * influence;
-            oz = -(v.z - c.z) * influence;
-            break;
-          case "clay":
-            ox = avgNormal.x * influence * 0.6;
-            oy = avgNormal.y * influence * 0.6;
-            oz = avgNormal.z * influence * 0.6;
-            break;
-          case "scrape":
-            ox = -avgNormal.x * influence * 0.8;
-            oy = -avgNormal.y * influence * 0.8;
-            oz = -avgNormal.z * influence * 0.8;
-            break;
+          case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
+          case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
+          case "smooth": ox = (avgNormal.x - v.x) * influence * 0.5; oy = (avgNormal.y - v.y) * influence * 0.5; oz = (avgNormal.z - v.z) * influence * 0.5; break;
+          case "flatten": ox = -avgNormal.x * dist * influence; oy = -avgNormal.y * dist * influence; oz = -avgNormal.z * dist * influence; break;
+          case "pinch": ox = -(v.x - c.x) * influence; oy = -(v.y - c.y) * influence; oz = -(v.z - c.z) * influence; break;
+          case "clay": ox = avgNormal.x * influence * 0.6; oy = avgNormal.y * influence * 0.6; oz = avgNormal.z * influence * 0.6; break;
+          case "scrape": ox = -avgNormal.x * influence * 0.8; oy = -avgNormal.y * influence * 0.8; oz = -avgNormal.z * influence * 0.8; break;
         }
-
         pos.setXYZ(i, v.x + ox, v.y + oy, v.z + oz);
       }
     }
-
     pos.needsUpdate = true;
     this.geometry.computeVertexNormals();
   }
@@ -131,9 +97,7 @@ export class SculptBrush {
       
       if (dist <= this.radius) {
         const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
-        const r = colorAttr.getX(i);
-        const g = colorAttr.getY(i);
-        const b = colorAttr.getZ(i);
+        const r = colorAttr.getX(i), g = colorAttr.getY(i), b = colorAttr.getZ(i);
         
         colorAttr.setXYZ(i, 
           THREE.MathUtils.lerp(r, this.paintColor.r, falloff),

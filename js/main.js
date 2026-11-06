@@ -25,38 +25,20 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
-/* ===============================
-   Professional 3D Brush Cursor
-================================ */
+// Professional 3D Brush Cursor
 const cursorGroup = new THREE.Group();
-
-// 1. Outer Ring
 const outerRingGeo = new THREE.RingGeometry(0.9, 1.0, 32);
-const cursorMat = new THREE.MeshBasicMaterial({ 
-  color: 0xffffff, 
-  side: THREE.DoubleSide, 
-  transparent: true, 
-  opacity: 0.9, 
-  depthTest: true, 
-  depthWrite: false 
-});
+const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false });
 const outerRing = new THREE.Mesh(outerRingGeo, cursorMat);
 cursorGroup.add(outerRing);
 
-// 2. Inner Dot (Precise center)
 const innerDotGeo = new THREE.CircleGeometry(0.05, 16);
 const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: true, depthWrite: false });
 const innerDot = new THREE.Mesh(innerDotGeo, dotMat);
 cursorGroup.add(innerDot);
 
-// 3. Crosshairs
 const crossGeo = new THREE.BufferGeometry();
-const crossVertices = new Float32Array([
-  -1.2, 0, 0,  -0.2, 0, 0,
-   0.2, 0, 0,   1.2, 0, 0,
-   0, -1.2, 0,   0, -0.2, 0,
-   0,  0.2, 0,   0,  1.2, 0
-]);
+const crossVertices = new Float32Array([ -1.2, 0, 0, -0.2, 0, 0, 0.2, 0, 0, 1.2, 0, 0, 0, -1.2, 0, 0, -0.2, 0, 0, 0.2, 0, 0, 1.2, 0 ]);
 crossGeo.setAttribute('position', new THREE.BufferAttribute(crossVertices, 3));
 const crossMat = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: true, depthWrite: false, transparent: true, opacity: 0.6 });
 const crosshairs = new THREE.LineSegments(crossGeo, crossMat);
@@ -106,6 +88,9 @@ function undo() {
   state.activeMesh.material.vertexColors = prev.hasColors;
   state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
+  
+  // FIX: Update brush reference so it targets the new geometry
+  if (state.brush) state.brush.updateMesh(state.activeMesh);
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 function redo() {
@@ -117,11 +102,27 @@ function redo() {
   state.activeMesh.material.vertexColors = next.hasColors;
   state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
+  
+  // FIX: Update brush reference
+  if (state.brush) state.brush.updateMesh(state.activeMesh);
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 
 const state = {
-  mode: "sculpt", trackpadMode: "brush", activeMesh: null, brush: null, wireframe: false, controls, transform, paintColor: new THREE.Color("#ff0000"), lastHit: null, undo, redo,
+  mode: "sculpt", 
+  trackpadMode: "brush", 
+  trackpadSensitivity: 0.6,
+  activeMesh: null, 
+  brush: null, 
+  wireframe: false, 
+  scene, // Exposed for background color
+  controls, 
+  transform, 
+  paintColor: new THREE.Color("#ff0000"), 
+  lastHit: null, 
+  undo, 
+  redo,
+  
   setMode(mode) {
     this.mode = mode;
     if (mode === "sculpt" || mode === "paint") {
@@ -141,7 +142,6 @@ const state = {
   setPaintColor(hex) { 
     this.paintColor.set(hex); 
     if (this.brush) this.brush.setPaintColor(this.paintColor); 
-    // Update cursor color to match paint
     cursorMat.color.set(hex);
     dotMat.color.set(hex);
     crossMat.color.set(hex);
@@ -202,18 +202,17 @@ function setActiveMesh(mesh) {
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 let isActionActive = false;
 
-// Trackpad Tracking (Proportional mapping)
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointermove", e => {
     if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush) return;
     
     const rect = trackpadSurface.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
     
-    // Map trackpad 0..1 to screen NDC -1..1
-    mouse.x = (x / rect.width) * 2 - 1;
-    mouse.y = -(y / rect.height) * 2 + 1;
+    // Apply sensitivity and clamp to screen bounds
+    mouse.x = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
+    mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
     
     raycaster.setFromCamera(mouse, camera);
     const hit = raycaster.intersectObject(state.activeMesh)[0];
@@ -222,7 +221,6 @@ if (trackpadSurface) {
       state.lastHit = hit;
       cursorGroup.visible = true;
       
-      // Offset slightly to prevent z-fighting
       const normal = hit.face.normal.clone().transformDirection(state.activeMesh.matrixWorld);
       cursorGroup.position.copy(hit.point).addScaledVector(normal, 0.02);
       cursorGroup.lookAt(hit.point.clone().addScaledVector(normal, 1));
@@ -234,7 +232,6 @@ if (trackpadSurface) {
   });
 }
 
-// Action Area Clicker (Right side)
 const actionArea = document.getElementById("action-area");
 if (actionArea) {
   actionArea.addEventListener("pointerdown", e => {
@@ -251,11 +248,8 @@ function handleAction() {
   const hit = state.lastHit;
   if (!hit) return;
   
-  if (state.mode === "sculpt") {
-    state.brush.apply(hit.point);
-  } else if (state.mode === "paint") {
-    state.brush.paint(hit);
-  }
+  if (state.mode === "sculpt") state.brush.apply(hit.point);
+  else if (state.mode === "paint") state.brush.paint(hit);
 }
 
 window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });
