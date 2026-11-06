@@ -18,7 +18,7 @@ export function initUI(state, viewGizmo) {
     };
     btnModeBrush.onclick = () => {
       state.setTrackpadMode('brush'); btnModeBrush.classList.add("active"); btnModeCamera.classList.remove("active");
-      const span = document.querySelector("#trackpad-surface span"); 
+      const span = document.querySelector("#trackpad-surface span");
       if (span) span.textContent = `Guide Brush: ${state.activeTool.charAt(0).toUpperCase() + state.activeTool.slice(1)}`;
     };
   }
@@ -35,7 +35,7 @@ export function initUI(state, viewGizmo) {
         opt.classList.add("active");
         toolSelBtn.textContent = `Tool: ${opt.textContent} ▼`;
         if (state.trackpadMode === 'brush') {
-          const span = document.querySelector("#trackpad-surface span"); 
+          const span = document.querySelector("#trackpad-surface span");
           if (span) span.textContent = `Guide Brush: ${opt.textContent}`;
         }
         toolDropdown.classList.remove("show");
@@ -52,7 +52,19 @@ export function initUI(state, viewGizmo) {
   if (dupBtn) dupBtn.onclick = () => state.duplicateObject();
   if (delBtn) delBtn.onclick = () => state.deleteObject();
 
-  const modes = ["Sculpt", "Paint", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
+  // Rigging UI
+  const addBoneBtn = document.getElementById("addBoneChain");
+  if (addBoneBtn) addBoneBtn.onclick = () => state.addBoneChain();
+
+  const showSkelBtn = document.getElementById("showSkeleton");
+  if (showSkelBtn) showSkelBtn.onclick = () => {
+    if (state.skeletonHelper) {
+      state.skeletonHelper.visible = !state.skeletonHelper.visible;
+      showSkelBtn.classList.toggle("active", state.skeletonHelper.visible);
+    }
+  };
+
+  const modes = ["Sculpt", "Paint", "Rig", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {
@@ -88,8 +100,8 @@ export function initUI(state, viewGizmo) {
   if (importGltf) importGltf.onchange = e => state.importGLTF?.(e);
 
   const symmetryBtn = document.getElementById("toggleSymmetry");
-  if (symmetryBtn) symmetryBtn.onclick = () => { 
-    state.symmetryEnabled = !state.symmetryEnabled; 
+  if (symmetryBtn) symmetryBtn.onclick = () => {
+    state.symmetryEnabled = !state.symmetryEnabled;
     symmetryBtn.classList.toggle("active", state.symmetryEnabled);
   };
 }

@@ -28,12 +28,12 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
-// Selection Bounding Box
 const selectionBox = new THREE.BoxHelper(new THREE.Object3D(), 0x4a90e2);
-selectionBox.raycast = () => {}; // Prevent interfering with raycasting
+selectionBox.raycast = () => {};
 selectionBox.visible = false;
 scene.add(selectionBox);
 
+// 3D Brush Cursor
 const cursorGroup = new THREE.Group();
 const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false });
 cursorGroup.add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 32), cursorMat));
@@ -46,6 +46,7 @@ cursorGroup.add(new THREE.LineSegments(crossGeo, crossMat));
 cursorGroup.visible = false;
 scene.add(cursorGroup);
 
+// Transform Controls
 const transform = new TransformControls(camera, renderer.domElement);
 transform.setMode('translate');
 transform.setSpace('local');
@@ -56,6 +57,7 @@ transform.addEventListener('objectChange', () => {
   if (state.activeMesh) selectionBox.setFromObject(state.activeMesh);
 });
 
+// Lighting
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
 hemiLight.position.set(0, 20, 0);
@@ -65,7 +67,7 @@ dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 scene.add(new THREE.GridHelper(20, 20));
 
-/* Memory Safe Undo/Redo (Clones Position, Normal, Color) */
+/* Memory Safe Undo/Redo */
 const undoStack = [], redoStack = [];
 function captureState(mesh) {
   const pos = mesh.geometry.attributes.position;
@@ -86,7 +88,6 @@ function saveState(mesh) {
 function undo() {
   if (!state.activeMesh || !undoStack.length) return;
   redoStack.push(captureState(state.activeMesh));
-
   const prev = undoStack.pop();
   state.activeMesh.geometry.setAttribute('position', prev.position);
   if (prev.normal) state.activeMesh.geometry.setAttribute('normal', prev.normal);
@@ -108,7 +109,6 @@ function undo() {
 function redo() {
   if (!state.activeMesh || !redoStack.length) return;
   undoStack.push(captureState(state.activeMesh));
-
   const next = redoStack.pop();
   state.activeMesh.geometry.setAttribute('position', next.position);
   if (next.normal) state.activeMesh.geometry.setAttribute('normal', next.normal);
@@ -144,15 +144,35 @@ const state = {
   transform,
   paintColor: new THREE.Color("#ff0000"),
   lastHit: null,
+  skeletonHelper: null,
+  currentBones: null,
   undo,
   redo,
 
   setMode(mode) {
     this.mode = mode;
+    
+    // Toggle Side Menu Panels
+    document.getElementById("scene-panel").classList.toggle("active", mode === "sculpt" || mode === "paint" || mode === "move" || mode === "rotate" || mode === "scale");
+    document.getElementById("rig-panel").classList.toggle("active", mode === "rig");
+    document.getElementById("sculpt-panel").classList.toggle("active", mode === "sculpt" || mode === "paint");
+
     if (mode === "sculpt" || mode === "paint") {
       transform.detach();
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
+    } else if (mode === "rig") {
+      // Attach gizmo to selected bone or mesh
+      if (this.activeMesh) {
+        if (this.currentBones && this.currentBones.length > 0) {
+          transform.attach(this.currentBones[0]); // Default to root bone
+        } else {
+          transform.attach(this.activeMesh);
+        }
+      }
+      transform.setMode('translate');
+      controls.enabled = true;
+      if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
       transform.setMode(mode);
@@ -178,7 +198,6 @@ const state = {
   },
 
   setTool(tool) { this.activeTool = tool; if (this.brush) this.brush.setTool(tool); },
-
   toggleWireframe() { this.wireframe = !this.wireframe; this.objects.forEach(m => m.material.wireframe = this.wireframe); },
 
   addCube() {
@@ -206,7 +225,7 @@ const state = {
 
   selectObject(mesh) {
     this.activeMesh = mesh;
-    if (this.mode !== "sculpt" && this.mode !== "paint") transform.attach(mesh);
+    if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig") transform.attach(mesh);
 
     this.brush = new SculptBrush(mesh);
     this.brush.setPaintColor(this.paintColor);
@@ -215,8 +234,6 @@ const state = {
     this.brush.setTool(this.activeTool);
     
     if (viewGizmo) viewGizmo.updateMesh(mesh);
-    
-    // Update Selection Box
     selectionBox.setFromObject(mesh);
     selectionBox.visible = true;
     
@@ -262,6 +279,78 @@ const state = {
       div.onclick = () => this.selectObject(obj);
       list.appendChild(div);
     });
+  },
+
+  addBoneChain() {
+    if (!this.activeMesh) return;
+
+    // 1. Create Bones
+    const rootBone = new THREE.Bone();
+    rootBone.position.set(0, -1, 0); // Base
+    
+    const midBone = new THREE.Bone();
+    midBone.position.set(0, 1, 0); // Relative to root
+    rootBone.add(midBone);
+    
+    const endBone = new THREE.Bone();
+    endBone.position.set(0, 1, 0); // Relative to mid
+    midBone.add(endBone);
+
+    const bones = [rootBone, midBone, endBone];
+    this.currentBones = bones;
+
+    // 2. Create Skeleton
+    const skeleton = new THREE.Skeleton(bones);
+
+    // 3. Convert Mesh to SkinnedMesh
+    const geo = this.activeMesh.geometry;
+    const posCount = geo.attributes.position.count;
+    
+    // Add skinIndex and skinWeight attributes if missing
+    if (!geo.attributes.skinIndex) {
+      const skinIndices = new Uint16Array(posCount * 4);
+      const skinWeights = new Float32Array(posCount * 4);
+
+      for (let i = 0; i < posCount; i++) {
+        const y = geo.attributes.position.getY(i);
+        let weight = 0;
+        let index = 0;
+
+        if (y < -0.5) { weight = 1; index = 0; } // Root
+        else if (y < 0.5) { weight = 1; index = 1; } // Mid
+        else { weight = 1; index = 2; } // End
+
+        skinIndices[i * 4] = index;
+        skinWeights[i * 4] = weight;
+      }
+
+      geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+      geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+    }
+
+    const skinnedMesh = new THREE.SkinnedMesh(geo, this.activeMesh.material);
+    skinnedMesh.position.copy(this.activeMesh.position);
+    skinnedMesh.rotation.copy(this.activeMesh.rotation);
+    skinnedMesh.scale.copy(this.activeMesh.scale);
+    
+    skinnedMesh.add(rootBone);
+    skinnedMesh.bind(skeleton);
+
+    // Replace in scene
+    scene.remove(this.activeMesh);
+    scene.add(skinnedMesh);
+    
+    // Update state
+    this.activeMesh = skinnedMesh;
+    
+    // Add Skeleton Helper
+    this.skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
+    this.skeletonHelper.material.linewidth = 3;
+    scene.add(this.skeletonHelper);
+
+    // Attach gizmo to the root bone
+    transform.attach(rootBone);
+    transform.setMode('translate');
   },
 
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
@@ -310,34 +399,21 @@ if (trackpadSurface) {
 
 if (actionArea) {
   actionArea.addEventListener("pointerdown", e => {
-    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale") return;
+    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale" || state.mode === "rig") return;
     e.preventDefault(); isActionActive = true; saveState(state.activeMesh); handleAction();
   });
   actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
-  actionArea.addEventListener("pointerup", () => { 
-    isActionActive = false; 
-    if(state.brush) state.brush.rebuildGrid(); 
-    if(state.activeMesh) selectionBox.setFromObject(state.activeMesh);
-  });
-  actionArea.addEventListener("pointercancel", () => { 
-    isActionActive = false; 
-    if(state.brush) state.brush.rebuildGrid(); 
-    if(state.activeMesh) selectionBox.setFromObject(state.activeMesh);
-  });
+  actionArea.addEventListener("pointerup", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
+  actionArea.addEventListener("pointercancel", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
 }
 
 function handleAction() {
   if (state.trackpadMode !== 'brush') return;
   const hit = state.lastHit;
   if (!hit) return;
-
   const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
-
-  if (state.mode === "sculpt") {
-    state.brush.apply(localPoint, state.symmetryEnabled);
-  } else if (state.mode === "paint") {
-    state.brush.paint(localPoint, state.symmetryEnabled);
-  }
+  if (state.mode === "sculpt") state.brush.apply(localPoint, state.symmetryEnabled);
+  else if (state.mode === "paint") state.brush.paint(localPoint, state.symmetryEnabled);
 }
 
 window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });
@@ -362,6 +438,7 @@ if (btnModeCam && btnModeBrsh) {
 function animate() {
   requestAnimationFrame(animate);
   if (state.trackpadMode === 'camera' && controls) controls.update();
+  if (state.skeletonHelper) state.skeletonHelper.update();
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
 }

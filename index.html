@@ -8,7 +8,7 @@
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; background: #1e1e1e; font-family: sans-serif; }
     canvas { width: 100vw; height: 100vh; display: block; }
-    
+
     #topbar { position: absolute; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; background: #2a2a2a; z-index: 10; gap: 8px; padding: 0 8px; box-sizing: border-box; overflow-x: auto; white-space: nowrap; }
     .tool-group { display: flex; gap: 4px; flex-shrink: 0; }
     .tool { padding: 6px 10px; background: #444; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 13px; }
@@ -24,20 +24,20 @@
     #menu button.active { background: #4a90e2; border-color: #4a90e2; color: white; }
     #menu input[type="color"] { width: 100%; height: 32px; border: none; padding: 0; cursor: pointer; background: transparent; }
 
-    /* Scene Objects List */
+    /* Panels */
+    .panel-section { display: none; }
+    .panel-section.active { display: block; }
+
     #object-list { max-height: 150px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #444; border-radius: 4px; padding: 4px; background: #222; }
     .object-item { padding: 8px; cursor: pointer; border-radius: 4px; font-size: 13px; margin-bottom: 2px; display: flex; justify-content: space-between; }
     .object-item:hover { background: #333; }
     .object-item.active { background: #4a90e2; color: white; }
 
-    #cursorBrush { position: absolute; pointer-events: none; border: 1px solid #4a90e2; border-radius: 50%; z-index: 5; display: none; }
-    
     #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 260px; background: rgba(43, 43, 43, 0.95); z-index: 20; display: flex; flex-direction: column; transform: translateY(220px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
     #bottom-panel.expanded { transform: translateY(0); pointer-events: auto; }
-    
     #panel-handle { height: 44px; background: #1e1e1e; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #fff; user-select: none; pointer-events: auto; border-bottom: 1px solid #333; padding: 0 15px; position: relative; }
     .handle-arrow { font-size: 12px; position: absolute; left: 50%; transform: translateX(-50%); }
-    
+
     #tool-selector-container { position: relative; flex-shrink: 0; z-index: 25; }
     #tool-selector-btn { padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
     #tool-dropdown { display: none; position: absolute; bottom: 100%; left: 0; width: 120px; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; z-index: 100; flex-direction: column; box-shadow: 0 -4px 10px rgba(0,0,0,0.5); }
@@ -47,7 +47,7 @@
 
     #panel-content { flex: 1; display: flex; padding: 0; min-height: 0; }
     #trackpad-area, #action-area-wrapper { flex: 1; display: flex; flex-direction: column; margin: 10px; min-width: 0; }
-    
+
     .panel-header { display: flex; gap: 6px; margin-bottom: 8px; height: 34px; flex-shrink: 0; }
     .panel-header button { flex: 1; background: #444; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 500; padding: 0; }
     .panel-header button.active { background: #4a90e2; border-color: #4a90e2; }
@@ -63,6 +63,7 @@
     <div class="tool-group">
       <button id="toolSculpt" class="tool active">Sculpt</button>
       <button id="toolPaint" class="tool">Paint</button>
+      <button id="toolRig" class="tool">Rig</button>
       <button id="toolMove" class="tool">Move</button>
       <button id="toolRotate" class="tool">Rotate</button>
       <button id="toolScale" class="tool">Scale</button>
@@ -70,38 +71,54 @@
   </div>
 
   <div id="menu" class="collapsed">
-    <h3>Scene Objects</h3>
-    <div id="object-list"></div>
-    <button id="duplicateObject">Duplicate Active</button>
-    <button id="deleteObject" style="background: #d32f2f;">Delete Active</button>
-    
-    <h3>Add Object</h3>
-    <button id="newCube">Add Cube</button>
-    <button id="newSphere">Add Sphere</button>
+    <!-- Scene Panel -->
+    <div id="scene-panel" class="panel-section active">
+      <h3>Scene Objects</h3>
+      <div id="object-list"></div>
+      <button id="duplicateObject">Duplicate Active</button>
+      <button id="deleteObject" style="background: #d32f2f;">Delete Active</button>
 
-    <h3>Scene Settings</h3>
-    <label>Background Color</label>
-    <input type="color" id="bgColor" value="#b0c4de" />
-    <button id="toggleWire">▦ Toggle Wireframe</button>
-    <button id="toggleSymmetry">⇋ Toggle Symmetry</button>
+      <h3>Add Object</h3>
+      <button id="newCube">Add Cube</button>
+      <button id="newSphere">Add Sphere</button>
 
-    <h3>Trackpad</h3>
-    <label>Cursor Speed</label>
-    <input type="range" id="trackpadSensitivity" min="0.2" max="1.5" step="0.1" value="0.6" />
-
-    <h3>Brush Settings</h3>
-    <div id="paintOptions" style="display: none; margin-bottom: 10px;">
-      <label>Paint Color</label>
-      <input type="color" id="paintColor" value="#ff0000" />
+      <h3>Scene Settings</h3>
+      <label>Background Color</label>
+      <input type="color" id="bgColor" value="#b0c4de" />
+      <button id="toggleWire">▦ Toggle Wireframe</button>
+      
+      <h3>File</h3>
+      <button id="exportGLTF">Export GLTF</button>
+      <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-top: 5px;" />
     </div>
-    <label>Brush Size</label>
-    <input type="range" id="brushSize" min="0.05" max="1.5" step="0.05" value="0.2" />
-    <label>Strength</label>
-    <input type="range" id="brushStrength" min="0.01" max="1" step="0.01" value="0.5" />
-    
-    <h3>File</h3>
-    <button id="exportGLTF">Export GLTF</button>
-    <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-top: 5px;" />
+
+    <!-- Rigging Panel -->
+    <div id="rig-panel" class="panel-section">
+      <h3>Armature (Bones)</h3>
+      <button id="addBoneChain" style="background: #4caf50;">Add Basic Bone Chain</button>
+      <p style="font-size: 12px; color: #aaa;">Spawns a 3-bone chain and converts the active mesh to a SkinnedMesh. Use Move/Rotate tools to manipulate bones.</p>
+      
+      <h3>Bone Settings</h3>
+      <button id="showSkeleton" class="active">Toggle Skeleton View</button>
+    </div>
+
+    <!-- Sculpt Panel -->
+    <div id="sculpt-panel" class="panel-section">
+      <h3>Trackpad</h3>
+      <label>Cursor Speed</label>
+      <input type="range" id="trackpadSensitivity" min="0.2" max="1.5" step="0.1" value="0.6" />
+
+      <h3>Brush Settings</h3>
+      <div id="paintOptions" style="display: none; margin-bottom: 10px;">
+        <label>Paint Color</label>
+        <input type="color" id="paintColor" value="#ff0000" />
+      </div>
+      <label>Brush Size</label>
+      <input type="range" id="brushSize" min="0.05" max="1.5" step="0.05" value="0.2" />
+      <label>Strength</label>
+      <input type="range" id="brushStrength" min="0.01" max="1" step="0.01" value="0.5" />
+      <button id="toggleSymmetry">⇋ Toggle Symmetry</button>
+    </div>
   </div>
 
   <div id="bottom-panel">
@@ -145,6 +162,6 @@
 
   <div id="cursorBrush"></div>
   <canvas id="viewport"></canvas>
-  <script type="module" src="./js/main.js?v=14"></script>
+  <script type="module" src="./js/main.js?v=15"></script>
 </body>
 </html>
