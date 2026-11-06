@@ -1,7 +1,4 @@
 // js/main.js
-// Author: CCVO
-// Purpose: Main entry point for GLTF Scene Modeler
-
 import * as THREE from "../three/three.module.js";
 import { OrbitControls } from "../three/OrbitControls.js";
 import { TransformControls } from "../three/TransformControls.js";
@@ -32,8 +29,11 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(4, 4, 6);
 
-const controls = new OrbitControls(camera, renderer.domElement);
+// Attach OrbitControls to the left trackpad area
+const trackpadArea = document.getElementById("trackpad-area");
+const controls = new OrbitControls(camera, trackpadArea);
 controls.enableDamping = true;
+controls.rotateSpeed = 0.5; // Adjust for smaller area
 
 /* ===============================
    Transform Controls
@@ -41,7 +41,6 @@ controls.enableDamping = true;
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 
-// Disable orbit controls when using transform controls
 transform.addEventListener('dragging-changed', function (event) {
   controls.enabled = !event.value;
 });
@@ -106,27 +105,47 @@ const MAX_UNDO = 20;
 
 function saveState(mesh) {
   if (!mesh) return;
-  undoStack.push(mesh.geometry.clone());
+  const state = {
+    geometry: mesh.geometry.clone(),
+    hasColors: !!mesh.geometry.attributes.color
+  };
+  undoStack.push(state);
   if (undoStack.length > MAX_UNDO) undoStack.shift();
   redoStack.length = 0;
 }
 
 function undo() {
   if (!state.activeMesh || undoStack.length === 0) return;
-  redoStack.push(state.activeMesh.geometry.clone());
+  
+  const currentState = {
+    geometry: state.activeMesh.geometry.clone(),
+    hasColors: !!state.activeMesh.geometry.attributes.color
+  };
+  redoStack.push(currentState);
+  
   const prev = undoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = prev;
+  state.activeMesh.geometry = prev.geometry;
+  state.activeMesh.material.vertexColors = prev.hasColors;
+  state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
   viewGizmo.updateMesh(state.activeMesh);
 }
 
 function redo() {
   if (!state.activeMesh || redoStack.length === 0) return;
-  undoStack.push(state.activeMesh.geometry.clone());
+  
+  const currentState = {
+    geometry: state.activeMesh.geometry.clone(),
+    hasColors: !!state.activeMesh.geometry.attributes.color
+  };
+  undoStack.push(currentState);
+  
   const next = redoStack.pop();
   state.activeMesh.geometry.dispose();
-  state.activeMesh.geometry = next;
+  state.activeMesh.geometry = next.geometry;
+  state.activeMesh.material.vertexColors = next.hasColors;
+  state.activeMesh.material.needsUpdate = true;
   state.activeMesh.geometry.computeVertexNormals();
   viewGizmo.updateMesh(state.activeMesh);
 }
@@ -141,14 +160,14 @@ const state = {
   wireframe: false,
   controls,
   transform,
+  paintColor: new THREE.Color("#ff0000"),
 
-  // Expose undo/redo to UI
   undo,
   redo,
 
   setMode(mode) {
     this.mode = mode;
-    if (mode === "sculpt") {
+    if (mode === "sculpt" || mode === "paint") {
       transform.detach();
       controls.enabled = true;
     } else {
@@ -156,8 +175,12 @@ const state = {
         transform.attach(this.activeMesh);
         transform.setMode(mode);
       }
-      // Don't disable controls here - let transform handle it
     }
+  },
+
+  setPaintColor(hex) {
+    this.paintColor.set(hex);
+    if (this.brush) this.brush.setPaintColor(this.paintColor);
   },
 
   toggleWireframe() {
@@ -173,7 +196,8 @@ const state = {
       new THREE.BoxGeometry(2, 2, 2, 24, 24, 24),
       new THREE.MeshStandardMaterial({
         color: 0x88ccff,
-        wireframe: this.wireframe
+        wireframe: this.wireframe,
+        vertexColors: false
       })
     );
     setActiveMesh(mesh);
@@ -187,7 +211,8 @@ const state = {
       new THREE.SphereGeometry(1.5, 64, 64),
       new THREE.MeshStandardMaterial({
         color: 0x88ff88,
-        wireframe: this.wireframe
+        wireframe: this.wireframe,
+        vertexColors: false
       })
     );
     setActiveMesh(mesh);
@@ -252,43 +277,60 @@ function clearActiveMesh() {
 function setActiveMesh(mesh) {
   state.activeMesh = mesh;
   scene.add(mesh);
-  if (state.mode !== "sculpt") {
+  if (state.mode !== "sculpt" && state.mode !== "paint") {
     transform.attach(mesh);
   }
   state.brush = new SculptBrush(mesh);
+  state.brush.setPaintColor(state.paintColor);
 }
 
 /* ===============================
-   Sculpting Logic
+   Action Logic (Right Side Area)
 ================================ */
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-let sculpting = false;
+let isActionActive = false;
 
-renderer.domElement.addEventListener("pointerdown", e => {
-  if (state.mode !== "sculpt" || !state.activeMesh) return;
-  sculpting = true;
-  transform.detach();
-  sculptAt(e);
-  // Save state once at start of sculpt stroke
+const actionArea = document.getElementById("action-area");
+
+actionArea.addEventListener("pointerdown", e => {
+  if ((state.mode !== "sculpt" && state.mode !== "paint") || !state.activeMesh) return;
+  e.preventDefault();
+  isActionActive = true;
   saveState(state.activeMesh);
+  handleAction(e);
 });
 
-renderer.domElement.addEventListener("pointerup", () => {
-  sculpting = false;
+actionArea.addEventListener("pointermove", e => {
+  if (isActionActive) {
+    e.preventDefault();
+    handleAction(e);
+  }
 });
 
-renderer.domElement.addEventListener("pointermove", e => {
-  if (sculpting) sculptAt(e);
+actionArea.addEventListener("pointerup", () => {
+  isActionActive = false;
 });
 
-function sculptAt(e) {
+actionArea.addEventListener("pointercancel", () => {
+  isActionActive = false;
+});
+
+function handleAction(e) {
+  // Maps the action area touch directly to the screen viewport for raycasting
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  
   raycaster.setFromCamera(mouse, camera);
   const hit = raycaster.intersectObject(state.activeMesh)[0];
+  
   if (!hit) return;
-  state.brush.apply(hit.point);
+  
+  if (state.mode === "sculpt") {
+    state.brush.apply(hit.point);
+  } else if (state.mode === "paint") {
+    state.brush.paint(hit);
+  }
 }
 
 /* ===============================
@@ -327,7 +369,6 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
   
-  // Make compass labels always face the camera
   compassLabels.forEach(label => {
     label.lookAt(camera.position);
   });

@@ -1,7 +1,4 @@
 // js/sculptBrush.js
-// Author: CCVO
-// Purpose: Applies sculpting operations (inflate, deflate, smooth, flatten, pinch, clay, scrape) to the active mesh in GLTF Scene Modeler, supporting symmetry and touch/desktop input
-
 import * as THREE from "../three/three.module.js";
 
 export class SculptBrush {
@@ -11,9 +8,10 @@ export class SculptBrush {
     this.position = this.geometry.attributes.position;
     this.normal = this.geometry.attributes.normal;
 
-    this.radius = 1;       // Brush radius
-    this.strength = 0.3;   // Sculpting influence
-    this.tool = "inflate"; // Active tool
+    this.radius = 1;
+    this.strength = 0.3;
+    this.tool = "inflate";
+    this.paintColor = new THREE.Color("#ff0000");
   }
 
   setTool(tool) {
@@ -28,12 +26,15 @@ export class SculptBrush {
     this.strength = s;
   }
 
+  setPaintColor(color) {
+    this.paintColor.copy(color);
+  }
+
   apply(point, symmetry = false) {
     const pos = this.position;
     const norm = this.normal;
     const center = point;
 
-    // Support mirrored center for symmetry
     const centers = [center.clone()];
     if (symmetry) centers.push(new THREE.Vector3(-center.x, center.y, center.z));
 
@@ -43,7 +44,6 @@ export class SculptBrush {
       const v = new THREE.Vector3();
       const n = new THREE.Vector3();
 
-      // Collect vertices within brush radius
       for (let i = 0; i < pos.count; i++) {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         if (v.distanceTo(c) > this.radius) continue;
@@ -55,11 +55,10 @@ export class SculptBrush {
       if (region.length === 0) continue;
       avgNormal.normalize();
 
-      // Apply tool-specific displacement
       for (const i of region) {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         const dist = v.distanceTo(c);
-        const falloff = Math.pow(1 - dist / this.radius, 2); // Smooth falloff
+        const falloff = Math.pow(1 - dist / this.radius, 2);
         const influence = falloff * this.strength;
 
         let ox = 0, oy = 0, oz = 0;
@@ -108,5 +107,41 @@ export class SculptBrush {
 
     pos.needsUpdate = true;
     this.geometry.computeVertexNormals();
+  }
+
+  paint(hit) {
+    const geometry = this.mesh.geometry;
+    const pos = geometry.attributes.position;
+
+    if (!geometry.attributes.color) {
+      const colors = new Float32Array(pos.count * 3);
+      colors.fill(1.0);
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      this.mesh.material.vertexColors = true;
+      this.mesh.material.needsUpdate = true;
+    }
+
+    const colorAttr = geometry.attributes.color;
+    const center = hit.point;
+    const v = new THREE.Vector3();
+    
+    for (let i = 0; i < pos.count; i++) {
+      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      const dist = v.distanceTo(center);
+      
+      if (dist <= this.radius) {
+        const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
+        const r = colorAttr.getX(i);
+        const g = colorAttr.getY(i);
+        const b = colorAttr.getZ(i);
+        
+        colorAttr.setXYZ(i, 
+          THREE.MathUtils.lerp(r, this.paintColor.r, falloff),
+          THREE.MathUtils.lerp(g, this.paintColor.g, falloff),
+          THREE.MathUtils.lerp(b, this.paintColor.b, falloff)
+        );
+      }
+    }
+    colorAttr.needsUpdate = true;
   }
 }
