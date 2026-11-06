@@ -14,7 +14,6 @@ const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Improve color and lighting
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
@@ -42,32 +41,17 @@ cursorGroup.add(new THREE.LineSegments(crossGeo, crossMat));
 cursorGroup.visible = false;
 scene.add(cursorGroup);
 
-// EDIT MODE OVERLAY (Points)
-const pointsMat = new THREE.PointsMaterial({ color: 0xff0000, size: 0.08, sizeAttenuation: true });
-const pointsOverlay = new THREE.Points(new THREE.BufferGeometry(), pointsMat);
-pointsOverlay.visible = false;
-scene.add(pointsOverlay);
-
 const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 transform.addEventListener('dragging-changed', e => controls.enabled = !e.value);
 
-/* ===============================
-   Lighting Enhancements
-================================ */
-// Ambient base
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-
-// Hemisphere light for natural sky/ground lighting
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
 hemiLight.position.set(0, 20, 0);
 scene.add(hemiLight);
-
-// Strong directional light for shadows and highlights
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
-
 scene.add(new THREE.GridHelper(20, 20));
 
 const compassLabels = [];
@@ -103,7 +87,6 @@ function undo() {
   state.activeMesh.geometry.computeVertexNormals();
   
   if (state.brush) state.brush.updateMesh(state.activeMesh);
-  if (pointsOverlay) pointsOverlay.geometry = state.activeMesh.geometry;
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 function redo() {
@@ -117,13 +100,12 @@ function redo() {
   state.activeMesh.geometry.computeVertexNormals();
   
   if (state.brush) state.brush.updateMesh(state.activeMesh);
-  if (pointsOverlay) pointsOverlay.geometry = state.activeMesh.geometry;
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
 }
 
 const state = {
   mode: "sculpt", 
-  activeTool: "inflate", // Track active sculpt tool
+  activeTool: "inflate", 
   trackpadMode: "camera", 
   trackpadSensitivity: 0.6,
   activeMesh: null, 
@@ -140,68 +122,82 @@ const state = {
   setMode(mode) {
     this.mode = mode;
     
-    if (mode === "edit") {
-      pointsOverlay.visible = true;
-      if (this.activeMesh) this.activeMesh.visible = false; 
-    } else {
-      pointsOverlay.visible = false;
-      if (this.activeMesh) this.activeMesh.visible = true;
-    }
-
-    if (mode === "sculpt" || mode === "paint" || mode === "edit") {
+    if (mode === "sculpt" || mode === "paint") {
       transform.detach();
-      if (this.trackpadMode === 'camera') controls.enabled = true;
+      controls.enabled = (this.trackpadMode === 'camera');
+      document.getElementById("action-area").style.pointerEvents = "auto";
     } else if (this.activeMesh) {
       transform.attach(this.activeMesh);
       transform.setMode(mode);
-      controls.enabled = false;
+      controls.enabled = true; // Always allow camera movement with gizmo
+      document.getElementById("action-area").style.pointerEvents = "none"; // Allow touches to pass through to the gizmo
+    } else {
+      transform.detach();
+      controls.enabled = true;
+      document.getElementById("action-area").style.pointerEvents = "auto";
     }
   },
+  
   setTrackpadMode(mode) {
     this.trackpadMode = mode;
-    if (mode === "camera") { controls.enabled = true; cursorGroup.visible = false; this.lastHit = null; } 
-    else controls.enabled = false;
+    if (mode === "camera") { 
+      controls.enabled = true; 
+      cursorGroup.visible = false; 
+      this.lastHit = null; 
+    } else {
+      // Only disable camera if we are in sculpt/paint mode
+      if (this.mode === "sculpt" || this.mode === "paint") {
+        controls.enabled = false;
+      }
+    }
   },
+  
   setPaintColor(hex) { 
     this.paintColor.set(hex); 
     if (this.brush) this.brush.setPaintColor(this.paintColor); 
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
   },
+  
   setTool(tool) {
     this.activeTool = tool;
     if (this.brush) this.brush.setTool(tool);
   },
+  
   toggleWireframe() { 
     this.wireframe = !this.wireframe; 
     if (this.activeMesh) this.activeMesh.material.wireframe = this.wireframe; 
   },
+  
   createCube() {
     clearActiveMesh();
     let geo = new THREE.BoxGeometry(2, 2, 2, 24, 24, 24);
     geo = mergeVertices(geo); 
-    
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
+  
   createSphere() {
     clearActiveMesh();
     let geo = new THREE.SphereGeometry(1.5, 64, 64);
     geo = mergeVertices(geo);
-    
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ff88, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     setActiveMesh(mesh); saveState(mesh); if (viewGizmo) viewGizmo.updateMesh(mesh);
   },
+  
   setRadius(r) { 
     if (this.brush) this.brush.setRadius(r); 
     if (cursorGroup.visible) cursorGroup.scale.setScalar(r); 
   },
+  
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
+  
   exportGLTF() {
     if (!this.activeMesh) return;
     new GLTFExporter().parse(this.activeMesh, gltf => {
       const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(gltf)], { type: "application/json" })); a.download = "model.gltf"; a.click();
     });
   },
+  
   importGLTF(e) {
     const reader = new FileReader();
     reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
@@ -219,22 +215,23 @@ const state = {
 function clearActiveMesh() {
   if (!state.activeMesh) return;
   transform.detach(); scene.remove(state.activeMesh); state.activeMesh.geometry.dispose(); state.activeMesh.material.dispose();
-  state.activeMesh = null; state.brush = null; cursorGroup.visible = false; pointsOverlay.visible = false;
+  state.activeMesh = null; state.brush = null; cursorGroup.visible = false;
   if (viewGizmo) viewGizmo.updateMesh(null);
 }
+
 function setActiveMesh(mesh) {
   state.activeMesh = mesh; 
   scene.add(mesh);
-  if (state.mode !== "sculpt" && state.mode !== "paint" && state.mode !== "edit") transform.attach(mesh);
+  if (state.mode !== "sculpt" && state.mode !== "paint") {
+     transform.attach(mesh);
+     transform.setMode(state.mode);
+  }
   
   state.brush = new SculptBrush(mesh); 
   state.brush.setPaintColor(state.paintColor);
   state.brush.setRadius(parseFloat(document.getElementById("brushSize").value));
   state.brush.setStrength(parseFloat(document.getElementById("brushStrength").value));
   state.brush.setTool(state.activeTool);
-  
-  pointsOverlay.geometry = mesh.geometry;
-  pointsOverlay.material.size = 0.08; 
 }
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -242,7 +239,7 @@ let isActionActive = false;
 
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointermove", e => {
-    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush) return;
+    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush || (state.mode !== 'sculpt' && state.mode !== 'paint')) return;
     
     const rect = trackpadSurface.getBoundingClientRect();
     const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -252,21 +249,15 @@ if (trackpadSurface) {
     mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
     
     raycaster.setFromCamera(mouse, camera);
-    
-    const target = state.mode === "edit" ? pointsOverlay : state.activeMesh;
-    const hit = raycaster.intersectObject(target)[0];
+    const hit = raycaster.intersectObject(state.activeMesh)[0];
     
     if (hit) {
       state.lastHit = hit;
-      if (state.mode !== "edit") {
-        cursorGroup.visible = true;
-        const normal = hit.face ? hit.face.normal.clone().transformDirection(state.activeMesh.matrixWorld) : new THREE.Vector3(0,1,0);
-        cursorGroup.position.copy(hit.point).addScaledVector(normal, 0.02);
-        cursorGroup.lookAt(hit.point.clone().addScaledVector(normal, 1));
-        cursorGroup.scale.setScalar(state.brush.radius);
-      } else {
-        cursorGroup.visible = false; 
-      }
+      cursorGroup.visible = true;
+      const normal = hit.face ? hit.face.normal.clone().transformDirection(state.activeMesh.matrixWorld) : new THREE.Vector3(0,1,0);
+      cursorGroup.position.copy(hit.point).addScaledVector(normal, 0.02);
+      cursorGroup.lookAt(hit.point.clone().addScaledVector(normal, 1));
+      cursorGroup.scale.setScalar(state.brush.radius);
     } else {
       state.lastHit = null;
       cursorGroup.visible = false;
@@ -277,7 +268,7 @@ if (trackpadSurface) {
 const actionArea = document.getElementById("action-area");
 if (actionArea) {
   actionArea.addEventListener("pointerdown", e => {
-    if (!state.activeMesh || state.mode === "camera") return;
+    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale") return;
     e.preventDefault(); isActionActive = true; saveState(state.activeMesh); handleAction();
   });
   actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
@@ -292,17 +283,6 @@ function handleAction() {
   
   if (state.mode === "sculpt") state.brush.apply(hit.point);
   else if (state.mode === "paint") state.brush.paint(hit);
-  else if (state.mode === "edit" && hit.index !== undefined) {
-     if (!pointsOverlay.geometry.attributes.color) {
-       const colors = new Float32Array(pointsOverlay.geometry.attributes.position.count * 3);
-       colors.fill(1.0);
-       pointsOverlay.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-       pointsOverlay.material.vertexColors = true;
-     }
-     const colorAttr = pointsOverlay.geometry.attributes.color;
-     colorAttr.setXYZ(hit.index, 1, 0, 0); 
-     colorAttr.needsUpdate = true;
-  }
 }
 
 window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });

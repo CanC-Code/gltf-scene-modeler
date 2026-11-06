@@ -19,7 +19,7 @@ export function initUI(state, viewGizmo) {
     };
   }
 
-  // --- Tool Selector Dropdown in Bottom Panel ---
+  // --- Tool Selector Dropdown in Top Bar ---
   const toolSelBtn = document.getElementById("tool-selector-btn");
   const toolDropdown = document.getElementById("tool-dropdown");
   const toolOpts = document.querySelectorAll(".tool-opt");
@@ -30,7 +30,6 @@ export function initUI(state, viewGizmo) {
       toolDropdown.classList.toggle("show");
     };
 
-    // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
       if (!toolDropdown.contains(e.target) && e.target !== toolSelBtn) {
         toolDropdown.classList.remove("show");
@@ -42,12 +41,10 @@ export function initUI(state, viewGizmo) {
         const toolName = opt.getAttribute("data-tool");
         state.setTool(toolName);
         
-        // Update UI
         toolOpts.forEach(o => o.classList.remove("active"));
         opt.classList.add("active");
         toolSelBtn.textContent = `Tool: ${opt.textContent} ▼`;
         
-        // If currently in brush mode, update the trackpad text
         if (state.trackpadMode === 'brush') {
           const span = document.querySelector("#trackpad-surface span"); 
           if (span) span.textContent = `Guide Brush: ${opt.textContent}`;
@@ -63,7 +60,8 @@ export function initUI(state, viewGizmo) {
   if (pUndo) pUndo.onclick = () => state.undo();
   if (pRedo) pRedo.onclick = () => state.redo();
 
-  const modes = ["Sculpt", "Paint", "Edit", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
+  // Removed Edit Mode from here
+  const modes = ["Sculpt", "Paint", "Move", "Rotate", "Scale"], paintOptions = document.getElementById("paintOptions");
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {
