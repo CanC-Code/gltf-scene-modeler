@@ -18,14 +18,14 @@ export function initUI(state, viewGizmo) {
     state.setTrackpadMode('camera');
     btnModeCamera.classList.add("active");
     btnModeBrush.classList.remove("active");
-    document.querySelector(".area-surface span").textContent = "Move Camera (Trackpad)";
+    document.querySelector("#trackpad-surface span").textContent = "Move Camera (Trackpad)";
   };
   
   btnModeBrush.onclick = () => {
     state.setTrackpadMode('brush');
     btnModeBrush.classList.add("active");
     btnModeCamera.classList.remove("active");
-    document.querySelector(".area-surface span").textContent = "Guide Brush Cursor";
+    document.querySelector("#trackpad-surface span").textContent = "Guide Brush Cursor";
   };
 
   // Right Panel Undo/Redo
@@ -80,10 +80,10 @@ export function initUI(state, viewGizmo) {
 
   // Brush sliders
   const brushSize = document.getElementById("brushSize");
-  brushSize.oninput = () => state.brush?.setRadius(parseFloat(brushSize.value));
+  brushSize.oninput = () => state.setRadius(parseFloat(brushSize.value));
 
   const brushStrength = document.getElementById("brushStrength");
-  brushStrength.oninput = () => state.brush?.setStrength(parseFloat(brushStrength.value));
+  brushStrength.oninput = () => state.setStrength(parseFloat(brushStrength.value));
 
   // Export / Import
   document.getElementById("exportGLTF").onclick = () => state.exportGLTF();

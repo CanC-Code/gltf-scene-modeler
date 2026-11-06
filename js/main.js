@@ -29,8 +29,8 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(4, 4, 6);
 
-// Attach OrbitControls to the left trackpad area
-const trackpadSurface = document.querySelector(".area-surface");
+// Attach OrbitControls to the left trackpad surface
+const trackpadSurface = document.getElementById("trackpad-surface");
 const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
@@ -152,14 +152,14 @@ function redo() {
 ================================ */
 const state = {
   mode: "sculpt",
-  trackpadMode: "camera", // 'camera' or 'brush'
+  trackpadMode: "camera",
   activeMesh: null,
   brush: null,
   wireframe: false,
   controls,
   transform,
   paintColor: new THREE.Color("#ff0000"),
-  lastHit: null, // Stores the raycast hit from the trackpad
+  lastHit: null,
 
   undo,
   redo,
@@ -186,7 +186,6 @@ const state = {
       this.lastHit = null;
     } else {
       controls.enabled = false;
-      // Cursor visibility handled by raycast in pointermove
     }
   },
 
@@ -286,9 +285,8 @@ let isActionActive = false;
 
 // 1. Trackpad Cursor Tracking (Left Side)
 trackpadSurface.addEventListener("pointermove", e => {
-  if (state.trackpadMode !== 'brush' || !state.activeMesh) return;
+  if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush) return;
   
-  // Map trackpad touch to full screen coordinates
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   
@@ -300,7 +298,6 @@ trackpadSurface.addEventListener("pointermove", e => {
     brushCursor.visible = true;
     brushCursor.position.copy(hit.point);
     
-    // Align cursor to surface normal
     const normal = hit.face.normal.clone();
     normal.transformDirection(state.activeMesh.matrixWorld);
     brushCursor.lookAt(hit.point.clone().add(normal));
@@ -308,14 +305,6 @@ trackpadSurface.addEventListener("pointermove", e => {
   } else {
     state.lastHit = null;
     brushCursor.visible = false;
-  }
-});
-
-// Hide cursor when finger lifts from trackpad
-trackpadSurface.addEventListener("pointerup", () => {
-  if (state.trackpadMode === 'brush') {
-    // Keep cursor visible but stop tracking if they lift?
-    // Actually, keep it visible so they know where it is
   }
 });
 
@@ -343,7 +332,7 @@ actionArea.addEventListener("pointercancel", () => { isActionActive = false; });
 function handleAction(e) {
   let hit = state.lastHit;
   
-  // If NOT in brush mode (or no hit tracked), fallback to raycasting from the right touch
+  // Fallback: If no trackpad hit tracked, raycast from the right touch
   if (!hit || state.trackpadMode !== 'brush') {
     mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -380,7 +369,10 @@ window.addEventListener("resize", () => {
 /* ===============================
    Init
 ================================ */
-const viewGizmo = new ViewGizmo(camera, controls);
+// Moved ViewGizmo down so it doesn't block top bar
+const viewGizmo = new ViewGizmo(camera, controls, { size: 96 });
+viewGizmo.renderer.domElement.style.top = "60px"; 
+
 state.createCube();
 initUI(state, viewGizmo);
 
