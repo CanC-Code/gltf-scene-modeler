@@ -359,6 +359,47 @@ export function initUI(state, viewGizmo) {
     state.proportionalRadius = parseFloat(e.target.value);
   };
 
+  // --- Lighting Controls ---
+  const lightInt = document.getElementById("light-intensity");
+  if (lightInt) {
+    lightInt.oninput = (e) => {
+      if (state.dirLight) state.dirLight.intensity = parseFloat(e.target.value);
+    };
+  }
+
+  const lightColorBtn = document.getElementById("light-color-btn");
+  if (lightColorBtn) {
+    lightColorBtn.onclick = () => {
+      // Re-use the unified color picker for lights
+      const modal = document.getElementById("color-picker-modal");
+      const title = document.getElementById("color-picker-title");
+      if (title) title.textContent = "Light Color";
+      
+      // We override the apply button behavior temporarily
+      const applyBtn = document.getElementById("cp-apply");
+      const originalClick = applyBtn.onclick;
+      
+      applyBtn.onclick = () => {
+        const r = parseInt(document.getElementById("cp-r").value);
+        const g = parseInt(document.getElementById("cp-g").value);
+        const b = parseInt(document.getElementById("cp-b").value);
+        if (state.dirLight) state.dirLight.color.setRGB(r/255, g/255, b/255);
+        if (lightColorBtn) lightColorBtn.style.background = `rgb(${r},${g},${b})`;
+        modal.classList.remove("show");
+        applyBtn.onclick = originalClick; // Restore
+      };
+      
+      // Set current color
+      if (state.dirLight) {
+        const c = state.dirLight.color;
+        document.getElementById("cp-r").value = Math.round(c.r * 255);
+        document.getElementById("cp-g").value = Math.round(c.g * 255);
+        document.getElementById("cp-b").value = Math.round(c.b * 255);
+      }
+      modal.classList.add("show");
+    };
+  }
+
   const symmetryBtn = document.getElementById("toggleSymmetry");
   if (symmetryBtn) symmetryBtn.onclick = () => {
     state.symmetryEnabled = !state.symmetryEnabled;
@@ -475,6 +516,8 @@ export function initUI(state, viewGizmo) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.flipY = false; // glTF standard
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
     
     state.activeMesh.userData.paintCanvas = canvas;
     state.activeMesh.userData.paintTexture = texture;
@@ -554,6 +597,8 @@ export function initUI(state, viewGizmo) {
     new THREE.TextureLoader().load(url, (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.flipY = false; // glTF standard
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
       state.activeMesh.material.map = texture;
       state.activeMesh.material.needsUpdate = true;
       state.updateMaterialPreview(state.activeMesh.material);

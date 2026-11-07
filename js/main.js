@@ -375,6 +375,8 @@ const state = {
   redo,
   envMap,
   envEnabled: true,
+  dirLight,
+  hemiLight,
   _baseUVs: null,
 
   toggleEnvironment() {
