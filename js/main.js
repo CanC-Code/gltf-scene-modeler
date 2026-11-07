@@ -628,7 +628,13 @@ const state = {
 
   addCube() {
     let geo = new THREE.BoxGeometry(2, 2, 2, 24, 24, 24);
+    geo.deleteAttribute('normal');
+
+    geo.deleteAttribute('uv');
+
     geo = mergeVertices(geo);
+
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
     this.addObject(mesh);
@@ -636,7 +642,13 @@ const state = {
 
   addSphere() {
     let geo = new THREE.SphereGeometry(1.5, 64, 64);
+    geo.deleteAttribute('normal');
+
+    geo.deleteAttribute('uv');
+
     geo = mergeVertices(geo);
+
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ff88, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
     this.addObject(mesh);
@@ -644,7 +656,13 @@ const state = {
 
   addPlane() {
     let geo = new THREE.PlaneGeometry(2, 2, 24, 24);
+    geo.deleteAttribute('normal');
+
+    geo.deleteAttribute('uv');
+
     geo = mergeVertices(geo);
+
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide, wireframe: this.wireframe }));
     mesh.rotation.x = -Math.PI / 2; // Lay flat
     mesh.position.set(0, 0, 0);
@@ -653,7 +671,13 @@ const state = {
 
   addCylinder() {
     let geo = new THREE.CylinderGeometry(1, 1, 2, 32, 24);
+    geo.deleteAttribute('normal');
+
+    geo.deleteAttribute('uv');
+
     geo = mergeVertices(geo);
+
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
     this.addObject(mesh);
@@ -661,7 +685,13 @@ const state = {
 
   addCone() {
     let geo = new THREE.ConeGeometry(1.5, 3, 32, 24);
+    geo.deleteAttribute('normal');
+
+    geo.deleteAttribute('uv');
+
     geo = mergeVertices(geo);
+
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xff8888, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
     mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
     this.addObject(mesh);
@@ -669,7 +699,13 @@ const state = {
 
   addTorus() {
     let geo = new THREE.TorusGeometry(1.2, 0.4, 24, 48);
+    geo.deleteAttribute('normal');
+
+    geo.deleteAttribute('uv');
+
     geo = mergeVertices(geo);
+
+    geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xffcc88, roughness: 0.3, metalness: 0.5, wireframe: this.wireframe }));
     mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
     this.addObject(mesh);
@@ -1828,7 +1864,13 @@ const state = {
       gltf.scene.traverse(o => { if (!mesh && o.isMesh) mesh = o; });
       if (mesh) {
         if (!mesh.isSkinnedMesh && !mesh.geometry.attributes.skinIndex) {
+          mesh.geometry.deleteAttribute('normal');
+
+          mesh.geometry.deleteAttribute('uv');
+
           mesh.geometry = mergeVertices(mesh.geometry);
+
+          mesh.geometry.computeVertexNormals();
         }
         this.addObject(mesh);
       }
