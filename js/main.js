@@ -37,11 +37,13 @@ selectionBox.visible = false;
 scene.add(selectionBox);
 
 const pointsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, vertexColors: true, depthTest: false, transparent: true, opacity: 1.0 });
-const pointsCloud = new THREE.Points(new THREE.BufferGeometry(), pointsMat);
+const pointsGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+const pointsCloud = new THREE.Points(pointsGeo, pointsMat);
 pointsCloud.visible = false;
 scene.add(pointsCloud);
 
-const wireframeGeo = new THREE.WireframeGeometry(new THREE.BufferGeometry());
+const emptyGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+const wireframeGeo = new THREE.WireframeGeometry(emptyGeo);
 const wireframeMat = new THREE.LineBasicMaterial({ color: 0x4a90e2, transparent: true, opacity: 0.4 });
 const wireframeLines = new THREE.LineSegments(wireframeGeo, wireframeMat);
 wireframeLines.visible = false;
