@@ -99,6 +99,28 @@ dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
 scene.add(new THREE.GridHelper(20, 20));
 
+// --- Procedural Environment Map (for PBR reflections) ---
+// Generates a simple sky-to-ground gradient using a canvas, then
+// processes it via PMREMGenerator so metals have something to reflect.
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
+const envCanvas = document.createElement('canvas');
+envCanvas.width = 512; envCanvas.height = 256;
+const envCtx = envCanvas.getContext('2d');
+const grad = envCtx.createLinearGradient(0, 0, 0, 256);
+grad.addColorStop(0, '#87ceeb'); // Sky
+grad.addColorStop(0.5, '#aaaaaa'); // Horizon
+grad.addColorStop(1, '#333333'); // Ground
+envCtx.fillStyle = grad;
+envCtx.fillRect(0, 0, 512, 256);
+const envTex = new THREE.CanvasTexture(envCanvas);
+envTex.mapping = THREE.EquirectangularReflectionMapping;
+const envMap = pmremGenerator.fromEquirectangular(envTex).texture;
+scene.environment = envMap;
+envTex.dispose();
+pmremGenerator.dispose();
+
+
 const undoStack = [], redoStack = [];
 function captureState(mesh) {
   const pos = mesh.geometry.attributes.position;
@@ -266,6 +288,14 @@ const state = {
   keyframes: [],
   undo,
   redo,
+  envMap,
+  envEnabled: true,
+
+  toggleEnvironment() {
+    this.envEnabled = !this.envEnabled;
+    scene.environment = this.envEnabled ? this.envMap : null;
+    this.objects.forEach(m => m.material.needsUpdate = true);
+  },
 
   updateSnap() {
     if (this.snapEnabled) {

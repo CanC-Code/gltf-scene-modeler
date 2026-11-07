@@ -96,6 +96,12 @@ export function initUI(state, viewGizmo) {
   });
 
   // --- Top Bar Toggles ---
+  const toggleEnv = document.getElementById("toggle-env");
+  if (toggleEnv) toggleEnv.onclick = () => {
+    state.toggleEnvironment();
+    toggleEnv.classList.toggle("active", state.envEnabled);
+  };
+
   const toggleWire = document.getElementById("toggleWire");
   if (toggleWire) toggleWire.onclick = () => { state.toggleWireframe(); toggleWire.classList.toggle("active", state.wireframe); };
 
