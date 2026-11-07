@@ -167,6 +167,19 @@ export function initUI(state, viewGizmo) {
   const toggleGridBtn = document.getElementById("toggleGrid");
   if (toggleGridBtn) toggleGridBtn.onclick = () => state.toggleGrid();
 
+  const symXBtn = document.getElementById("symXBtn");
+  const symYBtn = document.getElementById("symYBtn");
+  if (symXBtn) symXBtn.onclick = () => {
+    state.symmetryX = !state.symmetryX;
+    symXBtn.textContent = `⇹ Symmetry X: ${state.symmetryX ? 'ON' : 'OFF'}`;
+    symXBtn.style.color = state.symmetryX ? '#4a90e2' : '#fff';
+  };
+  if (symYBtn) symYBtn.onclick = () => {
+    state.symmetryY = !state.symmetryY;
+    symYBtn.textContent = `⇕ Symmetry Y: ${state.symmetryY ? 'ON' : 'OFF'}`;
+    symYBtn.style.color = state.symmetryY ? '#4a90e2' : '#fff';
+  };
+
   const viewFocusBtn = document.getElementById("viewFocusBtn");
   if (viewFocusBtn) viewFocusBtn.onclick = () => { state.focusCamera(); if (viewMenu) viewMenu.style.display = "none"; };
 
@@ -452,11 +465,7 @@ export function initUI(state, viewGizmo) {
   if (envSunset) envSunset.onclick = () => state.applyEnvironmentPreset('sunset');
   if (envDark) envDark.onclick = () => state.applyEnvironmentPreset('dark');
 
-  const symmetryBtn = document.getElementById("toggleSymmetry");
-  if (symmetryBtn) symmetryBtn.onclick = () => {
-    state.symmetryEnabled = !state.symmetryEnabled;
-    symmetryBtn.classList.toggle("active", state.symmetryEnabled);
-  };
+
 
   // --- Material Properties Panel ---
   const matRough = document.getElementById("mat-roughness");

@@ -85,13 +85,39 @@ transform.addEventListener('dragging-changed', e => {
     saveState(state.activeMesh); // Snapshot transform + geometry before drag
     if (state.mode === 'edit') {
       const pos = state.activeMesh.geometry.attributes.position;
+      editDummy.updateMatrix();
       state._editDragSnapshot = new Float32Array(pos.array);
-      state._editDragStartMatrix = editDummy.matrix.clone(); // Store full matrix
+      state._editDragStartMatrix = editDummy.matrix.clone();
+
+      // Build mirror map for X/Y symmetry
+      state._editMirrorMap = null;
+      if (state.symmetryX || state.symmetryY) {
+        const snap = state._editDragSnapshot;
+        const count = pos.count;
+        const threshold = 0.08;
+        const mirrorMap = new Map();
+        const selectedArr = Array.from(state.selectedVertices);
+        for (const idx of selectedArr) {
+          const vx = snap[idx*3], vy = snap[idx*3+1], vz = snap[idx*3+2];
+          const mx = state.symmetryX ? -vx : vx;
+          const my = state.symmetryY ? -vy : vy;
+          let bestIdx = -1, bestDist = threshold;
+          for (let i = 0; i < count; i++) {
+            if (state.selectedVertices.has(i)) continue;
+            const dx = snap[i*3] - mx, dy = snap[i*3+1] - my, dz = snap[i*3+2] - vz;
+            const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            if (d < bestDist) { bestIdx = i; bestDist = d; }
+          }
+          if (bestIdx !== -1) mirrorMap.set(idx, bestIdx);
+        }
+        state._editMirrorMap = mirrorMap;
+      }
     }
   } else if (!e.value && state.mode === 'edit' && state.activeMesh) {
     state.activeMesh.geometry.computeVertexNormals();
     state.brush.rebuildGrid();
     state._editDragSnapshot = null;
+    state._editMirrorMap = null;
   }
 });
 
@@ -156,6 +182,16 @@ transform.addEventListener('objectChange', () => {
         v.applyMatrix4(invMeshMatrix);
         pos.setXYZ(idx, v.x, v.y, v.z);
       });
+
+      // Apply X/Y symmetry to mirror vertices
+      if (state._editMirrorMap && (state.symmetryX || state.symmetryY)) {
+        state._editMirrorMap.forEach((mirrorIdx, primaryIdx) => {
+          const px = pos.getX(primaryIdx), py = pos.getY(primaryIdx), pz = pos.getZ(primaryIdx);
+          const mx = state.symmetryX ? -px : px;
+          const my = state.symmetryY ? -py : py;
+          pos.setXYZ(mirrorIdx, mx, my, pz);
+        });
+      }
     }
 
     pos.needsUpdate = true;
@@ -365,7 +401,8 @@ const state = {
   objects: [],
   brush: null,
   wireframe: false,
-  symmetryEnabled: false,
+  symmetryX: false,
+  symmetryY: false,
   snapEnabled: false, // New Snap State
   scene,
   controls,
@@ -1868,10 +1905,10 @@ function handleAction() {
   const hit = state.lastHit;
   if (!hit) return;
   const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
-  if (state.mode === "sculpt") state.brush.apply(localPoint, state.symmetryEnabled);
+  if (state.mode === "sculpt") state.brush.apply(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
   else if (state.mode === "paint") {
     if (state.activeMesh.userData.paintCanvas) {
-      state.brush.paintTexture(localPoint, state.symmetryEnabled);
+      state.brush.paintTexture(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
       
       // GUI Alignment: Live update the 2D mini-texture viewer
       const miniTex = document.getElementById('mini-tex');
@@ -1884,7 +1921,7 @@ function handleAction() {
         ctx.drawImage(state.activeMesh.userData.paintCanvas, 0, 0);
       }
     } else {
-      state.brush.paint(localPoint, state.symmetryEnabled);
+      state.brush.paint(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
     }
   }
   else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
@@ -1900,6 +1937,7 @@ function updateEditGizmo() {
     avgPos.divideScalar(state.selectedVertices.size);
     state.activeMesh.localToWorld(avgPos);
     editDummy.position.copy(avgPos);
+    editDummy.updateMatrix();
     transform.attach(editDummy);
     transform.setMode('translate');
     state.lastDummyPos.copy(editDummy.position);

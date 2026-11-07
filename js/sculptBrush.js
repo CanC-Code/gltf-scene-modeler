@@ -28,11 +28,13 @@ export class SculptBrush {
   setPaintColor(color) { this.paintColor.copy(color); }
   setActiveBone(index) { this.activeBoneIndex = index; }
 
-  apply(localPoint, symmetry = false) {
+  apply(localPoint, sym = { x: false, y: false }) {
     const pos = this.position;
     const norm = this.normal;
     const centers = [localPoint.clone()];
-    if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.y) centers.push(new THREE.Vector3(localPoint.x, -localPoint.y, localPoint.z));
+    if (sym.x && sym.y) centers.push(new THREE.Vector3(-localPoint.x, -localPoint.y, localPoint.z));
 
     const affectedVertices = new Set();
     const v = new THREE.Vector3();
@@ -102,7 +104,7 @@ export class SculptBrush {
     if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices), this.adjacencyMap);
   }
 
-  paint(localPoint, symmetry = false) {
+  paint(localPoint, sym = { x: false, y: false }) {
     const geometry = this.mesh.geometry;
     const pos = geometry.attributes.position;
     if (!geometry.attributes.color) {
@@ -114,7 +116,9 @@ export class SculptBrush {
     }
     const colorAttr = geometry.attributes.color;
     const centers = [localPoint.clone()];
-    if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.y) centers.push(new THREE.Vector3(localPoint.x, -localPoint.y, localPoint.z));
+    if (sym.x && sym.y) centers.push(new THREE.Vector3(-localPoint.x, -localPoint.y, localPoint.z));
 
     const v = new THREE.Vector3();
     for (const c of centers) {
