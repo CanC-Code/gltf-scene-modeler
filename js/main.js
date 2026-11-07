@@ -1251,48 +1251,140 @@ function handleAction() {
   else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
 }
 
+function updateEditGizmo() {
+  if (state.selectedVertices.size > 0 && state.activeMesh) {
+    const avgPos = new THREE.Vector3();
+    const pos = state.activeMesh.geometry.attributes.position;
+    state.selectedVertices.forEach(v => {
+      avgPos.x += pos.getX(v); avgPos.y += pos.getY(v); avgPos.z += pos.getZ(v);
+    });
+    avgPos.divideScalar(state.selectedVertices.size);
+    state.activeMesh.localToWorld(avgPos);
+    editDummy.position.copy(avgPos);
+    transform.attach(editDummy);
+    transform.setMode('translate');
+    state.lastDummyPos.copy(editDummy.position);
+  } else {
+    transform.detach();
+  }
+}
+
+let boxSelecting = false;
+let boxStartX = 0, boxStartY = 0;
+
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointerdown", e => {
     if (state.mode !== 'edit' || !state.activeMesh) return;
-    const rect = trackpadSurface.getBoundingClientRect();
-    const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-    mouse.x = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
-    mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
-    
-    raycaster.setFromCamera(mouse, camera);
-    const distToMesh = camera.position.distanceTo(state.activeMesh.position);
-    raycaster.params.Points.threshold = distToMesh * 0.03;
+    if (e.button !== 0 && e.pointerType === 'mouse') return; // Only left click
 
-    const hit = raycaster.intersectObject(pointsCloud)[0];
-    raycaster.params.Points.threshold = 1;
+    boxSelecting = true;
+    boxStartX = e.clientX;
+    boxStartY = e.clientY;
     
-    if (hit) {
-      const idx = hit.index;
-      if (state.selectedVertices.has(idx)) state.selectedVertices.delete(idx);
-      else state.selectedVertices.add(idx);
-      syncPointsCloud();
-      
-      if (state.selectedVertices.size > 0) {
-        const avgPos = new THREE.Vector3();
-        const pos = state.activeMesh.geometry.attributes.position;
-        state.selectedVertices.forEach(v => {
-          avgPos.x += pos.getX(v); avgPos.y += pos.getY(v); avgPos.z += pos.getZ(v);
-        });
-        avgPos.divideScalar(state.selectedVertices.size);
-        
-        state.activeMesh.localToWorld(avgPos);
-        editDummy.position.copy(avgPos);
-        transform.attach(editDummy);
-        transform.setMode('translate');
-        state.lastDummyPos.copy(editDummy.position);
+    const box = document.getElementById('selection-box');
+    if (box) {
+      box.style.left = `${boxStartX}px`;
+      box.style.top = `${boxStartY}px`;
+      box.style.width = '0px';
+      box.style.height = '0px';
+      box.style.display = 'block';
+    }
+  });
+
+  window.addEventListener("pointermove", e => {
+    if (!boxSelecting) return;
+    const box = document.getElementById('selection-box');
+    if (!box) return;
+    
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    
+    const minX = Math.min(boxStartX, currentX);
+    const minY = Math.min(boxStartY, currentY);
+    const width = Math.abs(currentX - boxStartX);
+    const height = Math.abs(currentY - boxStartY);
+    
+    box.style.left = `${minX}px`;
+    box.style.top = `${minY}px`;
+    box.style.width = `${width}px`;
+    box.style.height = `${height}px`;
+  });
+
+  window.addEventListener("pointerup", e => {
+    if (!boxSelecting) return;
+    boxSelecting = false;
+    
+    const box = document.getElementById('selection-box');
+    if (box) box.style.display = 'none';
+    
+    if (state.mode !== 'edit' || !state.activeMesh) return;
+
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    
+    const dist = Math.sqrt((currentX - boxStartX)**2 + (currentY - boxStartY)**2);
+    
+    if (dist < 5) {
+      // It was a click, do the old raycast single selection
+      const rect = trackpadSurface.getBoundingClientRect();
+      const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      mouse.x = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
+      mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
+
+      raycaster.setFromCamera(mouse, camera);
+      const distToMesh = camera.position.distanceTo(state.activeMesh.position);
+      raycaster.params.Points.threshold = distToMesh * 0.03;
+
+      const hit = raycaster.intersectObject(pointsCloud)[0];
+      raycaster.params.Points.threshold = 1;
+
+      if (hit) {
+        const idx = hit.index;
+        if (state.selectedVertices.has(idx)) state.selectedVertices.delete(idx);
+        else state.selectedVertices.add(idx);
+        syncPointsCloud();
+        updateEditGizmo();
       } else {
-        transform.detach();
+        // Clicked empty space, clear selection
+        state.selectedVertices.clear();
+        syncPointsCloud();
+        updateEditGizmo();
       }
+    } else {
+      // It was a drag, do box selection
+      const rect = trackpadSurface.getBoundingClientRect();
+      const minX = Math.min(boxStartX, currentX);
+      const maxX = Math.max(boxStartX, currentX);
+      const minY = Math.min(boxStartY, currentY);
+      const maxY = Math.max(boxStartY, currentY);
+
+      const pos = state.activeMesh.geometry.attributes.position;
+      const v = new THREE.Vector3();
+      const matrixWorld = state.activeMesh.matrixWorld;
+
+      // For additive selection, hold Shift
+      if (!e.shiftKey) state.selectedVertices.clear();
+
+      for (let i = 0; i < pos.count; i++) {
+        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+        v.applyMatrix4(matrixWorld);
+        v.project(camera);
+
+        // NDC to Screen
+        const sx = (v.x * 0.5 + 0.5) * rect.width + rect.left;
+        const sy = (-v.y * 0.5 + 0.5) * rect.height + rect.top;
+
+        if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) {
+          state.selectedVertices.add(i);
+        }
+      }
+      
+      syncPointsCloud();
+      updateEditGizmo();
     }
   });
 }
-
 // --- Bone Picking for Rig Mode ---
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointerdown", e => {

@@ -92,6 +92,14 @@
     #toast-container { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; align-items: center; }
     .toast { background: rgba(0, 0, 0, 0.85); color: white; padding: 10px 24px; border-radius: 20px; font-size: 14px; opacity: 0; transform: translateY(-10px); transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.3); text-align: center; max-width: 80vw; }
     .toast.show { opacity: 1; transform: translateY(0); }
+    #selection-box {
+      position: fixed;
+      border: 1px solid #4a90e2;
+      background: rgba(74, 144, 226, 0.2);
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
   </style>
 </head>
 
@@ -320,6 +328,7 @@
   </div>
 
   <div id="cursorBrush"></div>
+  <div id="selection-box"></div>
   <canvas id="viewport"></canvas>
   <script type="module" src="./js/main.js?v=23"></script>
 </body>
