@@ -3,8 +3,16 @@ import { applyUVProjection } from "./topology.js";
 
 export function initUI(state, viewGizmo) {
   const matColorBtn = document.getElementById("mat-color-btn");
-  const toggleMenu = document.getElementById("toggleMenu"), menu = document.getElementById("menu");
-  if (toggleMenu && menu) toggleMenu.onclick = () => menu.classList.toggle("collapsed");
+  const toggleMenu = document.getElementById("toggleMenu"), menu = document.getElementById("menu"), backdrop = document.getElementById("menu-backdrop");
+  
+  const toggleMenuDrawer = () => {
+    if (!menu) return;
+    const isCollapsed = menu.classList.toggle("collapsed");
+    if (backdrop) backdrop.style.display = isCollapsed ? "none" : "block";
+  };
+
+  if (toggleMenu) toggleMenu.onclick = toggleMenuDrawer;
+  if (backdrop) backdrop.onclick = toggleMenuDrawer;
 
   const bottomPanel = document.getElementById("bottom-panel"), panelHandle = document.getElementById("panel-handle");
   if (bottomPanel && panelHandle) {

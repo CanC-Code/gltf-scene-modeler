@@ -9,12 +9,12 @@
     html, body { margin: 0; padding: 0; overflow: hidden; background: #1e1e1e; font-family: sans-serif; }
     canvas { width: 100vw; height: 100vh; display: block; }
 
-    #topbar { position: absolute; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; background: #2a2a2a; z-index: 10; gap: 8px; padding: 0 8px; box-sizing: border-box; overflow-x: auto; white-space: nowrap; }
+    #topbar { position: absolute; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; background: #2a2a2a; z-index: 10; gap: 8px; padding: 0 8px; box-sizing: border-box; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
     .tool-group { display: flex; gap: 4px; flex-shrink: 0; }
     .tool { padding: 6px 10px; background: #444; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 13px; }
     .tool.active { background: #4a90e2; border-color: #4a90e2; }
 
-    #menu { position: absolute; top: 44px; left: 0; width: 260px; bottom: 0; background: #2b2b2b; padding: 15px; padding-bottom: 250px; overflow-y: auto; transition: transform 0.2s; z-index: 9; color: #ddd; box-sizing: border-box; }
+    #menu { position: absolute; top: 44px; left: 0; width: 280px; bottom: 0; background: #2b2b2b; padding: 15px; padding-bottom: 250px; overflow-y: auto; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 9; color: #ddd; box-sizing: border-box; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
     #menu.collapsed { transform: translateX(-100%); }
 
     /* Accordion Styles */
@@ -114,16 +114,18 @@
       <button id="toolPaint" class="tool">Paint</button>
       <button id="toolEdit" class="tool">Edit</button>
       <button id="toolRig" class="tool">Rig</button>
-      <button id="toolMove" class="tool">Move</button>
-      <button id="toolRotate" class="tool">Rotate</button>
-      <button id="toolScale" class="tool">Scale</button>
+      <div style="width: 1px; height: 24px; background: #555; margin: 0 4px;"></div>
+      <button id="toolMove" class="tool" title="Move">✥</button>
+      <button id="toolRotate" class="tool" title="Rotate">⟳</button>
+      <button id="toolScale" class="tool" title="Scale">⤡</button>
     </div>
     <div class="tool-group">
-      <button id="toggleWire" class="tool">▦ Wire</button>
-      <button id="toggleSnap" class="tool">📐 Snap</button>
+      <button id="toggleWire" class="tool" title="Wireframe">▦</button>
+      <button id="toggleSnap" class="tool" title="Snap">📐</button>
     </div>
   </div>
 
+  <div id="menu-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 8;"></div>
   <div id="menu" class="collapsed">
     <div id="scene-panel" class="panel-section active">
       <details open>
