@@ -486,6 +486,7 @@ export function initUI(state, viewGizmo) {
   const flatBtn = document.getElementById("toggleFlatShading");
   if (flatBtn) flatBtn.onclick = () => {
     if (!state.activeMesh || !state.activeMesh.material) return;
+    state.saveState(state.activeMesh); // Catch for undo
     const m = state.activeMesh.material;
     m.flatShading = !m.flatShading;
     m.needsUpdate = true;

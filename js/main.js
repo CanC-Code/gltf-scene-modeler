@@ -213,7 +213,7 @@ function captureState(mesh) {
     canvasSnap.getContext('2d').drawImage(c, 0, 0);
   }
 
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: mesh.material.color.getHex(), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone() };
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: mesh.material.color.getHex(), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, matOpacity: mesh.material.opacity, matTransparent: mesh.material.transparent, matFlatShading: mesh.material.flatShading, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone() };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -1194,6 +1194,9 @@ const state = {
     previewMat.normalMap = mat.normalMap || null;
     previewMat.vertexColors = mat.vertexColors;
     previewMat.wireframe = mat.wireframe;
+    previewMat.opacity = mat.opacity;
+    previewMat.transparent = mat.transparent;
+    previewMat.flatShading = mat.flatShading;
     previewMat.needsUpdate = true;
   },
 
@@ -1207,9 +1210,13 @@ const state = {
     const c = document.getElementById('mat-color');
     const r = document.getElementById('mat-roughness');
     const m = document.getElementById('mat-metalness');
+    const a = document.getElementById('mat-alpha');
+    const f = document.getElementById('toggleFlatShading');
     if (c) c.value = '#' + mat.color.getHexString();
     if (r) r.value = mat.roughness;
     if (m) m.value = mat.metalness;
+    if (a) a.value = mat.opacity;
+    if (f) f.classList.toggle('active', mat.flatShading);
 
     // Reset UV sliders on undo/redo because absolute UVs are restored
     const su = document.getElementById('uv-scale-u');
@@ -1360,21 +1367,26 @@ const state = {
         options.animations = [new THREE.AnimationClip('Action', -1, tracks)];
     }
 
-    new GLTFExporter().parse(exportGroup, result => {
-      let blob, filename;
-      if (isBinary) {
-        blob = new Blob([result], { type: 'application/octet-stream' });
-        filename = 'scene.glb';
-      } else {
-        blob = new Blob([JSON.stringify(result)], { type: 'application/json' });
-        filename = 'scene.gltf';
-      }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }, options, isBinary);
+    new GLTFExporter().parse(
+      exportGroup,
+      (result) => {
+        let blob, filename;
+        if (isBinary) {
+          blob = new Blob([result], { type: 'application/octet-stream' });
+          filename = 'scene.glb';
+        } else {
+          blob = new Blob([JSON.stringify(result)], { type: 'application/json' });
+          filename = 'scene.gltf';
+        }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      },
+      (err) => { console.error("Export failed:", err); },
+      { binary: isBinary }
+    );
   },
 
   importGLTF(e) {
