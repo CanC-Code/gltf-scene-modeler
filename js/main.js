@@ -372,8 +372,14 @@ const state = {
     this.activeMesh.material.dispose();
     if (this.skeletonHelper) { scene.remove(this.skeletonHelper); this.skeletonHelper = null; }
     if (this.tempSkin)       { scene.remove(this.tempSkin);       this.tempSkin = null; }
+    if (this.mixer) { this.mixer.stopAllAction(); this.mixer = null; }
+    this.keyframes = [];
+    this.currentBones = null;
+    this.activeBoneIndex = 0;
+    this._savedColors = null;
     this.activeMesh = null;
     this.brush = null;
+    this.updateBoneList();
 
     if (this.objects.length > 0) this.selectObject(this.objects[0]);
     else {
@@ -482,7 +488,15 @@ const state = {
     const list = document.getElementById("bone-list");
     if (!list) return;
     list.innerHTML = "";
-    if (!this.currentBones) return;
+    if (!this.currentBones) {
+      const ph = document.createElement('p');
+      ph.style.cssText = 'font-size: 12px; color: #888; text-align: center;';
+      ph.textContent = 'No bones found';
+      list.appendChild(ph);
+      const lbl = document.getElementById('active-bone-label');
+      if (lbl) lbl.textContent = 'Active: None';
+      return;
+    }
     const names = ["Root Bone", "Mid Bone", "End Bone"];
     this.currentBones.forEach((bone, index) => {
       const div = document.createElement("div");
