@@ -1229,6 +1229,64 @@ const state = {
     if (this.updateUVPreview) this.updateUVPreview();
   },
 
+  applyTransform() {
+    if (!this.activeMesh) return;
+    if (this.activeMesh.isSkinnedMesh) {
+      if (window.showToast) window.showToast("Cannot bake transform on a SkinnedMesh. Bind skin first.");
+      return;
+    }
+    
+    saveState(this.activeMesh);
+    const mesh = this.activeMesh;
+    
+    // Ensure matrixWorld is updated
+    mesh.updateMatrix();
+    
+    // Apply current position, rotation, scale to the geometry
+    mesh.geometry.applyMatrix4(mesh.matrix);
+    
+    // Reset the transform
+    mesh.position.set(0, 0, 0);
+    mesh.quaternion.set(0, 0, 0, 1);
+    mesh.scale.set(1, 1, 1);
+    mesh.updateMatrix();
+    mesh.updateMatrixWorld(true);
+    
+    // Recompute normals and bounding boxes
+    mesh.geometry.computeVertexNormals();
+    mesh.geometry.computeBoundingBox();
+    mesh.geometry.computeBoundingSphere();
+    
+    selectionBox.setFromObject(mesh);
+    if (this.brush) { this.brush.updateMesh(mesh); this.brush.rebuildGrid(); }
+    if (viewGizmo) viewGizmo.updateMesh(mesh);
+    
+    if (window.showToast) window.showToast("Transform baked into geometry.");
+  },
+
+  centerOrigin() {
+    if (!this.activeMesh) return;
+    saveState(this.activeMesh);
+    
+    const mesh = this.activeMesh;
+    mesh.geometry.computeBoundingBox();
+    const center = new THREE.Vector3();
+    mesh.geometry.boundingBox.getCenter(center);
+    
+    // Translate geometry so its center is at 0,0,0
+    mesh.geometry.translate(-center.x, -center.y, -center.z);
+    
+    // Move the mesh object to compensate, so it visually stays in place
+    center.applyMatrix4(mesh.matrix);
+    mesh.position.copy(center);
+    
+    selectionBox.setFromObject(mesh);
+    if (this.brush) { this.brush.updateMesh(mesh); this.brush.rebuildGrid(); }
+    if (viewGizmo) viewGizmo.updateMesh(mesh);
+    
+    if (window.showToast) window.showToast("Origin centered to mesh.");
+  },
+
   downloadTexture() {
     if (!this.activeMesh) return;
     let canvas = this.activeMesh.userData.paintCanvas;

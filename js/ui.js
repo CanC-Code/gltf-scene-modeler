@@ -78,6 +78,11 @@ export function initUI(state, viewGizmo) {
   const dupBtn = document.getElementById("duplicateObject"), delBtn = document.getElementById("deleteObject");
   if (dupBtn) dupBtn.onclick = () => state.duplicateObject();
   if (delBtn) delBtn.onclick = () => state.deleteObject();
+  
+  const applyBtn = document.getElementById("applyTransform");
+  const centerBtn = document.getElementById("centerOrigin");
+  if (applyBtn) applyBtn.onclick = () => state.applyTransform();
+  if (centerBtn) centerBtn.onclick = () => state.centerOrigin();
 
   // Rigging UI
   const addBoneBtn = document.getElementById("addBoneChain");
