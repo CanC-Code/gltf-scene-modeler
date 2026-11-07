@@ -31,6 +31,16 @@ const controls = new OrbitControls(camera, trackpadSurface);
 controls.enableDamping = true;
 controls.rotateSpeed = 0.5;
 
+// NEW: Multi-touch gestures directly on the 3D viewport
+const canvasControls = new OrbitControls(camera, renderer.domElement);
+canvasControls.enableDamping = true;
+canvasControls.rotateSpeed = 0.5;
+canvasControls.enablePan = false; // Keep panning on the trackpad to avoid accidental moves
+canvasControls.touches = {
+  ONE: THREE.TOUCH.NONE,           // 1 finger = paint/sculpt (do not rotate)
+  TWO: THREE.TOUCH.DOLLY_ROTATE    // 2 fingers = pinch to zoom, drag to rotate
+};
+
 const selectionBox = new THREE.BoxHelper(new THREE.Object3D(), 0x4a90e2);
 selectionBox.raycast = () => {};
 selectionBox.visible = false;
@@ -72,6 +82,7 @@ scene.add(transform);
 
 transform.addEventListener('dragging-changed', e => {
   controls.enabled = !e.value;
+  canvasControls.enabled = !e.value;
   if (e.value === true && state.activeMesh) {
     saveState(state.activeMesh); // Snapshot transform + geometry before drag
     if (state.mode === 'edit') {
@@ -512,6 +523,8 @@ const state = {
     camera.position.copy(center).add(direction);
     controls.target.copy(center);
     controls.update();
+    canvasControls.target.copy(center);
+    canvasControls.update();
   },
 
   addCube() {
@@ -1876,6 +1889,7 @@ function animate() {
   if (state.mixer) state.mixer.update(delta);
   
   if (state.trackpadMode === 'camera' && controls) controls.update();
+  if (canvasControls) canvasControls.update();
   if (state.activeMesh && selectionBox.visible && state.mode !== 'edit') {
     selectionBox.setFromObject(state.activeMesh);
   }
