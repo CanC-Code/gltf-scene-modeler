@@ -64,31 +64,73 @@ transform.addEventListener('dragging-changed', e => {
   controls.enabled = !e.value;
   if (e.value === true && state.activeMesh) {
     saveState(state.activeMesh); // Snapshot transform + geometry before drag
-  }
-  if (!e.value && state.mode === 'edit' && state.activeMesh) {
+    if (state.mode === 'edit') {
+      const pos = state.activeMesh.geometry.attributes.position;
+      state._editDragSnapshot = new Float32Array(pos.array);
+      state._editDragStartDummy = editDummy.position.clone();
+      state._editDragSelectedPos = Array.from(state.selectedVertices).map(idx => new THREE.Vector3(pos.getX(idx), pos.getY(idx), pos.getZ(idx)));
+    }
+  } else if (!e.value && state.mode === 'edit' && state.activeMesh) {
     state.activeMesh.geometry.computeVertexNormals();
     state.brush.rebuildGrid();
+    state._editDragSnapshot = null;
   }
-});
+}););
 
 transform.addEventListener('objectChange', () => {
   if (state.mode === 'edit' && state.selectedVertices.size > 0 && state.activeMesh) {
+    const mesh = state.activeMesh;
+    const pos = mesh.geometry.attributes.position;
+
     const worldDelta = new THREE.Vector3().subVectors(editDummy.position, state.lastDummyPos);
-    const M3 = new THREE.Matrix3().setFromMatrix4(state.activeMesh.matrixWorld).invert();
+    const M3 = new THREE.Matrix3().setFromMatrix4(mesh.matrixWorld).invert();
     const localDelta = worldDelta.clone().applyMatrix3(M3);
-    const pos = state.activeMesh.geometry.attributes.position;
-    
-    state.selectedVertices.forEach(idx => {
-      pos.setXYZ(idx, pos.getX(idx) + localDelta.x, pos.getY(idx) + localDelta.y, pos.getZ(idx) + localDelta.z);
-    });
-    
+
+    if (state.proportionalEnabled && state._editDragSnapshot) {
+      const worldTotalDelta = new THREE.Vector3().subVectors(editDummy.position, state._editDragStartDummy);
+      const localTotalDelta = worldTotalDelta.clone().applyMatrix3(M3);
+
+      const snap = state._editDragSnapshot;
+      const selPos = state._editDragSelectedPos;
+      const radius = state.proportionalRadius;
+
+      for (let i = 0; i < pos.count; i++) {
+        let minD = Infinity;
+        const vx = snap[i * 3], vy = snap[i * 3 + 1], vz = snap[i * 3 + 2];
+        for (const sp of selPos) {
+          const d = Math.sqrt((vx - sp.x)**2 + (vy - sp.y)**2 + (vz - sp.z)**2);
+          if (d < minD) minD = d;
+          if (minD === 0) break;
+        }
+
+        let weight = 0;
+        if (minD <= radius) {
+          weight = Math.pow(1 - minD / radius, 2);
+        }
+
+        if (weight > 0) {
+          pos.setXYZ(i,
+            snap[i * 3] + localTotalDelta.x * weight,
+            snap[i * 3 + 1] + localTotalDelta.y * weight,
+            snap[i * 3 + 2] + localTotalDelta.z * weight
+          );
+        }
+      }
+    } else {
+      state.selectedVertices.forEach(idx => {
+        pos.setXYZ(idx, pos.getX(idx) + localDelta.x,
+                        pos.getY(idx) + localDelta.y,
+                        pos.getZ(idx) + localDelta.z);
+      });
+    }
+
     pos.needsUpdate = true;
     pointsCloud.geometry.attributes.position.needsUpdate = true;
     state.lastDummyPos.copy(editDummy.position);
   } else if (state.activeMesh) {
     selectionBox.setFromObject(state.activeMesh);
   }
-});
+}););
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
@@ -284,6 +326,11 @@ const state = {
   activeBoneIndex: 0,
   selectedVertices: new Set(),
   lastDummyPos: new THREE.Vector3(),
+  proportionalEnabled: false,
+  proportionalRadius: 1.0,
+  _editDragSnapshot: null,
+  _editDragStartDummy: null,
+  _editDragSelectedPos: null,
   mixer: null,
   keyframes: [],
   undo,

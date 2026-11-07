@@ -218,6 +218,18 @@ export function initUI(state, viewGizmo) {
   if (saveProj) saveProj.onclick = () => state.saveProject();
   if (loadProj) loadProj.onchange = e => state.loadProject(e);
 
+  const toggleProp = document.getElementById("toggleProp");
+  if (toggleProp) toggleProp.onclick = () => {
+    state.proportionalEnabled = !state.proportionalEnabled;
+    toggleProp.classList.toggle("active", state.proportionalEnabled);
+    if (window.showToast) window.showToast(`Proportional Edit ${state.proportionalEnabled ? 'ON' : 'OFF'}`);
+  };
+
+  const propRadius = document.getElementById("propRadius");
+  if (propRadius) propRadius.oninput = (e) => {
+    state.proportionalRadius = parseFloat(e.target.value);
+  };
+
   const symmetryBtn = document.getElementById("toggleSymmetry");
   if (symmetryBtn) symmetryBtn.onclick = () => {
     state.symmetryEnabled = !state.symmetryEnabled;
