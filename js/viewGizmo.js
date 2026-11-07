@@ -50,16 +50,16 @@ export class ViewGizmo {
 
     // 4. Extrusion handles (pegs on faces)
     this.handles = new THREE.Group();
-    const handleGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8);
+    const handleGeo = new THREE.ConeGeometry(0.12, 0.3, 16);
     const handleMat = new THREE.MeshBasicMaterial({ color: 0x4a90e2 });
 
     const faceData = [
-      { pos: [0, 0, 0.85], rot: [Math.PI/2, 0, 0], normal: [0, 0, 1] },   // Front
-      { pos: [0, 0, -0.85], rot: [Math.PI/2, 0, 0], normal: [0, 0, -1] }, // Back
-      { pos: [0.85, 0, 0], rot: [0, 0, Math.PI/2], normal: [1, 0, 0] },   // Right
-      { pos: [-0.85, 0, 0], rot: [0, 0, Math.PI/2], normal: [-1, 0, 0] }, // Left
-      { pos: [0, 0.85, 0], rot: [0, 0, 0], normal: [0, 1, 0] },           // Top
-      { pos: [0, -0.85, 0], rot: [0, 0, 0], normal: [0, -1, 0] }          // Bottom
+      { pos: [0, 0, 0.9], rot: [Math.PI/2, 0, 0], normal: [0, 0, 1] },   // Front
+      { pos: [0, 0, -0.9], rot: [-Math.PI/2, 0, 0], normal: [0, 0, -1] },// Back
+      { pos: [0.9, 0, 0], rot: [0, 0, -Math.PI/2], normal: [1, 0, 0] },  // Right
+      { pos: [-0.9, 0, 0], rot: [0, 0, Math.PI/2], normal: [-1, 0, 0] }, // Left
+      { pos: [0, 0.9, 0], rot: [0, 0, 0], normal: [0, 1, 0] },           // Top
+      { pos: [0, -0.9, 0], rot: [Math.PI, 0, 0], normal: [0, -1, 0] }    // Bottom
     ];
 
     faceData.forEach(f => {
@@ -186,10 +186,11 @@ export class ViewGizmo {
 
     if (mesh.material) {
       this.meshClone.material = mesh.material.clone();
-      this.meshClone.material.opacity = 1.0;
-      this.meshClone.material.transparent = false;
+      this.meshClone.material.opacity = 1.0;       // Force opaque
+      this.meshClone.material.transparent = false; // Prevent seeing through it
       this.meshClone.material.depthWrite = true;
       this.meshClone.material.map = mesh.material.map;
+      this.meshClone.material.vertexColors = true; // Show vertex paint if any
     }
 
     this.cube.add(this.meshClone);
