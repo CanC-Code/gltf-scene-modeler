@@ -331,10 +331,22 @@ const state = {
 
   duplicateObject() {
     if (!this.activeMesh) return;
-    const newMesh = this.activeMesh.clone();
-    newMesh.geometry = this.activeMesh.geometry.clone();
-    newMesh.material = this.activeMesh.material.clone();
+    const src = this.activeMesh;
+    const newMesh = src.clone();
+    newMesh.geometry = src.geometry.clone();
+    newMesh.material = src.material.clone();
     newMesh.position.x += 1.5;
+
+    if (src.isSkinnedMesh && src.skeleton) {
+      // clone() copied the bone hierarchy as children, but left .skeleton
+      // pointing at the ORIGINAL bones. Rebuild from the clone's own bones
+      // (same DFS order as src.skeleton.bones, so boneInverses line up).
+      const clonedBones = [];
+      newMesh.traverse(o => { if (o.isBone) clonedBones.push(o); });
+      const skel = new THREE.Skeleton(clonedBones, src.skeleton.boneInverses);
+      newMesh.bind(skel, src.bindMatrix);
+    }
+
     this.addObject(newMesh);
   },
 
