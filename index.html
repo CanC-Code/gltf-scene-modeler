@@ -277,6 +277,7 @@
       <h3>Armature</h3>
       <button id="addBoneChain" style="background: #4caf50; margin-bottom: 6px;">Create Armature</button>
       <button id="addChildBone" style="background: #2e7d32; margin-bottom: 6px;">+ Add Child Bone</button>
+      <button id="renameBone" style="background: #1976d2; margin-bottom: 6px;">Rename Active Bone</button>
       <button id="deleteBone" style="background: #b71c1c; margin-bottom: 6px;">Delete Active Bone</button>
       <button id="bindSkin" style="background: #ff9800; margin-bottom: 6px;">Bind Skin to Bones</button>
       <button id="bindMulti" style="background: #9c27b0;">Bind Selected to Active Skeleton</button>
@@ -298,6 +299,12 @@
       <label>Timeline</label>
       <input type="range" id="timeline-scrub" min="0" max="0" step="1" value="0" disabled>
       <span id="timeline-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">Frame: 0</span>
+      
+      <label>FPS</label>
+      <input type="range" id="anim-fps" min="1" max="60" step="1" value="24">
+      <span id="fps-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">24 fps</span>
+      
+      <button id="toggleLoop" style="margin-top: 10px;">Loop Animation: OFF</button>
     </div>
 
     <div id="sculpt-panel" class="panel-section">

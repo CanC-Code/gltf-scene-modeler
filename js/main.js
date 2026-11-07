@@ -377,6 +377,8 @@ const state = {
   envEnabled: true,
   dirLight,
   hemiLight,
+  animationFPS: 24,
+  loopAnim: false,
   _baseUVs: null,
 
   applyEnvironmentPreset(preset) {
@@ -887,12 +889,14 @@ const state = {
     newBone.position.set(0, 1, 0); // Default offset
     parent.add(newBone);
     
+    undoStack.length = 0;
+    redoStack.length = 0;
     this.currentBones.push(newBone);
     this.rebuildBoneProxies();
     this.selectBone(this.currentBones.length - 1);
     this.updateBoneList();
     
-    if (window.showToast) window.showToast(`Added ${newBone.name}`);
+    if (window.showToast) window.showToast(`Added ${newBone.name} (undo cleared)`);
   },
 
   bindSkin() {
@@ -925,7 +929,9 @@ const state = {
     this.skeletonHelper.material.linewidth = 3;
     scene.add(this.skeletonHelper);
 
-    if (window.showToast) window.showToast("Skin bound successfully! Select Move/Rotate to pose.");
+    undoStack.length = 0;
+    redoStack.length = 0;
+    if (window.showToast) window.showToast("Skin bound (undo history cleared).");
     this.selectBone(0);
     this.updateObjectList();
   },
@@ -997,6 +1003,22 @@ const state = {
     if (this.mode === 'weight_paint') this.updateWeightVisuals();
   },
 
+  renameBone() {
+    if (!this.currentBones || !this.currentBones[this.activeBoneIndex]) {
+      if (window.showToast) window.showToast("No bone selected.");
+      return;
+    }
+    const bone = this.currentBones[this.activeBoneIndex];
+    const newName = prompt("Rename bone:", bone.name);
+    if (newName && newName.trim() && newName.trim() !== bone.name) {
+      bone.name = newName.trim();
+      undoStack.length = 0;
+      redoStack.length = 0;
+      this.updateBoneList();
+      if (window.showToast) window.showToast(`Renamed to ${bone.name}`);
+    }
+  },
+
   deleteBone() {
     if (!this.currentBones || this.currentBones.length === 0) {
       if (window.showToast) window.showToast("No bones to delete.");
@@ -1022,6 +1044,8 @@ const state = {
       this.activeMesh.remove(bone);
     }
 
+    undoStack.length = 0;
+    redoStack.length = 0;
     this.currentBones.splice(idx, 1);
     this.activeBoneIndex = Math.max(0, idx - 1);
 
@@ -1080,10 +1104,13 @@ const state = {
     return new THREE.AnimationClip('Action', -1, tracks);
   },
 
-  scrubToTime(time) {
+  scrubToTime(frameIndex) {
     const clip = this._buildAnimationClip();
     if (!clip) return;
     if (this.mixer) this.mixer.stopAllAction();
+    
+    const fps = this.animationFPS || 24;
+    const timeSec = frameIndex / fps;
     
     this.mixer = new THREE.AnimationMixer(this.activeMesh);
     this.mixer.timeScale = 0; // Pause mixer for scrubbing
@@ -1091,15 +1118,17 @@ const state = {
     action.setLoop(THREE.LoopOnce);
     action.clampWhenFinished = true;
     action.play();
-    this.mixer.setTime(time);
+    this.mixer.setTime(timeSec);
     
     const label = document.getElementById('timeline-label');
-    if (label) label.textContent = `Frame: ${Math.round(time)}`;
+    if (label) label.textContent = `Frame: ${Math.round(frameIndex)}`;
   },
 
   addKeyframe() {
     if (!this.currentBones) return;
-    const time = this.keyframes.length;
+    const fps = this.animationFPS || 24;
+    const frameIndex = this.keyframes.length;
+    const time = frameIndex / fps;
     const frame = { time, bones: [] };
     
     this.currentBones.forEach(bone => {
@@ -1134,8 +1163,8 @@ const state = {
     this.mixer = new THREE.AnimationMixer(this.activeMesh);
     this.mixer.timeScale = 1; // Play
     const action = this.mixer.clipAction(clip);
-    action.setLoop(THREE.LoopOnce);
-    action.clampWhenFinished = true;
+    action.setLoop(this.loopAnim ? THREE.LoopRepeat : THREE.LoopOnce);
+    action.clampWhenFinished = !this.loopAnim;
     action.play();
   },
 

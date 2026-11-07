@@ -93,6 +93,9 @@ export function initUI(state, viewGizmo) {
 
   const deleteBoneBtn = document.getElementById("deleteBone");
   if (deleteBoneBtn) deleteBoneBtn.onclick = () => state.deleteBone();
+  
+  const renameBoneBtn = document.getElementById("renameBone");
+  if (renameBoneBtn) renameBoneBtn.onclick = () => state.renameBone();
 
   const bindBtn = document.getElementById("bindSkin");
   if (bindBtn) bindBtn.onclick = () => state.bindSkin();
