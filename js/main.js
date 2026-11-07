@@ -175,6 +175,22 @@ function ensureUVs(geometry) {
   return true;
 }
 
+function validateGeometryForExport(geometry) {
+  if (!geometry || !geometry.attributes.position) return "Missing POSITION attribute";
+  const posCount = geometry.attributes.position.count;
+  
+  for (const name of Object.keys(geometry.attributes)) {
+    const attr = geometry.attributes[name];
+    if (attr.count !== posCount) {
+      return `Mismatched buffer sizes: ${name} (${attr.count}) != POSITION (${posCount})`;
+    }
+  }
+  if (geometry.index && geometry.index.count % 3 !== 0) {
+    return `Index count (${geometry.index.count}) is not a multiple of 3`;
+  }
+  return null; // Valid
+}
+
 const actionArea = document.getElementById("action-area");
 const state = {
   mode: "sculpt",
@@ -711,6 +727,18 @@ const state = {
 
   exportGLTF() {
     if (!this.objects.length) return;
+
+    // --- SAFETY NET: Validate all geometries before export ---
+    for (const obj of this.objects) {
+      const err = validateGeometryForExport(obj.geometry);
+      if (err) {
+        if (window.showToast) window.showToast(`Export blocked: ${err}`);
+        console.error(`Export validation failed on mesh: ${err}`);
+        return; // Abort export
+      }
+    }
+    // ---------------------------------------------------------
+
     const exportGroup = new THREE.Group();
     this.objects.forEach(obj => {
       const clone = obj.clone();
