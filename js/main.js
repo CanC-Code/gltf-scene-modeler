@@ -831,7 +831,13 @@ function handleAction() {
   if (!hit) return;
   const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
   if (state.mode === "sculpt") state.brush.apply(localPoint, state.symmetryEnabled);
-  else if (state.mode === "paint") state.brush.paint(localPoint, state.symmetryEnabled);
+  else if (state.mode === "paint") {
+    if (state.activeMesh.userData.paintCanvas) {
+      state.brush.paintTexture(localPoint, state.symmetryEnabled);
+    } else {
+      state.brush.paint(localPoint, state.symmetryEnabled);
+    }
+  }
   else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
 }
 

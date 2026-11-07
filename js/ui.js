@@ -228,6 +228,28 @@ export function initUI(state, viewGizmo) {
     if (matTex) matTex.value = ''; // Reset file input
   };
 
+  const btnNewTex = document.getElementById("btn-new-texture");
+  if (btnNewTex) btnNewTex.onclick = () => {
+    if (!state.activeMesh) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 2048;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false; // glTF standard
+    
+    state.activeMesh.userData.paintCanvas = canvas;
+    state.activeMesh.userData.paintTexture = texture;
+    state.activeMesh.material.map = texture;
+    state.activeMesh.material.needsUpdate = true;
+    
+    if (window.showToast) window.showToast('Canvas ready! Switch to Paint mode.');
+  };
+
   if (matColor) matColor.oninput = (e) => {
     if (state.activeMesh && state.activeMesh.material) {
       state.activeMesh.material.color.set(e.target.value);

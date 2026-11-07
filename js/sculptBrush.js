@@ -136,6 +136,57 @@ export class SculptBrush {
     colorAttr.needsUpdate = true;
   }
 
+  paintTexture(localPoint, symmetry = false) {
+    if (!this.geometry.attributes.uv) {
+      // Fallback to vertex colors if no UVs exist
+      return this.paint(localPoint, symmetry);
+    }
+    const canvas = this.mesh.userData.paintCanvas;
+    const texture = this.mesh.userData.paintTexture;
+    if (!canvas || !texture) return;
+
+    const ctx = canvas.getContext('2d');
+    const pos = this.geometry.attributes.position;
+    const uv = this.geometry.attributes.uv;
+    const centers = [localPoint.clone()];
+    if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+
+    const v = new THREE.Vector3();
+    const colorHex = '#' + this.paintColor.getHexString();
+    ctx.fillStyle = colorHex;
+
+    // We estimate brush size in pixels based on mesh scale.
+    // A real UV unwrap would require a 2D spatial hash, but for typical
+    // game meshes, drawing at the vertex UVs with a fixed pixel radius
+    // creates a smooth stroke.
+    const radiusPx = (this.radius * canvas.width) * 0.05;
+
+    for (const c of centers) {
+      const region = this.spatialHash.query(c, this.radius);
+      for (const i of region) {
+        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+        const dist = v.distanceTo(c);
+        if (dist <= this.radius) {
+          const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
+          
+          const u = uv.getX(i);
+          const v_uv = uv.getY(i);
+          
+          // Map UV (0..1) to Canvas (0..width). flipY=false means V=0 is top.
+          const px = u * canvas.width;
+          const py = (1 - v_uv) * canvas.height;
+
+          ctx.globalAlpha = falloff;
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(2, falloff * radiusPx), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.globalAlpha = 1.0;
+    texture.needsUpdate = true;
+  }
+
   paintWeight(localPoint) {
     if (!this.geometry.attributes.skinWeight || !this.geometry.attributes.skinIndex) return;
     
