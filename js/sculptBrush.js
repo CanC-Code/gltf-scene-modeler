@@ -151,28 +151,50 @@ export class SculptBrush {
       if (dist <= this.radius) {
         const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
         
-        // Simple soft weight blending
-        const currentW0 = weightAttr.getX(i);
-        const currentW1 = weightAttr.getY(i);
-        const currentW2 = weightAttr.getZ(i);
+        // Read existing 4 influences
+        let w = [
+          weightAttr.getX(i), weightAttr.getY(i),
+          weightAttr.getZ(i), weightAttr.getW(i)
+        ];
+        let idx = [
+          indexAttr.getX(i), indexAttr.getY(i),
+          indexAttr.getZ(i), indexAttr.getW(i)
+        ];
+
+        // Find if the active bone is already in the top 4
+        let targetSlot = idx.indexOf(this.activeBoneIndex);
         
-        // Calculate new weights
-        let newW0 = currentW0, newW1 = currentW1, newW2 = currentW2;
-        
-        if (this.activeBoneIndex === 0) newW0 = THREE.MathUtils.lerp(currentW0, 1.0, falloff);
-        if (this.activeBoneIndex === 1) newW1 = THREE.MathUtils.lerp(currentW1, 1.0, falloff);
-        if (this.activeBoneIndex === 2) newW2 = THREE.MathUtils.lerp(currentW2, 1.0, falloff);
-        
-        // Normalize to ensure total weight is 1.0
-        const total = newW0 + newW1 + newW2;
-        if (total > 0) {
-           newW0 /= total; newW1 /= total; newW2 /= total;
+        if (targetSlot === -1) {
+          // Not present: replace the smallest weight slot
+          targetSlot = 0;
+          for (let k = 1; k < 4; k++) {
+            if (w[k] < w[targetSlot]) targetSlot = k;
+          }
+          idx[targetSlot] = this.activeBoneIndex;
+          w[targetSlot] = 0; // Start blending from 0
         }
-        
-        weightAttr.setXYZW(i, newW0, newW1, newW2, 0);
-        
-        // Ensure skin index is set correctly (0, 1, 2)
-        indexAttr.setXYZW(i, 0, 1, 2, 0); 
+
+        // Lerp the target bone's weight towards 1.0 based on brush falloff
+        w[targetSlot] = THREE.MathUtils.lerp(w[targetSlot], 1.0, falloff);
+
+        // Normalize the 4 weights
+        const total = w[0] + w[1] + w[2] + w[3];
+        if (total > 0) {
+          for (let k = 0; k < 4; k++) w[k] /= total;
+        }
+
+        // Sort descending (standard for glTF and game engines)
+        const influences = [
+          { weight: w[0], index: idx[0] },
+          { weight: w[1], index: idx[1] },
+          { weight: w[2], index: idx[2] },
+          { weight: w[3], index: idx[3] }
+        ];
+        influences.sort((a, b) => b.weight - a.weight);
+
+        // Write back
+        weightAttr.setXYZW(i, influences[0].weight, influences[1].weight, influences[2].weight, influences[3].weight);
+        indexAttr.setXYZW(i, influences[0].index, influences[1].index, influences[2].index, influences[3].index);
       }
     }
     weightAttr.needsUpdate = true;
