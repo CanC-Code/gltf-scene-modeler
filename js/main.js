@@ -466,6 +466,7 @@ const state = {
     this.activeMesh.geometry.dispose();
     this.activeMesh.material.dispose();
     if (this.skeletonHelper) { scene.remove(this.skeletonHelper); this.skeletonHelper = null; }
+    if (this.boneProxies) { scene.remove(this.boneProxies); this.boneProxies = null; }
     if (this.tempSkin)       { scene.remove(this.tempSkin);       this.tempSkin = null; }
     if (this.mixer) { this.mixer.stopAllAction(); this.mixer = null; }
     this.keyframes = [];
@@ -518,6 +519,23 @@ const state = {
     endBone.name = 'EndBone';
     const bones = [rootBone, midBone, endBone];
     this.currentBones = bones;
+
+    // Create invisible proxy spheres for raycasting bones in viewport
+    if (this.boneProxies) {
+      scene.remove(this.boneProxies);
+    }
+    this.boneProxies = new THREE.Group();
+    const proxyGeo = new THREE.SphereGeometry(0.3, 8, 8); // small enough not to block view
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+    
+    bones.forEach((bone, idx) => {
+      const proxy = new THREE.Mesh(proxyGeo, proxyMat);
+      proxy.userData.boneIndex = idx;
+      // We'll update positions in the animate loop, but set initial pos
+      bone.getWorldPosition(proxy.position);
+      this.boneProxies.add(proxy);
+    });
+    scene.add(this.boneProxies);
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
 
     if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
@@ -956,6 +974,34 @@ if (trackpadSurface) {
   });
 }
 
+// --- Bone Picking for Rig Mode ---
+if (trackpadSurface) {
+  trackpadSurface.addEventListener("pointerdown", e => {
+    if (state.mode !== 'rig' || !state.activeMesh || !state.currentBones) return;
+    
+    const rect = trackpadSurface.getBoundingClientRect();
+    const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    mouse.x = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
+    mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
+    
+    raycaster.setFromCamera(mouse, camera);
+    
+    // Raycast against bone helper spheres if we create them
+    if (state.boneProxies) {
+      const hits = raycaster.intersectObjects(state.boneProxies.children);
+      if (hits.length > 0) {
+        const proxy = hits[0].object;
+        const boneIndex = proxy.userData.boneIndex;
+        if (boneIndex !== undefined) {
+          state.selectBone(boneIndex);
+        }
+      }
+    }
+  });
+}
+
+
 function extrudeSelected() {
   if (!state.activeMesh || state.selectedVertices.size === 0) return;
   const geometry = state.activeMesh.geometry;
@@ -1053,6 +1099,11 @@ function animate() {
     selectionBox.setFromObject(state.activeMesh);
   }
   if (state.skeletonHelper) state.skeletonHelper.update();
+  if (state.boneProxies && state.currentBones) {
+    state.currentBones.forEach((bone, idx) => {
+      bone.getWorldPosition(state.boneProxies.children[idx].position);
+    });
+  }
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
 }
