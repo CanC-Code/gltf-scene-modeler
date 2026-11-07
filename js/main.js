@@ -702,6 +702,21 @@ const state = {
     });
   },
 
+  rebuildBoneProxies() {
+    if (this.boneProxies) scene.remove(this.boneProxies);
+    this.boneProxies = new THREE.Group();
+    const proxyGeo = new THREE.SphereGeometry(0.3, 8, 8);
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+    
+    this.currentBones.forEach((bone, idx) => {
+      const proxy = new THREE.Mesh(proxyGeo, proxyMat);
+      proxy.userData.boneIndex = idx;
+      bone.getWorldPosition(proxy.position);
+      this.boneProxies.add(proxy);
+    });
+    scene.add(this.boneProxies);
+  },
+
   addBoneChain() {
     if (!this.activeMesh) return;
     const geo0 = this.activeMesh.geometry;
@@ -722,23 +737,7 @@ const state = {
     endBone.name = 'EndBone';
     const bones = [rootBone, midBone, endBone];
     this.currentBones = bones;
-
-    // Create invisible proxy spheres for raycasting bones in viewport
-    if (this.boneProxies) {
-      scene.remove(this.boneProxies);
-    }
-    this.boneProxies = new THREE.Group();
-    const proxyGeo = new THREE.SphereGeometry(0.3, 8, 8); // small enough not to block view
-    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
-    
-    bones.forEach((bone, idx) => {
-      const proxy = new THREE.Mesh(proxyGeo, proxyMat);
-      proxy.userData.boneIndex = idx;
-      // We'll update positions in the animate loop, but set initial pos
-      bone.getWorldPosition(proxy.position);
-      this.boneProxies.add(proxy);
-    });
-    scene.add(this.boneProxies);
+    this.rebuildBoneProxies();
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
 
     if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
@@ -771,10 +770,15 @@ const state = {
       bone.getWorldPosition(head);
       head.applyMatrix4(meshMatrixInv);
       let tail;
-      const childBone = bone.children.find(c => c.isBone);
-      if (childBone) {
+      const childBones = bone.children.filter(c => c.isBone);
+      if (childBones.length > 0) {
         tail = new THREE.Vector3();
-        childBone.getWorldPosition(tail);
+        childBones.forEach(cb => {
+          const cbPos = new THREE.Vector3();
+          cb.getWorldPosition(cbPos);
+          tail.add(cbPos);
+        });
+        tail.divideScalar(childBones.length);
         tail.applyMatrix4(meshMatrixInv);
       } else {
         const parent = bone.parent;
@@ -826,6 +830,33 @@ const state = {
 
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+  },
+
+  addChildBone() {
+    if (!this.activeMesh) return;
+    
+    if (!this.currentBones) {
+      // Create a root bone if none exists
+      this.currentBones = [];
+      const root = new THREE.Bone();
+      root.name = 'RootBone';
+      root.position.set(0, 0, 0);
+      this.activeMesh.add(root);
+      this.currentBones.push(root);
+    }
+    
+    const parent = this.currentBones[this.activeBoneIndex];
+    const newBone = new THREE.Bone();
+    newBone.name = `Bone_${this.currentBones.length}`;
+    newBone.position.set(0, 1, 0); // Default offset
+    parent.add(newBone);
+    
+    this.currentBones.push(newBone);
+    this.rebuildBoneProxies();
+    this.selectBone(this.currentBones.length - 1);
+    this.updateBoneList();
+    
+    if (window.showToast) window.showToast(`Added ${newBone.name}`);
   },
 
   bindSkin() {

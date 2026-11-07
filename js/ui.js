@@ -87,6 +87,9 @@ export function initUI(state, viewGizmo) {
   // Rigging UI
   const addBoneBtn = document.getElementById("addBoneChain");
   if (addBoneBtn) addBoneBtn.onclick = () => state.addBoneChain();
+  
+  const addChildBoneBtn = document.getElementById("addChildBone");
+  if (addChildBoneBtn) addChildBoneBtn.onclick = () => state.addChildBone();
 
   const bindBtn = document.getElementById("bindSkin");
   if (bindBtn) bindBtn.onclick = () => state.bindSkin();
