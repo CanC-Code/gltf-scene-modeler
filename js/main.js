@@ -650,6 +650,10 @@ const state = {
     if (this.mixer) { this.mixer.stopAllAction(); this.mixer = null; }
     this.keyframes = [];
     this.currentBones = null;
+    const scrub = document.getElementById('timeline-scrub');
+    if (scrub) { scrub.max = 0; scrub.value = 0; scrub.disabled = true; }
+    const lbl = document.getElementById('timeline-label');
+    if (lbl) lbl.textContent = 'Frame: 0';
     this.activeBoneIndex = 0;
     this._savedColors = null;
     this.activeMesh = null;
@@ -933,6 +937,41 @@ const state = {
     this.activeMesh.material.needsUpdate = true;
   },
 
+  _buildAnimationClip() {
+    if (this.keyframes.length < 2 || !this.currentBones) return null;
+    const tracks = [];
+    for (let i = 0; i < this.currentBones.length; i++) {
+      const posValues = [];
+      const quatValues = [];
+      const times = [];
+      this.keyframes.forEach(frame => {
+        times.push(frame.time);
+        posValues.push(frame.bones[i].pos.x, frame.bones[i].pos.y, frame.bones[i].pos.z);
+        quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
+      });
+      tracks.push(new THREE.VectorKeyframeTrack(`${this.currentBones[i].name}.position`, times, posValues));
+      tracks.push(new THREE.QuaternionKeyframeTrack(`${this.currentBones[i].name}.quaternion`, times, quatValues));
+    }
+    return new THREE.AnimationClip('Action', -1, tracks);
+  },
+
+  scrubToTime(time) {
+    const clip = this._buildAnimationClip();
+    if (!clip) return;
+    if (this.mixer) this.mixer.stopAllAction();
+    
+    this.mixer = new THREE.AnimationMixer(this.activeMesh);
+    this.mixer.timeScale = 0; // Pause mixer for scrubbing
+    const action = this.mixer.clipAction(clip);
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    action.play();
+    this.mixer.setTime(time);
+    
+    const label = document.getElementById('timeline-label');
+    if (label) label.textContent = `Frame: ${Math.round(time)}`;
+  },
+
   addKeyframe() {
     if (!this.currentBones) return;
     const time = this.keyframes.length;
@@ -946,40 +985,33 @@ const state = {
     });
     
     this.keyframes.push(frame);
+    
+    const maxFrame = this.keyframes.length - 1;
+    const scrub = document.getElementById('timeline-scrub');
+    if (scrub) {
+      scrub.max = maxFrame;
+      scrub.value = maxFrame;
+      scrub.disabled = false;
+    }
+    this.scrubToTime(maxFrame);
+    
     if (window.showToast) window.showToast(`Keyframe ${time} added!`);
   },
 
   playAnimation() {
-    if (this.keyframes.length < 2) {
+    const clip = this._buildAnimationClip();
+    if (!clip) {
       if (window.showToast) window.showToast("Need at least 2 keyframes to play.");
       return;
     }
-    
     if (this.mixer) this.mixer.stopAllAction();
     
-    const tracks = [];
-    for (let i = 0; i < this.currentBones.length; i++) {
-      const posValues = [];
-      const quatValues = [];
-      const times = [];
-      
-      this.keyframes.forEach(frame => {
-        times.push(frame.time);
-        posValues.push(frame.bones[i].pos.x, frame.bones[i].pos.y, frame.bones[i].pos.z);
-        quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
-      });
-      
-      tracks.push(new THREE.VectorKeyframeTrack(`${this.currentBones[i].name}.position`, times, posValues));
-      tracks.push(new THREE.QuaternionKeyframeTrack(`${this.currentBones[i].name}.quaternion`, times, quatValues));
-    }
-    
-    const clip = new THREE.AnimationClip('Action', -1, tracks);
     this.mixer = new THREE.AnimationMixer(this.activeMesh);
+    this.mixer.timeScale = 1; // Play
     const action = this.mixer.clipAction(clip);
     action.setLoop(THREE.LoopOnce);
     action.clampWhenFinished = true;
     action.play();
-    this.mixer.update(0);
   },
 
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
@@ -1886,7 +1918,18 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
-  if (state.mixer) state.mixer.update(delta);
+  if (state.mixer) {
+    state.mixer.update(delta);
+    if (state.mixer.timeScale === 1) {
+      const scrub = document.getElementById('timeline-scrub');
+      const label = document.getElementById('timeline-label');
+      if (scrub && label) {
+        const t = Math.round(state.mixer.time);
+        scrub.value = t;
+        label.textContent = `Frame: ${t}`;
+      }
+    }
+  }
   
   if (state.trackpadMode === 'camera' && controls) controls.update();
   if (canvasControls) canvasControls.update();

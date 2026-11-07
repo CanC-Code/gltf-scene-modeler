@@ -264,9 +264,13 @@
       <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
 
       <h3>Animation</h3>
-      <button id="addKeyframe" style="background: #03a9f4;">Add Keyframe</button>
-      <button id="playAnim" style="background: #00bcd4;">Play Animation</button>
-      <button id="resetAnim">Reset Pose</button>
+      <button id="addKeyframe" style="background: #03a9f4; margin-bottom: 6px;">Add Keyframe</button>
+      <button id="playAnim" style="background: #00bcd4; margin-bottom: 6px;">Play Animation</button>
+      <button id="resetAnim" style="margin-bottom: 10px;">Reset Pose</button>
+      
+      <label>Timeline</label>
+      <input type="range" id="timeline-scrub" min="0" max="0" step="1" value="0" disabled>
+      <span id="timeline-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">Frame: 0</span>
     </div>
 
     <div id="sculpt-panel" class="panel-section">
