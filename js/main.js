@@ -2234,6 +2234,37 @@ function snapSelectedToGrid() {
   if (window.showToast) window.showToast("Snapped to 0.1 grid.");
 }
 
+function appendVertexToGeometry(geo, x, y, z) {
+  const newIdx = geo.attributes.position.count;
+  for (const name in geo.attributes) {
+    const attr = geo.attributes[name];
+    const oldArr = attr.array;
+    const newArr = new attr.array.constructor(oldArr.length + attr.itemSize);
+    newArr.set(oldArr);
+    
+    // Default values for new vertex
+    if (name === 'position') {
+      newArr[oldArr.length] = x;
+      newArr[oldArr.length + 1] = y;
+      newArr[oldArr.length + 2] = z;
+    } else if (name === 'uv') {
+      newArr[oldArr.length] = 0.5;
+      newArr[oldArr.length + 1] = 0.5;
+    } else if (name === 'normal') {
+      newArr[oldArr.length] = 0;
+      newArr[oldArr.length + 1] = 1;
+      newArr[oldArr.length + 2] = 0;
+    } else if (name === 'color') {
+      newArr[oldArr.length] = 1;
+      newArr[oldArr.length + 1] = 1;
+      newArr[oldArr.length + 2] = 1;
+    }
+    
+    geo.setAttribute(name, new THREE.BufferAttribute(newArr, attr.itemSize, attr.normalized));
+  }
+  return newIdx;
+}
+
 function compactGeometry(geo) {
   if (!geo.index) return;
   const oldIndex = geo.index.array;
@@ -2380,6 +2411,60 @@ document.getElementById("deleteVertexBtn").onclick = deleteSelectedVertices;
 document.getElementById("weldBtn").onclick = weldSelectedVertices;
 document.getElementById("snapBtn").onclick = snapSelectedToGrid;
 document.getElementById("bevelBtn").onclick = () => bevelSelected(0.2);
+
+document.getElementById("addVertexBtn").onclick = () => {
+  if (!state.activeMesh) return;
+  saveState(state.activeMesh);
+  const geo = state.activeMesh.geometry;
+  const pos = geo.attributes.position;
+  
+  // Find center of selection or default to 0,0,0
+  const center = new THREE.Vector3(0, 0, 0);
+  if (state.selectedVertices.size > 0) {
+    state.selectedVertices.forEach(idx => {
+      center.x += pos.getX(idx);
+      center.y += pos.getY(idx);
+      center.z += pos.getZ(idx);
+    });
+    center.divideScalar(state.selectedVertices.size);
+  }
+  
+  appendVertexToGeometry(geo, center.x, center.y, center.z);
+  geo.computeVertexNormals();
+  
+  // Update UI
+  syncPointsCloud();
+  if (state.brush) state.brush.rebuildGrid();
+  if (window.showToast) window.showToast("Added new vertex.");
+};
+
+document.getElementById("buildFaceBtn").onclick = () => {
+  if (!state.activeMesh || state.selectedVertices.size < 3) {
+    if (window.showToast) window.showToast("Select at least 3 vertices to build a face.");
+    return;
+  }
+  saveState(state.activeMesh);
+  const geo = state.activeMesh.geometry;
+  if (!geo.index) return;
+  
+  const sel = Array.from(state.selectedVertices);
+  
+  // Build a triangle using the first 3 selected vertices
+  const indices = Array.from(geo.index.array);
+  indices.push(sel[0], sel[1], sel[2]);
+  
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  
+  // Update wireframe overlay
+  wireframeLines.geometry.dispose();
+  wireframeLines.geometry = new THREE.WireframeGeometry(geo);
+  
+  syncPointsCloud();
+  updateEditGizmo();
+  if (state.brush) state.brush.rebuildGrid();
+  if (window.showToast) window.showToast("Built new face.");
+};
 document.getElementById("clearSelection").onclick = () => {
   state.selectedVertices.clear();
   syncPointsCloud();

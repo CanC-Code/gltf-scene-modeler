@@ -184,14 +184,17 @@ export class ViewGizmo {
     box.getCenter(center);
     this.meshClone.position.sub(center);
 
-    if (mesh.material) {
-      this.meshClone.material = mesh.material.clone();
-      this.meshClone.material.opacity = 1.0;       // Force opaque
-      this.meshClone.material.transparent = false; // Prevent seeing through it
-      this.meshClone.material.depthWrite = true;
-      this.meshClone.material.map = mesh.material.map;
-      this.meshClone.material.vertexColors = true; // Show vertex paint if any
-    }
+    // Always use a fresh solid material for accurate preview
+    const previewColor = mesh.material ? mesh.material.color.getHex() : 0x88ccff;
+    this.meshClone.material = new THREE.MeshStandardMaterial({
+      color: previewColor,
+      roughness: 0.4,
+      metalness: 0.1,
+      transparent: false,
+      opacity: 1.0,
+      flatShading: false,
+      vertexColors: !!(mesh.geometry.attributes && mesh.geometry.attributes.color)
+    });
 
     this.cube.add(this.meshClone);
   }
