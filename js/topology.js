@@ -181,3 +181,46 @@ export function extrudeFaces(geometry, faceIndices) {
 
   return geometry;
 }
+
+export function applyUVProjection(geometry, type) {
+  if (!geometry || !geometry.attributes.position) return;
+  const pos = geometry.attributes.position;
+  const count = pos.count;
+  const uv = new Float32Array(count * 2);
+
+  geometry.computeBoundingBox();
+  const bb = geometry.boundingBox;
+  const cx = (bb.min.x + bb.max.x) / 2;
+  const cy = (bb.min.y + bb.max.y) / 2;
+  const cz = (bb.min.z + bb.max.z) / 2;
+  const sx = Math.max(1e-6, bb.max.x - bb.min.x);
+  const sy = Math.max(1e-6, bb.max.y - bb.min.y);
+  const sz = Math.max(1e-6, bb.max.z - bb.min.z);
+
+  for (let i = 0; i < count; i++) {
+    const x = pos.getX(i) - cx;
+    const y = pos.getY(i) - cy;
+    const z = pos.getZ(i) - cz;
+    
+    let u = 0, v = 0;
+    if (type === 'planar') {
+      // Top-down view (X and Z)
+      u = (x + sx / 2) / sx;
+      v = (z + sz / 2) / sz;
+    } else if (type === 'cylindrical') {
+      // Wrap around Y axis
+      u = 0.5 + Math.atan2(z, x) / (2 * Math.PI);
+      v = (y + sy / 2) / sy;
+    } else if (type === 'spherical') {
+      // Lat/Long map
+      const r = Math.sqrt(x * x + y * y + z * z);
+      u = 0.5 + Math.atan2(z, x) / (2 * Math.PI);
+      v = 0.5 + Math.asin(y / Math.max(1e-6, r)) / Math.PI;
+    }
+    
+    uv[i * 2] = u;
+    uv[i * 2 + 1] = v;
+  }
+  
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}

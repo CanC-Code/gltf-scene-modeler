@@ -1,4 +1,5 @@
 import * as THREE from "../three/three.module.js";
+import { applyUVProjection } from "./topology.js";
 
 export function initUI(state, viewGizmo) {
   const toggleMenu = document.getElementById("toggleMenu"), menu = document.getElementById("menu");
@@ -227,6 +228,25 @@ export function initUI(state, viewGizmo) {
     if (matMetal) matMetal.value = m.metalness;
     if (matTex) matTex.value = ''; // Reset file input
   };
+
+  const applyUV = (type) => {
+    if (!state.activeMesh) return;
+    applyUVProjection(state.activeMesh.geometry, type);
+    state.activeMesh.geometry.attributes.uv.needsUpdate = true;
+    
+    // If painting, the canvas might need a repaint if they just set the unwrap
+    if (state.activeMesh.userData.paintTexture) {
+      state.activeMesh.userData.paintTexture.needsUpdate = true;
+    }
+    if (window.showToast) window.showToast(`Applied ${type} UV unwrap.`);
+  };
+
+  const btnUVPlanar = document.getElementById("uv-planar");
+  const btnUVCyl = document.getElementById("uv-cyl");
+  const btnUVSph = document.getElementById("uv-sph");
+  if (btnUVPlanar) btnUVPlanar.onclick = () => applyUV('planar');
+  if (btnUVCyl) btnUVCyl.onclick = () => applyUV('cylindrical');
+  if (btnUVSph) btnUVSph.onclick = () => applyUV('spherical');
 
   const btnNewTex = document.getElementById("btn-new-texture");
   if (btnNewTex) btnNewTex.onclick = () => {

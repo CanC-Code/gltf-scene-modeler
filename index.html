@@ -150,6 +150,13 @@
           <input type="file" id="mat-texture" accept="image/*" style="color: #fff; margin-bottom: 5px; font-size: 12px;">
           <button id="btn-new-texture" style="background: #4a90e2; margin-bottom: 10px;">🎨 Create Blank Canvas</button>
           
+          <label style="margin-top: 5px;">UV Unwrap Projection</label>
+          <div style="display: flex; gap: 4px; margin-bottom: 10px;">
+            <button id="uv-planar" style="flex: 1; padding: 6px; font-size: 11px;">Planar</button>
+            <button id="uv-cyl" style="flex: 1; padding: 6px; font-size: 11px;">Cylinder</button>
+            <button id="uv-sph" style="flex: 1; padding: 6px; font-size: 11px;">Sphere</button>
+          </div>
+          
           <label>Roughness</label>
           <input type="range" id="mat-roughness" min="0" max="1" step="0.05" value="0.4">
           
