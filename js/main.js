@@ -6,8 +6,6 @@ import { GLTFExporter } from "../three/GLTFExporter.js";
 import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
-import { FontLoader } from "../three/FontLoader.js";
-import { TextGeometry } from "../three/TextGeometry.js";
 import { mergeVertices } from "../three/utils/BufferGeometryUtils.js";
 import { extrudeFaces } from "./topology.js";
 
@@ -383,8 +381,6 @@ const state = {
   proportionalRadius: 1.0,
   _editDragSnapshot: null,
   faceSelectMode: false,
-  _editDragStartDummy: null,
-  _editDragSelectedPos: null,
   mixer: null,
   keyframes: [],
   undo,
