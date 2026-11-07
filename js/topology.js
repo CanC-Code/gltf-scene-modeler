@@ -99,24 +99,32 @@ export function updateNormals(geometry, region, adjacencyMap) {
 export function extrudeFaces(geometry, faceIndices) {
   if (!geometry.index) return geometry;
   const pos = geometry.attributes.position;
-  const norm = geometry.attributes.normal;
   const index = geometry.index.array;
-  
-  const newPositions = [];
-  const newNormals = [];
-  const newIndices = [];
-  
-  for (let i = 0; i < pos.count; i++) {
-    newPositions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-    newNormals.push(norm.getX(i), norm.getY(i), norm.getZ(i));
+
+  const totalNewVerts = faceIndices.length * 3;
+  const oldCount = pos.count;
+  const newCount = oldCount + totalNewVerts;
+
+  // Snapshot and extend EVERY attribute so counts stay in sync.
+  // Preserve array type (Uint16Array for skinIndex, Float32Array for weights)
+  // and the `normalized` flag.
+  const attrSpecs = {};
+  for (const name of Object.keys(geometry.attributes)) {
+    const src = geometry.attributes[name];
+    const arr = new src.array.constructor(newCount * src.itemSize);
+    for (let i = 0; i < src.array.length; i++) arr[i] = src.array[i];
+    attrSpecs[name] = { itemSize: src.itemSize, normalized: src.normalized, arr, src };
   }
-  
+
+  const newIndices = [];
+  let appendAt = oldCount;
+
   faceIndices.forEach(faceIdx => {
     const a = index[faceIdx * 3];
     const b = index[faceIdx * 3 + 1];
     const c = index[faceIdx * 3 + 2];
-    
-    // Duplicate vertices
+
+    // Face normal (geometric)
     const va = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
     const vb = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
     const vc = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
@@ -124,45 +132,52 @@ export function extrudeFaces(geometry, faceIndices) {
                                   .cross(new THREE.Vector3().subVectors(vc, va))
                                   .normalize();
 
-    const na = newPositions.length / 3;
-    newPositions.push(pos.getX(a), pos.getY(a), pos.getZ(a));
-    newNormals.push(fn.x, fn.y, fn.z);
-    
-    const nb = newPositions.length / 3;
-    newPositions.push(pos.getX(b), pos.getY(b), pos.getZ(b));
-    newNormals.push(fn.x, fn.y, fn.z);
-    
-    const nc = newPositions.length / 3;
-    newPositions.push(pos.getX(c), pos.getY(c), pos.getZ(c));
-    newNormals.push(fn.x, fn.y, fn.z);
-    
-    // Move along FACE normal
-    const offset = 0.5;
-    const nx = fn.x, ny = fn.y, nz = fn.z;
-    
-    newPositions[na*3] += nx * offset; newPositions[na*3+1] += ny * offset; newPositions[na*3+2] += nz * offset;
-    newPositions[nb*3] += nx * offset; newPositions[nb*3+1] += ny * offset; newPositions[nb*3+2] += nz * offset;
-    newPositions[nc*3] += nx * offset; newPositions[nc*3+1] += ny * offset; newPositions[nc*3+2] += nz * offset;
-    
-    // Top face
+    const na = appendAt;
+    const nb = appendAt + 1;
+    const nc = appendAt + 2;
+
+    // Duplicate the 3 source verts, copying every attribute byte-for-byte
+    for (const src of [a, b, c]) {
+      const dst = appendAt;
+      for (const name of Object.keys(attrSpecs)) {
+        const { itemSize, arr, src: srcAttr } = attrSpecs[name];
+        for (let k = 0; k < itemSize; k++) {
+          arr[dst * itemSize + k] = srcAttr.array[src * itemSize + k];
+        }
+      }
+      // Override position (source + face-normal offset) and normal (face normal)
+      const offset = 0.5;
+      attrSpecs.position.arr[dst * 3 + 0] = pos.getX(src) + fn.x * offset;
+      attrSpecs.position.arr[dst * 3 + 1] = pos.getY(src) + fn.y * offset;
+      attrSpecs.position.arr[dst * 3 + 2] = pos.getZ(src) + fn.z * offset;
+      attrSpecs.normal.arr[dst * 3 + 0] = fn.x;
+      attrSpecs.normal.arr[dst * 3 + 1] = fn.y;
+      attrSpecs.normal.arr[dst * 3 + 2] = fn.z;
+      appendAt++;
+    }
+
+    // Top cap
     newIndices.push(na, nb, nc);
-    
-    // Sides
+    // Side walls
     newIndices.push(a, b, nb); newIndices.push(a, nb, na);
     newIndices.push(b, c, nc); newIndices.push(b, nc, nb);
     newIndices.push(c, a, na); newIndices.push(c, na, nc);
   });
-  
+
+  // Copy non-extruded triangles verbatim
   for (let i = 0; i < index.length; i += 3) {
     const faceIdx = i / 3;
     if (!faceIndices.includes(faceIdx)) {
       newIndices.push(index[i], index[i+1], index[i+2]);
     }
   }
-  
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(newNormals, 3));
+
+  // Write back all attributes with matching counts
+  for (const name of Object.keys(attrSpecs)) {
+    const { itemSize, normalized, arr } = attrSpecs[name];
+    geometry.setAttribute(name, new THREE.BufferAttribute(arr, itemSize, normalized));
+  }
   geometry.setIndex(newIndices);
-  
+
   return geometry;
 }
