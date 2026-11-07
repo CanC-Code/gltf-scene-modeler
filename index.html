@@ -14,7 +14,7 @@
     .tool { padding: 6px 10px; background: #444; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 13px; }
     .tool.active { background: #4a90e2; border-color: #4a90e2; }
 
-    #menu { position: absolute; top: 44px; left: 0; width: 280px; bottom: 0; background: #2b2b2b; padding: 15px; padding-bottom: 250px; overflow-y: auto; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 9; color: #ddd; box-sizing: border-box; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
+    #menu { position: absolute; top: 44px; left: 0; width: 280px; bottom: 0; background: #2b2b2b; padding: 15px; padding-bottom: 320px; overflow-y: auto; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 9; color: #ddd; box-sizing: border-box; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
     #menu.collapsed { transform: translateX(-100%); }
 
     /* Accordion Styles */
@@ -39,7 +39,7 @@
     .list-item.active { background: #4a90e2; color: white; }
 
     /* Bottom Panel */
-    #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 300px; background: rgba(43, 43, 43, 0.95); z-index: 20; display: flex; flex-direction: column; transform: translateY(260px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
+    #bottom-panel { position: fixed; bottom: 0; left: 0; width: 100%; height: 300px; background: #2a2a2a; z-index: 20; display: flex; flex-direction: column; transform: translateY(260px); transition: transform 0.3s ease; pointer-events: none; border-top: 1px solid #555; }
     #bottom-panel.expanded { transform: translateY(0); pointer-events: auto; }
 
     #panel-handle { height: 44px; background: #1e1e1e; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #fff; user-select: none; pointer-events: auto; border-bottom: 1px solid #333; padding: 0 15px; position: relative; }
