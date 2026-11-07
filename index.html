@@ -85,7 +85,9 @@
     .slider-group { display: flex; align-items: center; gap: 10px; }
     .slider-group label { width: 20px; color: #aaa; font-size: 12px; font-weight: bold; }
     .slider-group input[type="range"] { flex: 1; }
-    #color-preview { width: 100%; height: 40px; border-radius: 6px; border: 1px solid #555; }
+    #color-preview { width: 50px; height: 50px; border-radius: 6px; border: 1px solid #555; }
+    .palette-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
+    .swatch { width: 100%; height: 24px; border-radius: 4px; border: 1px solid #444; cursor: pointer; }
     #cp-apply { padding: 10px; background: #4a90e2; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 5px; }
 
     /* Toast Notifications */
@@ -157,7 +159,7 @@
           </div>
           
           <label>Base Color</label>
-          <input type="color" id="mat-color" value="#88ccff">
+          <button id="mat-color-btn" style="width: 100%; height: 32px; background: #88ccff; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 10px;"></button>
           
           <label style="margin-top: 10px;">Texture Map</label>
           <input type="file" id="mat-texture" accept="image/*" style="color: #fff; margin-bottom: 5px; font-size: 12px;">
@@ -318,16 +320,43 @@
       <span id="color-picker-close">✕</span>
     </div>
     <div class="color-picker-content">
-      <div id="color-wheel-container">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+        <div id="color-preview" style="width: 50px; height: 50px; border-radius: 6px; border: 1px solid #555;"></div>
+        <div style="flex: 1;">
+          <div style="font-size: 12px; color: #aaa; margin-bottom: 4px;">HEX</div>
+          <input type="text" id="cp-hex" value="#FF0000" style="width: 100%; padding: 6px; background: #1a1a1a; border: 1px solid #555; color: #fff; border-radius: 4px; font-family: monospace;">
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 12px; color: #aaa; margin-bottom: 4px;">Comp.</div>
+          <div id="cp-comp" style="width: 50px; height: 50px; border-radius: 6px; border: 1px solid #555;"></div>
+        </div>
+      </div>
+
+      <div id="color-wheel-container" style="display: flex; justify-content: center; margin-bottom: 15px;">
         <canvas id="color-wheel" width="200" height="200"></canvas>
       </div>
       <div class="sliders">
         <div class="slider-group"><label>R</label><input type="range" id="cp-r" min="0" max="255" value="255"></div>
         <div class="slider-group"><label>G</label><input type="range" id="cp-g" min="0" max="255" value="0"></div>
         <div class="slider-group"><label>B</label><input type="range" id="cp-b" min="0" max="255" value="0"></div>
-        <div id="color-preview" style="background: #ff0000;"></div>
-        <button id="cp-apply">Apply Color</button>
       </div>
+      
+      <div class="palette-grid">
+        <div class="swatch" style="background:#ff0000"></div>
+        <div class="swatch" style="background:#ff9900"></div>
+        <div class="swatch" style="background:#ffff00"></div>
+        <div class="swatch" style="background:#00ff00"></div>
+        <div class="swatch" style="background:#00ffff"></div>
+        <div class="swatch" style="background:#0000ff"></div>
+        <div class="swatch" style="background:#9900ff"></div>
+        <div class="swatch" style="background:#ff00ff"></div>
+        <div class="swatch" style="background:#ffffff"></div>
+        <div class="swatch" style="background:#888888"></div>
+        <div class="swatch" style="background:#444444"></div>
+        <div class="swatch" style="background:#000000"></div>
+      </div>
+
+      <button id="cp-apply" style="margin-top: 15px;">Apply Color</button>
     </div>
   </div>
 

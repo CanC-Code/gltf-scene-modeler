@@ -122,55 +122,99 @@ export function initUI(state, viewGizmo) {
   // --- Unified Custom Color Picker UI ---
   const colorBtn = document.getElementById("color-picker-btn");
   const bgBtn = document.getElementById("btn-bg-color");
+  const matColorBtn = document.getElementById("mat-color-btn");
   const colorModal = document.getElementById("color-picker-modal");
   const colorClose = document.getElementById("color-picker-close");
   const cpApply = document.getElementById("cp-apply");
   const cpR = document.getElementById("cp-r"), cpG = document.getElementById("cp-g"), cpB = document.getElementById("cp-b");
+  const cpHex = document.getElementById("cp-hex");
   const colorPreview = document.getElementById("color-preview");
+  const cpComp = document.getElementById("cp-comp");
   const colorWheel = document.getElementById("color-wheel");
   const pickerTitle = document.getElementById("color-picker-title");
 
-  let colorTarget = 'paint'; // 'paint' or 'background'
+  let colorTarget = 'paint';
 
   const openColorPicker = (target) => {
     colorTarget = target;
-    pickerTitle.textContent = target === 'paint' ? "Paint Color" : "Background Color";
-    
-    // Initialize sliders with current color
-    const currentColor = target === 'paint' ? state.paintColor : state.scene.background;
+    pickerTitle.textContent = target === 'paint' ? "Paint Color" : (target === 'background' ? "Background Color" : "Base Color");
+
+    if (target === 'material' && state.activeMesh) {
+      state.saveState(state.activeMesh);
+    }
+
+    const currentColor = target === 'paint' ? state.paintColor : 
+                         target === 'background' ? state.scene.background : 
+                         (state.activeMesh ? state.activeMesh.material.color : new THREE.Color(0xffffff));
+                         
     cpR.value = Math.round(currentColor.r * 255);
     cpG.value = Math.round(currentColor.g * 255);
     cpB.value = Math.round(currentColor.b * 255);
     updatePreview();
-    
+
     colorModal.classList.add("show");
   };
 
   if (colorBtn && colorModal) {
     colorBtn.onclick = () => openColorPicker('paint');
     if (bgBtn) bgBtn.onclick = () => openColorPicker('background');
-    
+    if (matColorBtn) matColorBtn.onclick = () => openColorPicker('material');
+
     colorClose.onclick = () => colorModal.classList.remove("show");
+    
     cpApply.onclick = () => {
-      const hex = `rgb(${cpR.value}, ${cpG.value}, ${cpB.value})`;
+      const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
+      const hex = `rgb(${r}, ${g}, ${b})`;
+      
       if (colorTarget === 'paint') {
-        state.setPaintColor(hex);
-      } else {
+        state.setPaintColor(`#${new THREE.Color(r/255, g/255, b/255).getHexString()}`);
+      } else if (colorTarget === 'background') {
         if (state.scene) state.scene.background.set(hex);
+      } else if (colorTarget === 'material' && state.activeMesh) {
+        state.activeMesh.material.color.set(hex);
+        state.activeMesh.material.needsUpdate = true;
+        if (state.updateMaterialPreview) state.updateMaterialPreview(state.activeMesh.material);
+        if (matColorBtn) matColorBtn.style.background = '#' + state.activeMesh.material.color.getHexString();
+        if (state.syncUI) state.syncUI();
       }
       colorModal.classList.remove("show");
     };
 
     const updatePreview = () => {
-      const hex = `rgb(${cpR.value}, ${cpG.value}, ${cpB.value})`;
+      const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
+      const hex = `rgb(${r}, ${g}, ${b})`;
       colorPreview.style.background = hex;
+      
+      const hexStr = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+      if (cpHex) cpHex.value = hexStr;
+      
+      const color = new THREE.Color(r/255, g/255, b/255);
+      const hsl = { h: 0, s: 0, l: 0 };
+      color.getHSL(hsl);
+      hsl.h = (hsl.h + 0.5) % 1.0;
+      color.setHSL(hsl.h, hsl.s, hsl.l);
+      if (cpComp) cpComp.style.background = '#' + color.getHexString();
     };
 
     cpR.oninput = updatePreview;
     cpG.oninput = updatePreview;
     cpB.oninput = updatePreview;
+    
+    if (cpHex) {
+      cpHex.onchange = (e) => {
+        const val = e.target.value.replace('#', '');
+        if (val.length === 6) {
+          const r = parseInt(val.substring(0, 2), 16);
+          const g = parseInt(val.substring(2, 4), 16);
+          const b = parseInt(val.substring(4, 6), 16);
+          if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+            cpR.value = r; cpG.value = g; cpB.value = b;
+            updatePreview();
+          }
+        }
+      };
+    }
 
-    // Draw Color Wheel
     const ctx = colorWheel.getContext('2d');
     const radius = colorWheel.width / 2;
     for (let angle = 0; angle < 360; angle++) {
@@ -199,6 +243,17 @@ export function initUI(state, viewGizmo) {
        cpR.value = data[0]; cpG.value = data[1]; cpB.value = data[2];
        updatePreview();
     };
+
+    document.querySelectorAll('.swatch').forEach(sw => {
+      sw.onclick = () => {
+        const hex = sw.style.backgroundColor;
+        const c = new THREE.Color(hex);
+        cpR.value = Math.round(c.r * 255);
+        cpG.value = Math.round(c.g * 255);
+        cpB.value = Math.round(c.b * 255);
+        updatePreview();
+      };
+    });
   }
 
   // --- Sliders in Bottom Panel ---
@@ -240,7 +295,7 @@ export function initUI(state, viewGizmo) {
   };
 
   // --- Material Properties Panel ---
-  const matColor = document.getElementById("mat-color");
+  const matColorBtn = document.getElementById("mat-color-btn");
   const matRough = document.getElementById("mat-roughness");
   const matMetal = document.getElementById("mat-metalness");
   const matTex = document.getElementById("mat-texture");
@@ -249,7 +304,8 @@ export function initUI(state, viewGizmo) {
   const updateMaterialUI = (mesh) => {
     if (!mesh || !mesh.material) return;
     const m = mesh.material;
-    if (matColor) matColor.value = '#' + m.color.getHexString();
+    const matColorBtn = document.getElementById('mat-color-btn');
+    if (matColorBtn) matColorBtn.style.background = '#' + m.color.getHexString();
     if (matRough) matRough.value = m.roughness;
     if (matMetal) matMetal.value = m.metalness;
     if (matTex) matTex.value = ''; // Reset file input
