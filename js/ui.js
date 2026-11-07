@@ -112,6 +112,22 @@ export function initUI(state, viewGizmo) {
     document.addEventListener("click", () => { if (transformMenu) transformMenu.style.display = "none"; });
   }
 
+    const viewBtn = document.getElementById("viewBtn");
+  const viewMenu = document.getElementById("viewMenu");
+  if (viewBtn && viewMenu) {
+    viewBtn.onclick = (e) => {
+      e.stopPropagation();
+      viewMenu.style.display = viewMenu.style.display === "none" ? "flex" : "none";
+    };
+    document.addEventListener("click", () => { if (viewMenu) viewMenu.style.display = "none"; });
+  }
+
+  const toggleGridBtn = document.getElementById("toggleGrid");
+  if (toggleGridBtn) toggleGridBtn.onclick = () => state.toggleGrid();
+
+  const viewFocusBtn = document.getElementById("viewFocusBtn");
+  if (viewFocusBtn) viewFocusBtn.onclick = () => { state.focusCamera(); if (viewMenu) viewMenu.style.display = "none"; };
+
   const modes = ["Object", "Sculpt", "Paint", "Edit", "Rig", "Move", "Rotate", "Scale"];
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
@@ -145,18 +161,22 @@ export function initUI(state, viewGizmo) {
   };
 
   const toggleWire = document.getElementById("toggleWire");
-  if (toggleWire) toggleWire.onclick = () => { state.toggleWireframe(); toggleWire.classList.toggle("active", state.wireframe); };
+  if (toggleWire) toggleWire.onclick = () => { 
+    state.toggleWireframe(); 
+    toggleWire.classList.toggle("active", state.wireframe); 
+    if (viewMenu) viewMenu.style.display = "none";
+  };
 
   const toggleSnap = document.getElementById("toggleSnap");
   if (toggleSnap) toggleSnap.onclick = () => {
     state.snapEnabled = !state.snapEnabled;
     toggleSnap.classList.toggle("active", state.snapEnabled);
     state.updateSnap();
+    if (viewMenu) viewMenu.style.display = "none";
   };
 
   // --- Focus Camera Button ---
-  const focusBtn = document.getElementById("focus-camera-btn");
-  if (focusBtn) focusBtn.onclick = () => state.focusCamera();
+
 
   // --- Unified Custom Color Picker UI ---
   const colorBtn = document.getElementById("color-picker-btn");

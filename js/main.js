@@ -160,7 +160,11 @@ scene.add(hemiLight);
 const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
 dirLight.position.set(5, 10, 7);
 scene.add(dirLight);
-scene.add(new THREE.GridHelper(20, 20));
+const gridHelper = new THREE.GridHelper(20, 20);
+// Make the grid slightly more transparent so it doesn't overpower models
+gridHelper.material.opacity = 0.4;
+gridHelper.material.transparent = true;
+scene.add(gridHelper);
 
 // --- Procedural Environment Map (for PBR reflections) ---
 // Generates a simple sky-to-ground gradient using a canvas, then
@@ -507,6 +511,11 @@ const state = {
   },
 
   setTool(tool) { this.activeTool = tool; if (this.brush) this.brush.setTool(tool); },
+  toggleGrid() {
+    gridHelper.visible = !gridHelper.visible;
+    if (window.showToast) window.showToast(`Grid ${gridHelper.visible ? 'ON' : 'OFF'}`);
+  },
+
   toggleWireframe() { this.wireframe = !this.wireframe; this.objects.forEach(m => m.material.wireframe = this.wireframe); },
 
   focusCamera() {

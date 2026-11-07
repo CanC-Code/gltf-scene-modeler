@@ -127,9 +127,14 @@
       </div>
     </div>
 
-    <div class="tool-group">
-      <button id="toggleWire" class="tool" title="Wireframe">▦</button>
-      <button id="toggleSnap" class="tool" title="Snap to Grid">📐</button>
+    <div class="tool-group" style="position: relative;">
+      <button id="viewBtn" class="tool" style="min-width: 60px;">View ▼</button>
+      <div id="viewMenu" style="display: none; position: absolute; top: 100%; right: 0; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; z-index: 100; flex-direction: column; width: 140px; margin-top: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+        <button id="toggleGrid" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer; border-bottom: 1px solid #444;">👁️ Toggle Grid</button>
+        <button id="toggleWire" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer; border-bottom: 1px solid #444;">▦ Wireframe</button>
+        <button id="toggleSnap" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer; border-bottom: 1px solid #444;">📐 Snap to Grid</button>
+        <button id="viewFocusBtn" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer;">🎯 Focus Camera</button>
+      </div>
     </div>
   </div></div>
 
@@ -302,7 +307,7 @@
           </div>
         </div>
         <button id="color-picker-btn" title="Paint Color"></button>
-        <button id="focus-camera-btn" title="Focus Camera">🎯</button>
+
       </div>
       <span class="handle-arrow">▲</span>
       <div style="width: 120px;"></div>
