@@ -18,39 +18,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
-// --- Material Preview Setup ---
-let previewRenderer = null;
-let previewScene = null;
-let previewCamera = null;
-let previewMat = null;
-let previewMesh = null;
 
-try {
-  previewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-  previewRenderer.setSize(128, 128);
-  previewRenderer.setPixelRatio(window.devicePixelRatio);
-  previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
-  previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  const previewContainer = document.getElementById('mat-preview-container');
-  if (previewContainer) previewContainer.appendChild(previewRenderer.domElement);
-
-  previewScene = new THREE.Scene();
-  previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-  previewCamera.position.set(0, 0, 3.5);
-
-  const previewGeo = new THREE.SphereGeometry(1, 64, 64);
-  previewMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.1 });
-  previewMesh = new THREE.Mesh(previewGeo, previewMat);
-  previewScene.add(previewMesh);
-
-  const previewLight = new THREE.DirectionalLight(0xffffff, 2);
-  previewLight.position.set(2, 2, 3);
-  previewScene.add(previewLight);
-  previewScene.add(new THREE.AmbientLight(0xffffff, 0.5));
-} catch (e) {
-  console.warn("Preview renderer failed to initialize (likely WebGL context limit on mobile):", e);
-}
-// ------------------------------------
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb0c4de);
@@ -199,7 +167,6 @@ const envTex = new THREE.CanvasTexture(envCanvas);
 envTex.mapping = THREE.EquirectangularReflectionMapping;
 const envMap = pmremGenerator.fromEquirectangular(envTex).texture;
 scene.environment = envMap;
-previewScene.environment = envMap;
 envTex.dispose();
 pmremGenerator.dispose();
 
@@ -1196,18 +1163,9 @@ const state = {
   },
 
   updateMaterialPreview(mat) {
-    if (!mat) return;
-    previewMat.color.copy(mat.color);
-    previewMat.roughness = mat.roughness;
-    previewMat.metalness = mat.metalness;
-    previewMat.map = mat.map || null;
-    previewMat.normalMap = mat.normalMap || null;
-    previewMat.vertexColors = mat.vertexColors;
-    previewMat.wireframe = mat.wireframe;
-    previewMat.opacity = mat.opacity;
-    previewMat.transparent = mat.transparent;
-    previewMat.flatShading = mat.flatShading;
-    previewMat.needsUpdate = true;
+    // Stub: secondary WebGL context disabled for mobile compatibility.
+    // The color swatch in the UI reflects the base color, and the main
+    // viewport shows all other material properties in real time.
   },
 
   saveState(mesh) {
@@ -1928,9 +1886,6 @@ function animate() {
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
   
-  if (previewMesh && previewRenderer) {
-    previewMesh.rotation.y += 0.005;
-    previewRenderer.render(previewScene, previewCamera);
-  }
+
 }
 animate();
