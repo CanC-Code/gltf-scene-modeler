@@ -101,13 +101,33 @@ export function extrudeFaces(geometry, faceIndices) {
   const pos = geometry.attributes.position;
   const index = geometry.index.array;
 
-  const totalNewVerts = faceIndices.length * 3;
-  const oldCount = pos.count;
-  const newCount = oldCount + totalNewVerts;
+  // 1. Calculate average normal for region extrusion
+  const avgNormal = new THREE.Vector3();
+  faceIndices.forEach(faceIdx => {
+    const a = index[faceIdx * 3], b = index[faceIdx * 3 + 1], c = index[faceIdx * 3 + 2];
+    const va = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
+    const vb = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
+    const vc = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
+    const fn = new THREE.Vector3().subVectors(vb, va).cross(new THREE.Vector3().subVectors(vc, va)).normalize();
+    avgNormal.add(fn);
+  });
+  avgNormal.normalize();
 
-  // Snapshot and extend EVERY attribute so counts stay in sync.
-  // Preserve array type (Uint16Array for skinIndex, Float32Array for weights)
-  // and the `normalized` flag.
+  // 2. Map unique vertices to avoid duplicating shared edges twice
+  const vertexMap = new Map();
+  let nextIdx = pos.count;
+
+  faceIndices.forEach(faceIdx => {
+    const a = index[faceIdx * 3], b = index[faceIdx * 3 + 1], c = index[faceIdx * 3 + 2];
+    [a, b, c].forEach(v => {
+      if (!vertexMap.has(v)) vertexMap.set(v, nextIdx++);
+    });
+  });
+
+  const totalNewVerts = nextIdx - pos.count;
+  const newCount = nextIdx;
+
+  // 3. Snapshot and extend every attribute buffer
   const attrSpecs = {};
   for (const name of Object.keys(geometry.attributes)) {
     const src = geometry.attributes[name];
@@ -116,63 +136,59 @@ export function extrudeFaces(geometry, faceIndices) {
     attrSpecs[name] = { itemSize: src.itemSize, normalized: src.normalized, arr, src };
   }
 
+  // 4. Populate new vertices
+  const offset = 0.5;
+  vertexMap.forEach((newIdx, oldIdx) => {
+    // Copy all attributes from source vertex
+    for (const name of Object.keys(attrSpecs)) {
+      const { itemSize, arr, src } = attrSpecs[name];
+      for (let k = 0; k < itemSize; k++) {
+        arr[newIdx * itemSize + k] = src.array[oldIdx * itemSize + k];
+      }
+    }
+    // Override position and normal
+    attrSpecs.position.arr[newIdx * 3 + 0] = pos.getX(oldIdx) + avgNormal.x * offset;
+    attrSpecs.position.arr[newIdx * 3 + 1] = pos.getY(oldIdx) + avgNormal.y * offset;
+    attrSpecs.position.arr[newIdx * 3 + 2] = pos.getZ(oldIdx) + avgNormal.z * offset;
+    attrSpecs.normal.arr[newIdx * 3 + 0] = avgNormal.x;
+    attrSpecs.normal.arr[newIdx * 3 + 1] = avgNormal.y;
+    attrSpecs.normal.arr[newIdx * 3 + 2] = avgNormal.z;
+  });
+
+  // 5. Build new index buffer with boundary walls
   const newIndices = [];
-  let appendAt = oldCount;
+  const edges = new Set();
 
   faceIndices.forEach(faceIdx => {
-    const a = index[faceIdx * 3];
-    const b = index[faceIdx * 3 + 1];
-    const c = index[faceIdx * 3 + 2];
-
-    // Face normal (geometric)
-    const va = new THREE.Vector3(pos.getX(a), pos.getY(a), pos.getZ(a));
-    const vb = new THREE.Vector3(pos.getX(b), pos.getY(b), pos.getZ(b));
-    const vc = new THREE.Vector3(pos.getX(c), pos.getY(c), pos.getZ(c));
-    const fn = new THREE.Vector3().subVectors(vb, va)
-                                  .cross(new THREE.Vector3().subVectors(vc, va))
-                                  .normalize();
-
-    const na = appendAt;
-    const nb = appendAt + 1;
-    const nc = appendAt + 2;
-
-    // Duplicate the 3 source verts, copying every attribute byte-for-byte
-    for (const src of [a, b, c]) {
-      const dst = appendAt;
-      for (const name of Object.keys(attrSpecs)) {
-        const { itemSize, arr, src: srcAttr } = attrSpecs[name];
-        for (let k = 0; k < itemSize; k++) {
-          arr[dst * itemSize + k] = srcAttr.array[src * itemSize + k];
-        }
-      }
-      // Override position (source + face-normal offset) and normal (face normal)
-      const offset = 0.5;
-      attrSpecs.position.arr[dst * 3 + 0] = pos.getX(src) + fn.x * offset;
-      attrSpecs.position.arr[dst * 3 + 1] = pos.getY(src) + fn.y * offset;
-      attrSpecs.position.arr[dst * 3 + 2] = pos.getZ(src) + fn.z * offset;
-      attrSpecs.normal.arr[dst * 3 + 0] = fn.x;
-      attrSpecs.normal.arr[dst * 3 + 1] = fn.y;
-      attrSpecs.normal.arr[dst * 3 + 2] = fn.z;
-      appendAt++;
-    }
+    const a = index[faceIdx * 3], b = index[faceIdx * 3 + 1], c = index[faceIdx * 3 + 2];
+    const na = vertexMap.get(a), nb = vertexMap.get(b), nc = vertexMap.get(c);
 
     // Top cap
     newIndices.push(na, nb, nc);
-    // Side walls
-    newIndices.push(a, b, nb); newIndices.push(a, nb, na);
-    newIndices.push(b, c, nc); newIndices.push(b, nc, nb);
-    newIndices.push(c, a, na); newIndices.push(c, na, nc);
+
+    // Side walls (only if the edge isn't shared by another extruded face)
+    const addWall = (v1, v2, nv1, nv2) => {
+      const edgeKey = v1 < v2 ? `${v1},${v2}` : `${v2},${v1}`;
+      if (!edges.has(edgeKey)) {
+        edges.add(edgeKey);
+        newIndices.push(v1, v2, nv2);
+        newIndices.push(v1, nv2, nv1);
+      }
+    };
+    addWall(a, b, na, nb);
+    addWall(b, c, nb, nc);
+    addWall(c, a, nc, na);
   });
 
-  // Copy non-extruded triangles verbatim
+  // 6. Copy non-extruded triangles verbatim
+  const selectedFacesSet = new Set(faceIndices);
   for (let i = 0; i < index.length; i += 3) {
-    const faceIdx = i / 3;
-    if (!faceIndices.includes(faceIdx)) {
-      newIndices.push(index[i], index[i+1], index[i+2]);
+    if (!selectedFacesSet.has(i / 3)) {
+      newIndices.push(index[i], index[i + 1], index[i + 2]);
     }
   }
 
-  // Write back all attributes with matching counts
+  // 7. Write back
   for (const name of Object.keys(attrSpecs)) {
     const { itemSize, normalized, arr } = attrSpecs[name];
     geometry.setAttribute(name, new THREE.BufferAttribute(arr, itemSize, normalized));
