@@ -122,7 +122,6 @@ export function initUI(state, viewGizmo) {
   // --- Unified Custom Color Picker UI ---
   const colorBtn = document.getElementById("color-picker-btn");
   const bgBtn = document.getElementById("btn-bg-color");
-  const matColorBtn = document.getElementById("mat-color-btn");
   const colorModal = document.getElementById("color-picker-modal");
   const colorClose = document.getElementById("color-picker-close");
   const cpApply = document.getElementById("cp-apply");
@@ -299,11 +298,11 @@ export function initUI(state, viewGizmo) {
   const matMetal = document.getElementById("mat-metalness");
   const matTex = document.getElementById("mat-texture");
   const matNormal = document.getElementById("mat-normal");
+  const matColorBtn = document.getElementById("mat-color-btn");
 
   const updateMaterialUI = (mesh) => {
     if (!mesh || !mesh.material) return;
     const m = mesh.material;
-    const matColorBtn = document.getElementById('mat-color-btn');
     if (matColorBtn) matColorBtn.style.background = '#' + m.color.getHexString();
     if (matRough) matRough.value = m.roughness;
     if (matMetal) matMetal.value = m.metalness;
