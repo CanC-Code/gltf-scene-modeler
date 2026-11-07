@@ -295,7 +295,6 @@ export function initUI(state, viewGizmo) {
   };
 
   // --- Material Properties Panel ---
-  const matColorBtn = document.getElementById("mat-color-btn");
   const matRough = document.getElementById("mat-roughness");
   const matMetal = document.getElementById("mat-metalness");
   const matTex = document.getElementById("mat-texture");
