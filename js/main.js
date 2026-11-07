@@ -551,6 +551,39 @@ const state = {
     this.addObject(mesh);
   },
 
+  addPlane() {
+    let geo = new THREE.PlaneGeometry(2, 2, 24, 24);
+    geo = mergeVertices(geo);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide, wireframe: this.wireframe }));
+    mesh.rotation.x = -Math.PI / 2; // Lay flat
+    mesh.position.set(0, 0, 0);
+    this.addObject(mesh);
+  },
+
+  addCylinder() {
+    let geo = new THREE.CylinderGeometry(1, 1, 2, 32, 24);
+    geo = mergeVertices(geo);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
+    mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
+    this.addObject(mesh);
+  },
+
+  addCone() {
+    let geo = new THREE.ConeGeometry(1.5, 3, 32, 24);
+    geo = mergeVertices(geo);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xff8888, roughness: 0.4, metalness: 0.1, wireframe: this.wireframe }));
+    mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
+    this.addObject(mesh);
+  },
+
+  addTorus() {
+    let geo = new THREE.TorusGeometry(1.2, 0.4, 24, 48);
+    geo = mergeVertices(geo);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xffcc88, roughness: 0.3, metalness: 0.5, wireframe: this.wireframe }));
+    mesh.position.set((Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2);
+    this.addObject(mesh);
+  },
+
   addObject(mesh) {
     this.objects.push(mesh);
     scene.add(mesh);
@@ -1187,6 +1220,28 @@ const state = {
 
     if (this.updateMaterialPreview) this.updateMaterialPreview(mat);
     if (this.updateUVPreview) this.updateUVPreview();
+  },
+
+  downloadTexture() {
+    if (!this.activeMesh) return;
+    let canvas = this.activeMesh.userData.paintCanvas;
+    if (!canvas) {
+      // If no canvas, but there is a texture map, try to draw that
+      if (this.activeMesh.material.map && this.activeMesh.material.map.image) {
+        canvas = document.createElement('canvas');
+        canvas.width = this.activeMesh.material.map.image.width;
+        canvas.height = this.activeMesh.material.map.image.height;
+        canvas.getContext('2d').drawImage(this.activeMesh.material.map.image, 0, 0);
+      } else {
+        if (window.showToast) window.showToast('No texture to download.');
+        return;
+      }
+    }
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `texture_${this.activeMesh.uuid.substring(0,4)}.png`;
+    a.click();
+    if (window.showToast) window.showToast('Texture downloaded!');
   },
 
   cacheBaseUVs() {

@@ -139,9 +139,13 @@
 
       <details>
         <summary>Add Object</summary>
-        <div class="details-content">
-          <button id="newCube">Add Cube</button>
-          <button id="newSphere">Add Sphere</button>
+        <div class="details-content" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+          <button id="newCube">Cube</button>
+          <button id="newSphere">Sphere</button>
+          <button id="newPlane">Plane</button>
+          <button id="newCylinder">Cylinder</button>
+          <button id="newCone">Cone</button>
+          <button id="newTorus">Torus</button>
         </div>
       </details>
 
@@ -165,7 +169,8 @@
           
           <label style="margin-top: 10px;">Texture Map</label>
           <input type="file" id="mat-texture" accept="image/*" style="color: #fff; margin-bottom: 5px; font-size: 12px;">
-          <button id="btn-new-texture" style="background: #4a90e2; margin-bottom: 10px;">🎨 Create Blank Canvas</button>
+          <button id="btn-new-texture" style="background: #4a90e2; margin-bottom: 5px;">🎨 Create Blank Canvas</button>
+          <button id="btn-download-texture" style="background: #2e7d32; margin-bottom: 10px;">💾 Download Texture</button>
           
           <label>Normal Map</label>
           <input type="file" id="mat-normal" accept="image/*" style="color: #fff; margin-bottom: 10px; font-size: 12px;">

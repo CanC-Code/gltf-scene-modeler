@@ -283,6 +283,10 @@ export function initUI(state, viewGizmo) {
   const newCube = document.getElementById("newCube"), newSphere = document.getElementById("newSphere");
   if (newCube) newCube.onclick = () => state.addCube();
   if (newSphere) newSphere.onclick = () => state.addSphere();
+  if (document.getElementById("newPlane")) document.getElementById("newPlane").onclick = () => state.addPlane();
+  if (document.getElementById("newCylinder")) document.getElementById("newCylinder").onclick = () => state.addCylinder();
+  if (document.getElementById("newCone")) document.getElementById("newCone").onclick = () => state.addCone();
+  if (document.getElementById("newTorus")) document.getElementById("newTorus").onclick = () => state.addTorus();
 
   const exportGltf = document.getElementById("exportGLTF"), importGltf = document.getElementById("importGLTF");
   if (exportGltf) exportGltf.onclick = () => state.exportGLTF();
@@ -402,6 +406,9 @@ export function initUI(state, viewGizmo) {
   if (btnUVPlanar) btnUVPlanar.onclick = () => applyUV('planar');
   if (btnUVCyl) btnUVCyl.onclick = () => applyUV('cylindrical');
   if (btnUVSph) btnUVSph.onclick = () => applyUV('spherical');
+
+  const btnDlTex = document.getElementById("btn-download-texture");
+  if (btnDlTex) btnDlTex.onclick = () => state.downloadTexture();
 
   const btnNewTex = document.getElementById("btn-new-texture");
   if (btnNewTex) btnNewTex.onclick = () => {
