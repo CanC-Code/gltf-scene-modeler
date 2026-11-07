@@ -211,13 +211,22 @@ function captureState(mesh) {
 }
 function saveState(mesh) {
   if (!mesh) return;
-  undoStack.push(captureState(mesh));
-  if (undoStack.length > 20) undoStack.shift();
+  const snap = captureState(mesh);
+  undoStack.push(snap);
+  
+  // Dynamic limit: prevent OOM on large texture canvases
+  const maxStates = snap.canvasSnap ? 5 : 20;
+  if (undoStack.length > maxStates) undoStack.shift();
+  
   redoStack.length = 0;
 }
 function undo() {
   if (!state.activeMesh || !undoStack.length) return;
-  redoStack.push(captureState(state.activeMesh));
+  const snap = captureState(state.activeMesh);
+  redoStack.push(snap);
+  const maxStates = snap.canvasSnap ? 5 : 20;
+  if (redoStack.length > maxStates) redoStack.shift();
+  
   const prev = undoStack.pop();
   state.activeMesh.geometry.setAttribute('position', prev.position);
   if (prev.normal) state.activeMesh.geometry.setAttribute('normal', prev.normal);
@@ -255,7 +264,11 @@ function undo() {
 }
 function redo() {
   if (!state.activeMesh || !redoStack.length) return;
-  undoStack.push(captureState(state.activeMesh));
+  const snap = captureState(state.activeMesh);
+  undoStack.push(snap);
+  const maxStates = snap.canvasSnap ? 5 : 20;
+  if (undoStack.length > maxStates) undoStack.shift();
+  
   const next = redoStack.pop();
   state.activeMesh.geometry.setAttribute('position', next.position);
   if (next.normal) state.activeMesh.geometry.setAttribute('normal', next.normal);
