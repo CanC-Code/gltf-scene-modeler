@@ -209,13 +209,19 @@
           
           <label>Metalness</label>
           <input type="range" id="mat-metalness" min="0" max="1" step="0.05" value="0.1">
+          
+          <label>Alpha (Transparency)</label>
+          <input type="range" id="mat-alpha" min="0" max="1" step="0.05" value="1">
+          
+          <button id="toggleFlatShading" style="margin-top: 10px;">Toggle Flat Shading (Low-Poly)</button>
         </div>
       </details>
 
       <details open>
         <summary>File</summary>
         <div class="details-content">
-          <button id="exportGLTF" style="background: #2e7d32; margin-bottom: 6px;">Export Scene (GLTF)</button>
+          <button id="exportGLB" style="background: #2e7d32; margin-bottom: 6px; font-weight: bold;">Export Scene (GLB)</button>
+          <button id="exportGLTF" style="background: #388e3c; margin-bottom: 6px;">Export Scene (GLTF)</button>
           <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-bottom: 10px;" />
           
           <button id="saveProject" style="background: #0288d1; margin-bottom: 6px;">💾 Save Project</button>

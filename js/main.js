@@ -1308,7 +1308,7 @@ const state = {
     }
   },
 
-  exportGLTF() {
+  exportGLTF(isBinary = false) {
     if (!this.objects.length) return;
 
     // --- SAFETY NET: Validate all geometries before export ---
@@ -1340,7 +1340,7 @@ const state = {
       exportGroup.add(clone);
     });
     
-    const options = {};
+    const options = { binary: isBinary };
     if (this.keyframes.length >= 2 && this.currentBones) {
         const tracks = [];
         for (let i = 0; i < this.currentBones.length; i++) {
@@ -1360,14 +1360,21 @@ const state = {
         options.animations = [new THREE.AnimationClip('Action', -1, tracks)];
     }
 
-    new GLTFExporter().parse(exportGroup, gltf => {
-      const blob = new Blob([JSON.stringify(gltf)], { type: 'application/json' });
+    new GLTFExporter().parse(exportGroup, result => {
+      let blob, filename;
+      if (isBinary) {
+        blob = new Blob([result], { type: 'application/octet-stream' });
+        filename = 'scene.glb';
+      } else {
+        blob = new Blob([JSON.stringify(result)], { type: 'application/json' });
+        filename = 'scene.gltf';
+      }
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'scene.gltf';
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
-    }, options);
+    }, options, isBinary);
   },
 
   importGLTF(e) {

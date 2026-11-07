@@ -288,8 +288,9 @@ export function initUI(state, viewGizmo) {
   if (document.getElementById("newCone")) document.getElementById("newCone").onclick = () => state.addCone();
   if (document.getElementById("newTorus")) document.getElementById("newTorus").onclick = () => state.addTorus();
 
-  const exportGltf = document.getElementById("exportGLTF"), importGltf = document.getElementById("importGLTF");
-  if (exportGltf) exportGltf.onclick = () => state.exportGLTF();
+  const exportGlb = document.getElementById("exportGLB"), exportGltf = document.getElementById("exportGLTF"), importGltf = document.getElementById("importGLTF");
+  if (exportGlb) exportGlb.onclick = () => state.exportGLTF(true);
+  if (exportGltf) exportGltf.onclick = () => state.exportGLTF(false);
   if (importGltf) importGltf.onchange = e => state.importGLTF?.(e);
 
   const saveProj = document.getElementById("saveProject"), loadProj = document.getElementById("loadProject");
@@ -326,6 +327,7 @@ export function initUI(state, viewGizmo) {
     if (matColorBtn) matColorBtn.style.background = '#' + m.color.getHexString();
     if (matRough) matRough.value = m.roughness;
     if (matMetal) matMetal.value = m.metalness;
+    if (document.getElementById('mat-alpha')) document.getElementById('mat-alpha').value = m.opacity;
     if (matTex) matTex.value = ''; // Reset file input
     if (matNormal) matNormal.value = '';
     if (document.getElementById('uv-scale-u')) {
@@ -465,6 +467,31 @@ export function initUI(state, viewGizmo) {
       state.activeMesh.material.metalness = parseFloat(e.target.value);
       state.updateMaterialPreview(state.activeMesh.material);
     }
+  };
+
+  const matAlpha = document.getElementById("mat-alpha");
+  if (matAlpha) {
+    matAlpha.addEventListener('pointerdown', saveMatState);
+    matAlpha.oninput = (e) => {
+      if (state.activeMesh && state.activeMesh.material) {
+        const val = parseFloat(e.target.value);
+        state.activeMesh.material.opacity = val;
+        state.activeMesh.material.transparent = val < 1.0;
+        state.activeMesh.material.needsUpdate = true;
+        state.updateMaterialPreview(state.activeMesh.material);
+      }
+    };
+  }
+
+  const flatBtn = document.getElementById("toggleFlatShading");
+  if (flatBtn) flatBtn.onclick = () => {
+    if (!state.activeMesh || !state.activeMesh.material) return;
+    const m = state.activeMesh.material;
+    m.flatShading = !m.flatShading;
+    m.needsUpdate = true;
+    state.updateMaterialPreview(m);
+    flatBtn.classList.toggle("active", m.flatShading);
+    if (window.showToast) window.showToast(`Flat Shading ${m.flatShading ? 'ON' : 'OFF'}`);
   };
 
   if (matTex) matTex.onchange = (e) => {
