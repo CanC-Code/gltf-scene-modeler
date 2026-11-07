@@ -2168,11 +2168,9 @@ function bevelSelected(amount = 0.2) {
   }
   geo.setIndex(newIndices);
   compactGeometry(geo);
-  state.selectedVertices.clear();
-  syncPointsCloud();
-  updateEditGizmo();
   geo.computeVertexNormals();
-  if (state.brush) state.brush.rebuildGrid();
+  state.selectedVertices.clear();
+  refreshAfterTopologyEdit();
   if (window.showToast) window.showToast(`Beveled ${clonesPerVertex.size} vertices.`);
 }
 
@@ -2204,10 +2202,7 @@ function weldSelectedVertices() {
   pos.needsUpdate = true;
   compactGeometry(geo);
   geo.computeVertexNormals();
-  
-  syncPointsCloud();
-  updateEditGizmo();
-  if (state.brush) state.brush.rebuildGrid();
+  refreshAfterTopologyEdit();
   if (window.showToast) window.showToast(`Welded ${sel.length} vertices.`);
 }
 
@@ -2227,10 +2222,7 @@ function snapSelectedToGrid() {
   
   pos.needsUpdate = true;
   geo.computeVertexNormals();
-  
-  syncPointsCloud();
-  updateEditGizmo();
-  if (state.brush) state.brush.rebuildGrid();
+  refreshAfterTopologyEdit();
   if (window.showToast) window.showToast("Snapped to 0.1 grid.");
 }
 
@@ -2264,6 +2256,36 @@ function appendVertexToGeometry(geo, x, y, z, sourceIdx = 0) {
     geo.setAttribute(name, new THREE.BufferAttribute(newArr, attr.itemSize, attr.normalized));
   }
   return newIdx;
+}
+
+function refreshAfterTopologyEdit() {
+  if (!state.activeMesh) return;
+  const mesh = state.activeMesh;
+  const geo = mesh.geometry;
+  
+  // Recompute bounding volumes so the mesh doesn't get frustum-culled
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  
+  // Refresh the brush — updateMesh re-caches position/normal AND rebuilds
+  // spatial hash + adjacency map. rebuildGrid only rebuilds the hash.
+  if (state.brush) state.brush.updateMesh(mesh);
+  
+  // Refresh UI overlays
+  if (viewGizmo) viewGizmo.updateMesh(mesh);
+  selectionBox.setFromObject(mesh);
+  
+  // Refresh wireframe overlay if visible
+  if (wireframeLines.visible) {
+    wireframeLines.geometry.dispose();
+    wireframeLines.geometry = new THREE.WireframeGeometry(geo);
+    wireframeLines.position.copy(mesh.position);
+    wireframeLines.quaternion.copy(mesh.quaternion);
+    wireframeLines.scale.copy(mesh.scale);
+  }
+  
+  syncPointsCloud();
+  updateEditGizmo();
 }
 
 function compactGeometry(geo) {
@@ -2325,18 +2347,9 @@ function deleteSelectedVertices() {
   }
   
   geo.setIndex(newIndices);
-  compactGeometry(geo); // Remove orphaned vertices
+  compactGeometry(geo);
   state.selectedVertices.clear();
-  
-  syncPointsCloud();
-  updateEditGizmo();
-  
-  if (state.activeMesh) {
-    wireframeLines.geometry.dispose();
-    wireframeLines.geometry = new THREE.WireframeGeometry(geo);
-  }
-  
-  if (state.brush) state.brush.rebuildGrid();
+  refreshAfterTopologyEdit();
   if (window.showToast) window.showToast("Vertices deleted.");
 }
 
@@ -2436,13 +2449,9 @@ document.getElementById("addVertexBtn").onclick = () => {
   
   const newIdx = appendVertexToGeometry(geo, center.x, center.y, center.z, sourceIdx);
   geo.computeVertexNormals();
-  
-  // Auto-select the new vertex and update UI
   state.selectedVertices.clear();
   state.selectedVertices.add(newIdx);
-  syncPointsCloud();
-  updateEditGizmo();
-  if (state.brush) state.brush.rebuildGrid();
+  refreshAfterTopologyEdit();
   if (window.showToast) window.showToast("Added and selected new vertex.");
 };
 
@@ -2488,14 +2497,7 @@ document.getElementById("buildFaceBtn").onclick = () => {
   
   geo.setIndex(indices);
   geo.computeVertexNormals();
-  
-  // Update wireframe overlay
-  wireframeLines.geometry.dispose();
-  wireframeLines.geometry = new THREE.WireframeGeometry(geo);
-  
-  syncPointsCloud();
-  updateEditGizmo();
-  if (state.brush) state.brush.rebuildGrid();
+  refreshAfterTopologyEdit();
   if (window.showToast) window.showToast("Built new face.");
 };
 document.getElementById("clearSelection").onclick = () => {
