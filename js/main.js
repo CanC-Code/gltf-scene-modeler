@@ -194,14 +194,27 @@ const state = {
   },
 
   setMode(mode) {
-    if (mode === "weight_paint" && !this._savedColors && this.activeMesh && this.activeMesh.geometry.attributes.color) {
-      this._savedColors = this.activeMesh.geometry.attributes.color.clone();
+    // Save prior paint colours only when ENTERING weight paint (not on re-entry)
+    if (mode === "weight_paint" && this.mode !== "weight_paint" && this.activeMesh) {
+      if (this.activeMesh.geometry.attributes.color) {
+        this._savedColors = this.activeMesh.geometry.attributes.color.clone();
+      } else {
+        this._savedColors = null; // nothing to preserve
+      }
     }
-    if (this.mode === "weight_paint" && mode !== "weight_paint" && this._savedColors && this.activeMesh) {
-      this.activeMesh.geometry.setAttribute('color', this._savedColors);
+    // Restore (or fully remove) on EXIT from weight paint
+    if (this.mode === "weight_paint" && mode !== "weight_paint" && this.activeMesh) {
+      if (this._savedColors) {
+        this.activeMesh.geometry.setAttribute('color', this._savedColors);
+        this.activeMesh.geometry.attributes.color.needsUpdate = true;
+        this.activeMesh.material.vertexColors = true;
+      } else {
+        // We CREATED the colour attribute for weight visualisation only.
+        // Remove it entirely so the mesh looks unpainted again.
+        this.activeMesh.geometry.deleteAttribute('color');
+        this.activeMesh.material.vertexColors = false;
+      }
       this._savedColors = null;
-      this.activeMesh.geometry.attributes.color.needsUpdate = true;
-      this.activeMesh.material.vertexColors = true;
       this.activeMesh.material.needsUpdate = true;
     }
     this.mode = mode;
