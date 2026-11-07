@@ -465,6 +465,9 @@ const state = {
     const midBone = new THREE.Bone(); midBone.position.set(0, midY - bottomY, 0); rootBone.add(midBone);
     const endBone = new THREE.Bone(); endBone.position.set(0, topY - midY, 0); midBone.add(endBone);
 
+    rootBone.name = 'RootBone';
+    midBone.name = 'MidBone';
+    endBone.name = 'EndBone';
     const bones = [rootBone, midBone, endBone];
     this.currentBones = bones;
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
@@ -690,8 +693,8 @@ const state = {
         quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
       });
       
-      tracks.push(new THREE.VectorKeyframeTrack(`.bones[${i}].position`, times, posValues));
-      tracks.push(new THREE.QuaternionKeyframeTrack(`.bones[${i}].quaternion`, times, quatValues));
+      tracks.push(new THREE.VectorKeyframeTrack(`${this.currentBones[i].name}.position`, times, posValues));
+      tracks.push(new THREE.QuaternionKeyframeTrack(`${this.currentBones[i].name}.quaternion`, times, quatValues));
     }
     
     const clip = new THREE.AnimationClip('Action', -1, tracks);
@@ -740,8 +743,8 @@ const state = {
             quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
           });
           
-          tracks.push(new THREE.VectorKeyframeTrack(`.bones[${i}].position`, times, posValues));
-          tracks.push(new THREE.QuaternionKeyframeTrack(`.bones[${i}].quaternion`, times, quatValues));
+          tracks.push(new THREE.VectorKeyframeTrack(`${this.currentBones[i].name}.position`, times, posValues));
+          tracks.push(new THREE.QuaternionKeyframeTrack(`${this.currentBones[i].name}.quaternion`, times, quatValues));
         }
         options.animations = [new THREE.AnimationClip('Action', -1, tracks)];
     }
