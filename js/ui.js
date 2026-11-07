@@ -341,7 +341,7 @@ export function initUI(state, viewGizmo) {
       document.getElementById('uv-scale-v').value = 1;
       document.getElementById('uv-off-v').value = 0;
     }
-    if (state.updateUVPreview) state.updateUVPreview();
+    if (state.updateUVPreview) { try { state.updateUVPreview(); } catch(e) {} }
     
     // GUI Alignment: clear the mini texture viewer
     const miniTex = document.getElementById('mini-tex');

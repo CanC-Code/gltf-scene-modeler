@@ -19,27 +19,37 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 // --- Material Preview Setup ---
-const previewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-previewRenderer.setSize(128, 128);
-previewRenderer.setPixelRatio(window.devicePixelRatio);
-previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
-previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-const previewContainer = document.getElementById('mat-preview-container');
-if (previewContainer) previewContainer.appendChild(previewRenderer.domElement);
+let previewRenderer = null;
+let previewScene = null;
+let previewCamera = null;
+let previewMat = null;
+let previewMesh = null;
 
-const previewScene = new THREE.Scene();
-const previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
-previewCamera.position.set(0, 0, 3.5);
+try {
+  previewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  previewRenderer.setSize(128, 128);
+  previewRenderer.setPixelRatio(window.devicePixelRatio);
+  previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  const previewContainer = document.getElementById('mat-preview-container');
+  if (previewContainer) previewContainer.appendChild(previewRenderer.domElement);
 
-const previewGeo = new THREE.SphereGeometry(1, 64, 64);
-const previewMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.1 });
-const previewMesh = new THREE.Mesh(previewGeo, previewMat);
-previewScene.add(previewMesh);
+  previewScene = new THREE.Scene();
+  previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+  previewCamera.position.set(0, 0, 3.5);
 
-const previewLight = new THREE.DirectionalLight(0xffffff, 2);
-previewLight.position.set(2, 2, 3);
-previewScene.add(previewLight);
-previewScene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const previewGeo = new THREE.SphereGeometry(1, 64, 64);
+  previewMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.1 });
+  previewMesh = new THREE.Mesh(previewGeo, previewMat);
+  previewScene.add(previewMesh);
+
+  const previewLight = new THREE.DirectionalLight(0xffffff, 2);
+  previewLight.position.set(2, 2, 3);
+  previewScene.add(previewLight);
+  previewScene.add(new THREE.AmbientLight(0xffffff, 0.5));
+} catch (e) {
+  console.warn("Preview renderer failed to initialize (likely WebGL context limit on mobile):", e);
+}
 // ------------------------------------
 
 const scene = new THREE.Scene();
@@ -1853,7 +1863,12 @@ try { viewGizmo = new ViewGizmo(camera, controls, { size: 96 }); viewGizmo.rende
 
 state.addCube();
 state.setTrackpadMode("camera");
-initUI(state, viewGizmo);
+try {
+  initUI(state, viewGizmo);
+} catch (e) {
+  console.error("initUI failed:", e);
+  if (window.showToast) window.showToast("UI failed to load: " + e.message);
+}
 
 state.setPaintColor("#ff0000");
 state.setMode('sculpt');
@@ -1913,7 +1928,7 @@ function animate() {
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
   
-  if (previewMesh) {
+  if (previewMesh && previewRenderer) {
     previewMesh.rotation.y += 0.005;
     previewRenderer.render(previewScene, previewCamera);
   }
