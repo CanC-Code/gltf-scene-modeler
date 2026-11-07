@@ -1,3 +1,5 @@
+import * as THREE from "../three/three.module.js";
+
 export function initUI(state, viewGizmo) {
   const toggleMenu = document.getElementById("toggleMenu"), menu = document.getElementById("menu");
   if (toggleMenu && menu) toggleMenu.onclick = () => menu.classList.toggle("collapsed");
@@ -210,4 +212,56 @@ export function initUI(state, viewGizmo) {
     state.symmetryEnabled = !state.symmetryEnabled;
     symmetryBtn.classList.toggle("active", state.symmetryEnabled);
   };
+
+  // --- Material Properties Panel ---
+  const matColor = document.getElementById("mat-color");
+  const matRough = document.getElementById("mat-roughness");
+  const matMetal = document.getElementById("mat-metalness");
+  const matTex = document.getElementById("mat-texture");
+
+  const updateMaterialUI = (mesh) => {
+    if (!mesh || !mesh.material) return;
+    const m = mesh.material;
+    if (matColor) matColor.value = '#' + m.color.getHexString();
+    if (matRough) matRough.value = m.roughness;
+    if (matMetal) matMetal.value = m.metalness;
+    if (matTex) matTex.value = ''; // Reset file input
+  };
+
+  if (matColor) matColor.oninput = (e) => {
+    if (state.activeMesh && state.activeMesh.material) {
+      state.activeMesh.material.color.set(e.target.value);
+    }
+  };
+
+  if (matRough) matRough.oninput = (e) => {
+    if (state.activeMesh && state.activeMesh.material) {
+      state.activeMesh.material.roughness = parseFloat(e.target.value);
+    }
+  };
+
+  if (matMetal) matMetal.oninput = (e) => {
+    if (state.activeMesh && state.activeMesh.material) {
+      state.activeMesh.material.metalness = parseFloat(e.target.value);
+    }
+  };
+
+  if (matTex) matTex.onchange = (e) => {
+    if (!state.activeMesh || !state.activeMesh.material || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    const url = URL.createObjectURL(file);
+    new THREE.TextureLoader().load(url, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.flipY = false; // glTF standard
+      state.activeMesh.material.map = texture;
+      state.activeMesh.material.needsUpdate = true;
+      URL.revokeObjectURL(url);
+      if (window.showToast) window.showToast('Texture applied!');
+    });
+  };
+
+  // Sync UI when a new object is selected
+  window.addEventListener('objectSelected', (e) => updateMaterialUI(e.detail));
+  // Also sync on load
+  updateMaterialUI(state.activeMesh);
 }

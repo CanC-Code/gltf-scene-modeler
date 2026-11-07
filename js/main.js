@@ -376,6 +376,7 @@ const state = {
     if (this.mode === 'edit') syncPointsCloud();
 
     this.updateObjectList();
+    window.dispatchEvent(new CustomEvent('objectSelected', { detail: mesh }));
   },
 
   duplicateObject() {
