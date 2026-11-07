@@ -379,6 +379,27 @@ const state = {
   hemiLight,
   _baseUVs: null,
 
+  applyEnvironmentPreset(preset) {
+    if (preset === 'studio') {
+      scene.background = new THREE.Color(0x2a2a2a);
+      this.dirLight.intensity = 2.0;
+      this.dirLight.color.setHex(0xffffff);
+      this.hemiLight.intensity = 1.5;
+    } else if (preset === 'sunset') {
+      scene.background = new THREE.Color(0xff9966);
+      this.dirLight.intensity = 3.0;
+      this.dirLight.color.setHex(0xffaa77);
+      this.hemiLight.intensity = 0.8;
+    } else if (preset === 'dark') {
+      scene.background = new THREE.Color(0x111111);
+      this.dirLight.intensity = 1.0;
+      this.dirLight.color.setHex(0x4455ff);
+      this.hemiLight.intensity = 0.3;
+    }
+    // Sync UI if the syncUI function exists (we'll call it safely)
+    if (this.syncUI) this.syncUI();
+  },
+
   toggleEnvironment() {
     this.envEnabled = !this.envEnabled;
     scene.environment = this.envEnabled ? this.envMap : null;
@@ -471,6 +492,11 @@ const state = {
       controls.enabled = true;
       pointsCloud.visible = false;
       wireframeLines.visible = false;
+    } else if (mode === "object" || mode === "move" || mode === "rotate" || mode === "scale") {
+      wireframeLines.visible = false;
+      pointsCloud.visible = false;
+      if (this.activeMesh) this.activeMesh.visible = true;
+      if (actionArea) actionArea.style.pointerEvents = "none";
       if (this.activeMesh) this.activeMesh.visible = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (mode === "object") {

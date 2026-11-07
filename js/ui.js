@@ -159,7 +159,10 @@ export function initUI(state, viewGizmo) {
           transformBtn.textContent = m + " ▼";
         }
       } else {
-        if (transformBtn) transformBtn.classList.remove("active");
+        if (transformBtn) {
+          transformBtn.classList.remove("active");
+          transformBtn.textContent = "Transform ▼"; // Reset text
+        }
       }
       
       btn.classList.add("active");
@@ -413,6 +416,13 @@ export function initUI(state, viewGizmo) {
       modal.classList.add("show");
     };
   }
+
+  const envStudio = document.getElementById("env-studio");
+  const envSunset = document.getElementById("env-sunset");
+  const envDark = document.getElementById("env-dark");
+  if (envStudio) envStudio.onclick = () => state.applyEnvironmentPreset('studio');
+  if (envSunset) envSunset.onclick = () => state.applyEnvironmentPreset('sunset');
+  if (envDark) envDark.onclick = () => state.applyEnvironmentPreset('dark');
 
   const symmetryBtn = document.getElementById("toggleSymmetry");
   if (symmetryBtn) symmetryBtn.onclick = () => {
