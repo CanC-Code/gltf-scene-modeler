@@ -2234,7 +2234,7 @@ function snapSelectedToGrid() {
   if (window.showToast) window.showToast("Snapped to 0.1 grid.");
 }
 
-function appendVertexToGeometry(geo, x, y, z) {
+function appendVertexToGeometry(geo, x, y, z, sourceIdx = 0) {
   const newIdx = geo.attributes.position.count;
   for (const name in geo.attributes) {
     const attr = geo.attributes[name];
@@ -2242,22 +2242,23 @@ function appendVertexToGeometry(geo, x, y, z) {
     const newArr = new attr.array.constructor(oldArr.length + attr.itemSize);
     newArr.set(oldArr);
     
-    // Default values for new vertex
+    // Copy attributes from source vertex if available, otherwise use defaults
+    if (sourceIdx < attr.count) {
+      for (let k = 0; k < attr.itemSize; k++) {
+        newArr[oldArr.length + k] = attr.array[sourceIdx * attr.itemSize + k];
+      }
+    } else {
+      // Fallbacks
+      if (name === 'uv') { newArr[oldArr.length] = 0.5; newArr[oldArr.length + 1] = 0.5; }
+      else if (name === 'normal') { newArr[oldArr.length] = 0; newArr[oldArr.length + 1] = 1; newArr[oldArr.length + 2] = 0; }
+      else if (name === 'color') { newArr[oldArr.length] = 1; newArr[oldArr.length + 1] = 1; newArr[oldArr.length + 2] = 1; }
+    }
+    
+    // Override position
     if (name === 'position') {
       newArr[oldArr.length] = x;
       newArr[oldArr.length + 1] = y;
       newArr[oldArr.length + 2] = z;
-    } else if (name === 'uv') {
-      newArr[oldArr.length] = 0.5;
-      newArr[oldArr.length + 1] = 0.5;
-    } else if (name === 'normal') {
-      newArr[oldArr.length] = 0;
-      newArr[oldArr.length + 1] = 1;
-      newArr[oldArr.length + 2] = 0;
-    } else if (name === 'color') {
-      newArr[oldArr.length] = 1;
-      newArr[oldArr.length + 1] = 1;
-      newArr[oldArr.length + 2] = 1;
     }
     
     geo.setAttribute(name, new THREE.BufferAttribute(newArr, attr.itemSize, attr.normalized));
@@ -2418,10 +2419,14 @@ document.getElementById("addVertexBtn").onclick = () => {
   const geo = state.activeMesh.geometry;
   const pos = geo.attributes.position;
   
-  // Find center of selection or default to 0,0,0
+  // Find center of selection and a source vertex to copy data from
   const center = new THREE.Vector3(0, 0, 0);
+  let sourceIdx = 0;
+  
   if (state.selectedVertices.size > 0) {
-    state.selectedVertices.forEach(idx => {
+    const sel = Array.from(state.selectedVertices);
+    sourceIdx = sel[0]; // Copy weights/colors from the first selected vertex
+    sel.forEach(idx => {
       center.x += pos.getX(idx);
       center.y += pos.getY(idx);
       center.z += pos.getZ(idx);
@@ -2429,13 +2434,16 @@ document.getElementById("addVertexBtn").onclick = () => {
     center.divideScalar(state.selectedVertices.size);
   }
   
-  appendVertexToGeometry(geo, center.x, center.y, center.z);
+  const newIdx = appendVertexToGeometry(geo, center.x, center.y, center.z, sourceIdx);
   geo.computeVertexNormals();
   
-  // Update UI
+  // Auto-select the new vertex and update UI
+  state.selectedVertices.clear();
+  state.selectedVertices.add(newIdx);
   syncPointsCloud();
+  updateEditGizmo();
   if (state.brush) state.brush.rebuildGrid();
-  if (window.showToast) window.showToast("Added new vertex.");
+  if (window.showToast) window.showToast("Added and selected new vertex.");
 };
 
 document.getElementById("buildFaceBtn").onclick = () => {
@@ -2448,10 +2456,35 @@ document.getElementById("buildFaceBtn").onclick = () => {
   if (!geo.index) return;
   
   const sel = Array.from(state.selectedVertices);
+  const pos = geo.attributes.position;
   
-  // Build a triangle using the first 3 selected vertices
+  // Calculate winding order to face outwards
+  const vA = new THREE.Vector3(pos.getX(sel[0]), pos.getY(sel[0]), pos.getZ(sel[0]));
+  const vB = new THREE.Vector3(pos.getX(sel[1]), pos.getY(sel[1]), pos.getZ(sel[1]));
+  const vC = new THREE.Vector3(pos.getX(sel[2]), pos.getY(sel[2]), pos.getZ(sel[2]));
+  
+  const normal = new THREE.Vector3().subVectors(vB, vA).cross(new THREE.Vector3().subVectors(vC, vA)).normalize();
+  
+  // Average normal of the selected vertices to check if we are pointing inwards
+  const avgNormal = new THREE.Vector3();
+  const nrm = geo.attributes.normal;
+  if (nrm) {
+    [sel[0], sel[1], sel[2]].forEach(idx => {
+      avgNormal.x += nrm.getX(idx);
+      avgNormal.y += nrm.getY(idx);
+      avgNormal.z += nrm.getZ(idx);
+    });
+    avgNormal.normalize();
+  }
+  
   const indices = Array.from(geo.index.array);
-  indices.push(sel[0], sel[1], sel[2]);
+  
+  // If the face normal points opposite to the average normal, reverse the winding order
+  if (nrm && normal.dot(avgNormal) < 0) {
+    indices.push(sel[0], sel[2], sel[1]);
+  } else {
+    indices.push(sel[0], sel[1], sel[2]);
+  }
   
   geo.setIndex(indices);
   geo.computeVertexNormals();

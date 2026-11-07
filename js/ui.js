@@ -704,7 +704,7 @@ export function initUI(state, viewGizmo) {
 
   // --- SANITY CHECK ---
   setTimeout(() => {
-    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig', 'toolMove', 'toolRotate', 'toolScale', 'toolObject', 'toolPaint', 'toolEdit', 'deleteKeyframe'];
+    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig', 'toolMove', 'toolRotate', 'toolScale', 'toolObject', 'toolPaint', 'toolEdit', 'deleteKeyframe', 'addVertexBtn', 'buildFaceBtn', 'faceSelectToggle'];
     const missing = criticalIds.filter(id => {
       const el = document.getElementById(id);
       return !el || (!el.onclick && !el.oninput);
