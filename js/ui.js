@@ -122,7 +122,7 @@ export function initUI(state, viewGizmo) {
       transformMenu.style.left = `${rect.left}px`;
       transformMenu.style.display = transformMenu.style.display === "none" ? "flex" : "none";
     };
-    document.addEventListener("click", () => { if (transformMenu) transformMenu.style.display = "none"; });
+    document.addEventListener("click", (e) => { if (transformMenu && !transformMenu.contains(e.target) && !transformBtn.contains(e.target)) transformMenu.style.display = "none"; });
   }
 
   const viewBtn = document.getElementById("viewBtn");
@@ -136,7 +136,7 @@ export function initUI(state, viewGizmo) {
       viewMenu.style.left = `${rect.left}px`;
       viewMenu.style.display = viewMenu.style.display === "none" ? "flex" : "none";
     };
-    document.addEventListener("click", () => { if (viewMenu) viewMenu.style.display = "none"; });
+    document.addEventListener("click", (e) => { if (viewMenu && !viewMenu.contains(e.target) && !viewBtn.contains(e.target)) viewMenu.style.display = "none"; });
   }
 
   const toggleGridBtn = document.getElementById("toggleGrid");
@@ -676,7 +676,7 @@ export function initUI(state, viewGizmo) {
 
   // --- SANITY CHECK ---
   setTimeout(() => {
-    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig'];
+    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig', 'toolMove', 'toolRotate', 'toolScale', 'toolObject', 'toolPaint', 'toolEdit'];
     const missing = criticalIds.filter(id => {
       const el = document.getElementById(id);
       return !el || (!el.onclick && !el.oninput);
