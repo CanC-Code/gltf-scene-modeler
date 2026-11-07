@@ -459,20 +459,78 @@ const state = {
     if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
     const skeleton = new THREE.Skeleton(this.currentBones);
     const geo = this.activeMesh.geometry;
-    const posCount = geo.attributes.position.count;
+    const pos = geo.attributes.position;
+    const posCount = pos.count;
+
+    // --- Compute each bone's HEAD and TAIL in MESH-LOCAL space -----------
+    // Weights are computed in the same coordinate space as vertex positions
+    // (mesh local), so the top-4 inverse-distance weights match what the
+    // skinned mesh shader sees.
+    this.activeMesh.updateMatrixWorld(true);
+    const meshMatrixInv = new THREE.Matrix4().copy(this.activeMesh.matrixWorld).invert();
+    const segments = this.currentBones.map((bone) => {
+      const head = new THREE.Vector3();
+      bone.getWorldPosition(head);
+      head.applyMatrix4(meshMatrixInv);
+      let tail;
+      const childBone = bone.children.find(c => c.isBone);
+      if (childBone) {
+        tail = new THREE.Vector3();
+        childBone.getWorldPosition(tail);
+        tail.applyMatrix4(meshMatrixInv);
+      } else {
+        const parent = bone.parent;
+        if (parent && parent.isBone) {
+          const pw = new THREE.Vector3();
+          parent.getWorldPosition(pw);
+          pw.applyMatrix4(meshMatrixInv);
+          tail = head.clone().add(head.clone().sub(pw));
+        } else {
+          tail = head.clone().add(new THREE.Vector3(0, 1, 0));
+        }
+      }
+      return { head, tail };
+    });
+
     const skinIndices = new Uint16Array(posCount * 4);
     const skinWeights = new Float32Array(posCount * 4);
+    const v = new THREE.Vector3();
+    const closest = new THREE.Vector3();
+    const ab = new THREE.Vector3();
+    const ap = new THREE.Vector3();
 
-    geo.computeBoundingBox();
-    const minY = geo.boundingBox.min.y, maxY = geo.boundingBox.max.y;
-    const range = Math.max(1e-6, maxY - minY);
+    const POWER = 2.0;   // higher = tighter falloff (more rigid); lower = softer
+    const EPS = 0.05;    // prevents div-by-zero at bone centerline
 
     for (let i = 0; i < posCount; i++) {
-      const y = geo.attributes.position.getY(i);
-      const normalizedY = (y - minY) / range;
-      if (normalizedY < 0.33) { skinIndices[i * 4] = 0; skinWeights[i * 4] = 1; }
-      else if (normalizedY < 0.66) { skinIndices[i * 4] = 1; skinWeights[i * 4] = 1; }
-      else { skinIndices[i * 4] = 2; skinWeights[i * 4] = 1; }
+      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+
+      // Distance from this vertex to each bone SEGMENT (not just head)
+      const dists = segments.map(seg => {
+        ab.subVectors(seg.tail, seg.head);
+        ap.subVectors(v, seg.head);
+        const lenSq = ab.lengthSq();
+        const t = lenSq > 1e-9 ? Math.max(0, Math.min(1, ap.dot(ab) / lenSq)) : 0;
+        closest.copy(seg.head).addScaledVector(ab, t);
+        return v.distanceTo(closest);
+      });
+
+      // Inverse-distance-power weighting, keep top 4, normalize
+      const invW = dists.map(d => 1 / Math.pow(d + EPS, POWER));
+      const indexed = invW.map((w, idx) => ({ w, idx }))
+                         .sort((a, b) => b.w - a.w)
+                         .slice(0, 4);
+      const totalW = indexed.reduce((s, x) => s + x.w, 0) || 1;
+      for (let j = 0; j < 4; j++) {
+        const entry = indexed[j];
+        if (entry) {
+          skinIndices[i * 4 + j] = entry.idx;
+          skinWeights[i * 4 + j] = entry.w / totalW;
+        } else {
+          skinIndices[i * 4 + j] = 0;
+          skinWeights[i * 4 + j] = 0;
+        }
+      }
     }
 
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
