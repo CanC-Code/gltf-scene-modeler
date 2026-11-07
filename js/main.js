@@ -1902,6 +1902,64 @@ if (trackpadSurface) {
 }
 
 
+function weldSelectedVertices() {
+  if (!state.activeMesh || state.selectedVertices.size < 2) {
+    if (window.showToast) window.showToast("Select at least 2 vertices to weld.");
+    return;
+  }
+  
+  saveState(state.activeMesh);
+  const geo = state.activeMesh.geometry;
+  const pos = geo.attributes.position;
+  
+  // Calculate center of all selected vertices
+  const center = new THREE.Vector3();
+  const sel = Array.from(state.selectedVertices);
+  sel.forEach(idx => {
+    center.x += pos.getX(idx);
+    center.y += pos.getY(idx);
+    center.z += pos.getZ(idx);
+  });
+  center.divideScalar(sel.length);
+  
+  // Move all selected vertices to the center
+  sel.forEach(idx => {
+    pos.setXYZ(idx, center.x, center.y, center.z);
+  });
+  
+  pos.needsUpdate = true;
+  compactGeometry(geo);
+  geo.computeVertexNormals();
+  
+  syncPointsCloud();
+  updateEditGizmo();
+  if (state.brush) state.brush.rebuildGrid();
+  if (window.showToast) window.showToast(`Welded ${sel.length} vertices.`);
+}
+
+function snapSelectedToGrid() {
+  if (!state.activeMesh || state.selectedVertices.size === 0) return;
+  
+  saveState(state.activeMesh);
+  const geo = state.activeMesh.geometry;
+  const pos = geo.attributes.position;
+  const grid = 0.1;
+  
+  state.selectedVertices.forEach(idx => {
+    pos.setX(idx, Math.round(pos.getX(idx) / grid) * grid);
+    pos.setY(idx, Math.round(pos.getY(idx) / grid) * grid);
+    pos.setZ(idx, Math.round(pos.getZ(idx) / grid) * grid);
+  });
+  
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  
+  syncPointsCloud();
+  updateEditGizmo();
+  if (state.brush) state.brush.rebuildGrid();
+  if (window.showToast) window.showToast("Snapped to 0.1 grid.");
+}
+
 function compactGeometry(geo) {
   if (!geo.index) return;
   const oldIndex = geo.index.array;
@@ -1986,22 +2044,25 @@ function extrudeSelected() {
   
   const index = geometry.index.array;
   const sel = Array.from(state.selectedVertices);
-  if (sel.length !== 3) {
-    if (window.showToast) window.showToast('Select exactly 3 vertices of one triangle.');
+  if (sel.length < 3) {
+    if (window.showToast) window.showToast('Select at least 3 vertices.');
     return;
   }
-  let selectedFace = -1;
+  
+  // Find ALL faces fully contained in the selection
+  const facesToExtrude = [];
   for (let i = 0; i < index.length; i += 3) {
     const fv = [index[i], index[i+1], index[i+2]];
-    if (sel.every(v => fv.includes(v))) {
-      selectedFace = i / 3;
-      break;
+    if (fv.every(v => sel.includes(v))) {
+      facesToExtrude.push(i / 3);
     }
   }
   
+  const selectedFace = facesToExtrude.length > 0 ? facesToExtrude[0] : -1;
+  
   if (selectedFace !== -1) {
     saveState(state.activeMesh);
-    extrudeFaces(geometry, [selectedFace]);
+    extrudeFaces(geometry, facesToExtrude);
     state.selectedVertices.clear();
     syncPointsCloud();
     transform.detach();
@@ -2042,6 +2103,8 @@ if (btnModeCam && btnModeBrsh) {
 
 document.getElementById("extrudeBtn").onclick = extrudeSelected;
 document.getElementById("deleteVertexBtn").onclick = deleteSelectedVertices;
+document.getElementById("weldBtn").onclick = weldSelectedVertices;
+document.getElementById("snapBtn").onclick = snapSelectedToGrid;
 document.getElementById("clearSelection").onclick = () => {
   state.selectedVertices.clear();
   syncPointsCloud();
