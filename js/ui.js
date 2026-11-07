@@ -214,6 +214,10 @@ export function initUI(state, viewGizmo) {
   if (exportGltf) exportGltf.onclick = () => state.exportGLTF();
   if (importGltf) importGltf.onchange = e => state.importGLTF?.(e);
 
+  const saveProj = document.getElementById("saveProject"), loadProj = document.getElementById("loadProject");
+  if (saveProj) saveProj.onclick = () => state.saveProject();
+  if (loadProj) loadProj.onchange = e => state.loadProject(e);
+
   const symmetryBtn = document.getElementById("toggleSymmetry");
   if (symmetryBtn) symmetryBtn.onclick = () => {
     state.symmetryEnabled = !state.symmetryEnabled;

@@ -822,6 +822,134 @@ const state = {
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
 
+  saveProject() {
+    const data = { objects: [] };
+    this.objects.forEach(obj => {
+      const o = {
+        isSkinned: !!obj.isSkinnedMesh,
+        pos: obj.position.toArray(),
+        quat: obj.quaternion.toArray(),
+        scale: obj.scale.toArray(),
+        color: '#' + obj.material.color.getHexString(),
+        roughness: obj.material.roughness,
+        metalness: obj.material.metalness,
+        geometry: {}
+      };
+      
+      for (const name in obj.geometry.attributes) {
+        o.geometry[name] = {
+          array: Array.from(obj.geometry.attributes[name].array),
+          itemSize: obj.geometry.attributes[name].itemSize
+        };
+      }
+      if (obj.geometry.index) {
+        o.geometry.index = { array: Array.from(obj.geometry.index.array) };
+      }
+      if (obj.userData.paintCanvas) {
+        o.texture = obj.userData.paintCanvas.toDataURL('image/png');
+      }
+      if (obj.isSkinnedMesh && obj.skeleton) {
+        o.bones = obj.skeleton.bones.map(b => ({
+          name: b.name, pos: b.position.toArray(), quat: b.quaternion.toArray()
+        }));
+      }
+      data.objects.push(o);
+    });
+
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'project.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (window.showToast) window.showToast('Project saved!');
+  },
+
+  loadProject(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        
+        // Clear current scene
+        this.objects.forEach(o => scene.remove(o));
+        this.objects = [];
+        this.activeMesh = null;
+        this.brush = null;
+        if (this.skeletonHelper) { scene.remove(this.skeletonHelper); this.skeletonHelper = null; }
+        if (this.boneProxies) { scene.remove(this.boneProxies); this.boneProxies = null; }
+        this.currentBones = null;
+        
+        data.objects.forEach(o => {
+          const geo = new THREE.BufferGeometry();
+          for (const name in o.geometry) {
+            if (name === 'index') {
+              geo.setIndex(new THREE.BufferAttribute(new Uint32Array(o.geometry[name].array), 1));
+            } else {
+              geo.setAttribute(name, new THREE.BufferAttribute(new Float32Array(o.geometry[name].array), o.geometry[name].itemSize));
+            }
+          }
+          
+          const mat = new THREE.MeshStandardMaterial({ color: o.color, roughness: o.roughness, metalness: o.metalness });
+          let mesh;
+          
+          if (o.isSkinned && o.bones) {
+            mesh = new THREE.SkinnedMesh(geo, mat);
+            const bones = o.bones.map(b => {
+              const bone = new THREE.Bone();
+              bone.name = b.name;
+              bone.position.fromArray(b.pos);
+              bone.quaternion.fromArray(b.quat);
+              return bone;
+            });
+            for (let i = 0; i < bones.length - 1; i++) bones[i].add(bones[i+1]);
+            mesh.add(bones[0]);
+            const skel = new THREE.Skeleton(bones);
+            mesh.bind(skel);
+            this.currentBones = bones;
+            this.skeletonHelper = new THREE.SkeletonHelper(mesh);
+            scene.add(this.skeletonHelper);
+            this.updateBoneList();
+          } else {
+            mesh = new THREE.Mesh(geo, mat);
+          }
+          
+          mesh.position.fromArray(o.pos);
+          mesh.quaternion.fromArray(o.quat);
+          mesh.scale.fromArray(o.scale);
+          
+          if (o.texture) {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width; canvas.height = img.height;
+              canvas.getContext('2d').drawImage(img, 0, 0);
+              const tex = new THREE.CanvasTexture(canvas);
+              tex.colorSpace = THREE.SRGBColorSpace;
+              tex.flipY = false;
+              mesh.material.map = tex;
+              mesh.material.needsUpdate = true;
+              mesh.userData.paintCanvas = canvas;
+              mesh.userData.paintTexture = tex;
+            };
+            img.src = o.texture;
+          }
+          
+          this.addObject(mesh);
+        });
+        
+        if (window.showToast) window.showToast('Project loaded!');
+      } catch (err) {
+        console.error(err);
+        if (window.showToast) window.showToast('Failed to load project: invalid file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // reset
+  },
+
   exportGLTF() {
     if (!this.objects.length) return;
 
