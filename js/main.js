@@ -594,12 +594,15 @@ const state = {
       const clone = obj.clone();
       clone.geometry = obj.geometry.clone();
       if (obj.isSkinnedMesh && obj.skeleton) {
-        const rootBone = obj.skeleton.bones[0].clone(true);
+        // obj.clone() is recursive: it already cloned the bone hierarchy
+        // as `clone`'s children (bindSkin adds rootBone to the mesh).
+        // Just re-bind to THOSE bones — do not clone them a second time.
+        // traverse() is DFS preorder, same order as Skeleton.bones, so
+        // boneInverses (indexed by that order) stay aligned.
         const clonedBones = [];
-        rootBone.traverse(o => { if (o.isBone) clonedBones.push(o); });
+        clone.traverse(o => { if (o.isBone) clonedBones.push(o); });
         const skel = new THREE.Skeleton(clonedBones, obj.skeleton.boneInverses);
         clone.bind(skel, obj.bindMatrix);
-        clone.add(rootBone);
       }
       exportGroup.add(clone);
     });
