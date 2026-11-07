@@ -109,16 +109,13 @@
 <script>window.onerror = function(m, src, l, c, e) { alert("RUNTIME ERROR: " + m + " at " + src.split("/").pop() + ":" + l); };</script>
   <div id="topbar">
     <button id="toggleMenu" class="tool">☰</button>
-    <div class="tool-group">
-      <button id="toolObject" class="tool">Object</button>
-      <button id="toolSculpt" class="tool active">Sculpt</button>
-      <button id="toolPaint" class="tool">Paint</button>
-      <button id="toolEdit" class="tool">Edit</button>
-      <button id="toolRig" class="tool">Rig</button>
-      <div style="width: 1px; height: 24px; background: #555; margin: 0 4px;"></div>
-      <button id="toolMove" class="tool" title="Move">✥</button>
-      <button id="toolRotate" class="tool" title="Rotate">⟳</button>
-      <button id="toolScale" class="tool" title="Scale">⤡</button>
+    <div class="tool-group" style="margin-left: 8px; border-left: 1px solid #555; padding-left: 8px; position: relative;">
+      <button id="transformBtn" class="tool" style="min-width: 80px;">Transform ▼</button>
+      <div id="transformMenu" style="display: none; position: absolute; top: 100%; left: 8px; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; z-index: 100; flex-direction: column; width: 100px; margin-top: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+        <button id="toolMove" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer; border-bottom: 1px solid #444;">✥ Move</button>
+        <button id="toolRotate" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer; border-bottom: 1px solid #444;">⟳ Rotate</button>
+        <button id="toolScale" style="background: transparent; border: none; color: #fff; padding: 10px; text-align: left; cursor: pointer;">⤡ Scale</button>
+      </div>
     </div>
     <div class="tool-group">
       <button id="toggleWire" class="tool" title="Wireframe">▦</button>

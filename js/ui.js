@@ -102,13 +102,38 @@ export function initUI(state, viewGizmo) {
     }
   };
 
+    const transformBtn = document.getElementById("transformBtn");
+  const transformMenu = document.getElementById("transformMenu");
+  if (transformBtn && transformMenu) {
+    transformBtn.onclick = (e) => {
+      e.stopPropagation();
+      transformMenu.style.display = transformMenu.style.display === "none" ? "flex" : "none";
+    };
+    document.addEventListener("click", () => { if (transformMenu) transformMenu.style.display = "none"; });
+  }
+
   const modes = ["Object", "Sculpt", "Paint", "Edit", "Rig", "Move", "Rotate", "Scale"];
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {
       state.setMode(m.toLowerCase());
-      modes.forEach(x => { const b = document.getElementById("tool" + x); if (b) b.classList.remove("active"); });
+      modes.forEach(x => { 
+        const b = document.getElementById("tool" + x); 
+        if (b) b.classList.remove("active"); 
+      });
+      
+      // Update Transform button label
+      if (["move", "rotate", "scale"].includes(m.toLowerCase())) {
+        if (transformBtn) {
+          transformBtn.classList.add("active");
+          transformBtn.textContent = m + " ▼";
+        }
+      } else {
+        if (transformBtn) transformBtn.classList.remove("active");
+      }
+      
       btn.classList.add("active");
+      if (transformMenu) transformMenu.style.display = "none";
     };
   });
 

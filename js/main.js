@@ -392,6 +392,15 @@ const state = {
   },
 
   setMode(mode) {
+    const bp = document.getElementById("bottom-panel");
+    if (bp) {
+      if (mode === "sculpt" || mode === "paint" || mode === "weight_paint") {
+        bp.style.display = "flex";
+      } else {
+        bp.style.display = "none";
+      }
+    }
+
     // Save prior paint colours only when ENTERING weight paint (not on re-entry)
     if (mode === "weight_paint" && this.mode !== "weight_paint" && this.activeMesh) {
       if (this.activeMesh.geometry.attributes.color) {
