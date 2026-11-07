@@ -286,6 +286,15 @@ export function initUI(state, viewGizmo) {
   const uvOffV = document.getElementById("uv-off-v");
   const uvReset = document.getElementById("uv-reset");
 
+  const saveUVState = () => { if (state.activeMesh) state.saveState(state.activeMesh); };
+  const uvScaleUEl = document.getElementById("uv-scale-u");
+  if (uvScaleUEl) {
+    uvScaleUEl.addEventListener('pointerdown', saveUVState);
+    document.getElementById('uv-off-u').addEventListener('pointerdown', saveUVState);
+    document.getElementById('uv-scale-v').addEventListener('pointerdown', saveUVState);
+    document.getElementById('uv-off-v').addEventListener('pointerdown', saveUVState);
+  }
+
   const applyUVSliders = () => {
     if (!uvScaleU) return;
     state.applyUVTransform(
@@ -335,6 +344,7 @@ export function initUI(state, viewGizmo) {
   };
 
   if (matNormal) matNormal.onchange = (e) => {
+    if (state.activeMesh) state.saveState(state.activeMesh);
     if (!state.activeMesh || !state.activeMesh.material || !e.target.files[0]) return;
     const file = e.target.files[0];
     const url = URL.createObjectURL(file);
@@ -348,6 +358,11 @@ export function initUI(state, viewGizmo) {
       if (window.showToast) window.showToast('Normal Map applied!');
     });
   };
+
+  const saveMatState = () => { if (state.activeMesh) state.saveState(state.activeMesh); };
+  if (matColor) matColor.addEventListener('pointerdown', saveMatState);
+  if (matRough) matRough.addEventListener('pointerdown', saveMatState);
+  if (matMetal) matMetal.addEventListener('pointerdown', saveMatState);
 
   if (matColor) matColor.oninput = (e) => {
     if (state.activeMesh && state.activeMesh.material) {
@@ -371,6 +386,7 @@ export function initUI(state, viewGizmo) {
   };
 
   if (matTex) matTex.onchange = (e) => {
+    if (state.activeMesh) state.saveState(state.activeMesh);
     if (!state.activeMesh || !state.activeMesh.material || !e.target.files[0]) return;
     const file = e.target.files[0];
     const url = URL.createObjectURL(file);

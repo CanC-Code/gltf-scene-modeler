@@ -196,6 +196,8 @@ function captureState(mesh) {
   const sw = mesh.geometry.attributes.skinWeight;
   const si = mesh.geometry.attributes.skinIndex;
   
+  const uv = mesh.geometry.attributes.uv;
+  
   let canvasSnap = null;
   if (mesh.userData.paintCanvas) {
     const c = mesh.userData.paintCanvas;
@@ -205,7 +207,7 @@ function captureState(mesh) {
     canvasSnap.getContext('2d').drawImage(c, 0, 0);
   }
 
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone() };
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: mesh.material.color.getHex(), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone() };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -236,6 +238,15 @@ function undo() {
     state.activeMesh.scale.copy(prev.meshScale);
     selectionBox.setFromObject(state.activeMesh);
   }
+  if (prev.uv) state.activeMesh.geometry.setAttribute('uv', prev.uv);
+  if (prev.matColor !== undefined) {
+    state.activeMesh.material.color.setHex(prev.matColor);
+    state.activeMesh.material.roughness = prev.matRough;
+    state.activeMesh.material.metalness = prev.matMetal;
+    state.activeMesh.material.map = prev.matMap;
+    state.activeMesh.material.normalMap = prev.matNormalMap;
+    state.activeMesh.material.needsUpdate = true;
+  }
   
   if (prev.canvasSnap && state.activeMesh.userData.paintCanvas) {
     const currentCanvas = state.activeMesh.userData.paintCanvas;
@@ -251,6 +262,7 @@ function undo() {
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   if (state.mode === 'edit') syncPointsCloud();
+  state.syncUI();
 }
 function redo() {
   if (!state.activeMesh || !redoStack.length) return;
@@ -275,6 +287,15 @@ function redo() {
     state.activeMesh.scale.copy(next.meshScale);
     selectionBox.setFromObject(state.activeMesh);
   }
+  if (next.uv) state.activeMesh.geometry.setAttribute('uv', next.uv);
+  if (next.matColor !== undefined) {
+    state.activeMesh.material.color.setHex(next.matColor);
+    state.activeMesh.material.roughness = next.matRough;
+    state.activeMesh.material.metalness = next.matMetal;
+    state.activeMesh.material.map = next.matMap;
+    state.activeMesh.material.normalMap = next.matNormalMap;
+    state.activeMesh.material.needsUpdate = true;
+  }
   
   if (next.canvasSnap && state.activeMesh.userData.paintCanvas) {
     const currentCanvas = state.activeMesh.userData.paintCanvas;
@@ -290,6 +311,7 @@ function redo() {
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   if (state.mode === 'edit') syncPointsCloud();
+  state.syncUI();
 }
 
 // Ensures a geometry has a `uv` attribute so GLTFExporter always writes
@@ -1129,6 +1151,31 @@ const state = {
     previewMat.vertexColors = mat.vertexColors;
     previewMat.wireframe = mat.wireframe;
     previewMat.needsUpdate = true;
+  },
+
+  saveState(mesh) {
+    saveState(mesh);
+  },
+
+  syncUI() {
+    if (!this.activeMesh) return;
+    const mat = this.activeMesh.material;
+    const c = document.getElementById('mat-color');
+    const r = document.getElementById('mat-roughness');
+    const m = document.getElementById('mat-metalness');
+    if (c) c.value = '#' + mat.color.getHexString();
+    if (r) r.value = mat.roughness;
+    if (m) m.value = mat.metalness;
+
+    // Reset UV sliders on undo/redo because absolute UVs are restored
+    const su = document.getElementById('uv-scale-u');
+    if (su) {
+      su.value = 1; document.getElementById('uv-off-u').value = 0;
+      document.getElementById('uv-scale-v').value = 1; document.getElementById('uv-off-v').value = 0;
+    }
+
+    if (this.updateMaterialPreview) this.updateMaterialPreview(mat);
+    if (this.updateUVPreview) this.updateUVPreview();
   },
 
   cacheBaseUVs() {
