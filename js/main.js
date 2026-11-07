@@ -99,6 +99,11 @@ transform.addEventListener('dragging-changed', e => {
 });
 
 transform.addEventListener('objectChange', () => {
+  // If we're rotating a bone, sync the roll slider
+  if (transform.object && transform.object.isBone) {
+    const rollInput = document.getElementById('bone-roll');
+    if (rollInput) rollInput.value = transform.object.rotation.y || 0;
+  }
   if (state.mode === 'edit' && state.selectedVertices.size > 0 && state.activeMesh) {
     const mesh = state.activeMesh;
     const pos = mesh.geometry.attributes.position;
@@ -367,6 +372,7 @@ const state = {
   proportionalEnabled: false,
   proportionalRadius: 1.0,
   _editDragSnapshot: null,
+  faceSelectMode: false,
   _editDragStartDummy: null,
   _editDragSelectedPos: null,
   mixer: null,
@@ -994,6 +1000,14 @@ const state = {
     if (label) label.textContent = `Active: ${active ? (active.name || 'Bone_' + this.activeBoneIndex) : 'None'}`;
   },
 
+  setBoneRoll(roll) {
+    if (!this.currentBones || !this.currentBones[this.activeBoneIndex]) return;
+    const bone = this.currentBones[this.activeBoneIndex];
+    bone.rotation.y = roll;
+    bone.updateMatrixWorld(true);
+    if (this.activeMesh) this.activeMesh.updateMatrixWorld(true);
+  },
+
   selectBone(index) {
     if (this.ikEnabled) this.disableIK();
     if (!this.currentBones || !this.currentBones[index]) return;
@@ -1003,6 +1017,10 @@ const state = {
     transform.setMode('rotate');
     this.rebuildBoneProxies();
     this.updateBoneList();
+
+    // Sync bone roll slider
+    const rollInput = document.getElementById('bone-roll');
+    if (rollInput) rollInput.value = this.currentBones[index].rotation.y || 0;
     if (this.mode === 'weight_paint') this.updateWeightVisuals();
   },
 
@@ -1950,6 +1968,32 @@ if (trackpadSurface) {
       mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
 
       raycaster.setFromCamera(mouse, camera);
+
+      // Face Select Mode
+      if (state.faceSelectMode && state.activeMesh) {
+        // Raycast against the invisible activeMesh (which is still in the scene)
+        const hits = raycaster.intersectObject(state.activeMesh);
+        if (hits.length > 0) {
+          const hit = hits[0];
+          const face = hit.face;
+          const geo = state.activeMesh.geometry;
+          if (face && geo.index) {
+            const i0 = geo.index.getX(hit.faceIndex * 3);
+            const i1 = geo.index.getX(hit.faceIndex * 3 + 1);
+            const i2 = geo.index.getX(hit.faceIndex * 3 + 2);
+            state.selectedVertices.clear();
+            state.selectedVertices.add(i0);
+            state.selectedVertices.add(i1);
+            state.selectedVertices.add(i2);
+            syncPointsCloud();
+            updateEditGizmo();
+            if (window.showToast) window.showToast(`Selected face (${i0}, ${i1}, ${i2})`);
+            return;
+          }
+        }
+      }
+
+      // Standard Vertex Raycast
       const distToMesh = camera.position.distanceTo(state.activeMesh.position);
       raycaster.params.Points.threshold = distToMesh * 0.03;
 

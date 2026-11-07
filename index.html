@@ -262,6 +262,7 @@
 
     <div id="edit-panel" class="panel-section">
       <h3>Topology</h3>
+      <button id="faceSelectToggle" style="background: #444; margin-bottom: 6px;">Face Select: OFF</button>
       <button id="extrudeBtn" style="background: #9c27b0; margin-bottom: 6px;">Extrude Selected Faces</button>
       <button id="bevelBtn" style="background: #ff6f00; margin-bottom: 6px;">Bevel Selected Verts</button>
       <button id="deleteVertexBtn" style="background: #d32f2f; margin-bottom: 6px;">Delete Selected Verts</button>
@@ -291,6 +292,9 @@
         <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
       </div>
 
+      <label>Bone Roll (local Y-axis)</label>
+      <input type="range" id="bone-roll" min="-3.1416" max="3.1416" step="0.01" value="0" style="width: 100%; margin-bottom: 15px;">
+      
       <h3>Weight Paint</h3>
       <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 5px;">Active: None</p>
       <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>

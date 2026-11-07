@@ -93,6 +93,14 @@ export function initUI(state, viewGizmo) {
 
   const deleteBoneBtn = document.getElementById("deleteBone");
   if (deleteBoneBtn) deleteBoneBtn.onclick = () => state.deleteBone();
+
+  const rollSlider = document.getElementById("bone-roll");
+  if (rollSlider) {
+    rollSlider.oninput = (e) => {
+      state.setBoneRoll(parseFloat(e.target.value));
+      if (state.mode === 'rig') state.updateBoneList();
+    };
+  }
   
   const renameBoneBtn = document.getElementById("renameBone");
   if (renameBoneBtn) renameBoneBtn.onclick = () => state.renameBone();
@@ -708,6 +716,17 @@ export function initUI(state, viewGizmo) {
       console.log("UI Sanity Check Passed: All critical hooks attached.");
     }
   }, 100);
+
+
+  const faceSelectBtn = document.getElementById("faceSelectToggle");
+  if (faceSelectBtn) {
+    faceSelectBtn.onclick = () => {
+      state.faceSelectMode = !state.faceSelectMode;
+      faceSelectBtn.textContent = `Face Select: ${state.faceSelectMode ? 'ON' : 'OFF'}`;
+      faceSelectBtn.classList.toggle("active", state.faceSelectMode);
+      faceSelectBtn.style.background = state.faceSelectMode ? "#4a90e2" : "#444";
+    };
+  }
 
   // Sync UI when a new object is selected
   window.addEventListener('objectSelected', (e) => updateMaterialUI(e.detail));
