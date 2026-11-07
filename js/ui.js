@@ -135,71 +135,77 @@ export function initUI(state, viewGizmo) {
 
   let colorTarget = 'paint';
 
+  // Fix: updatePreview is now in the top-level scope alongside openColorPicker
+  const updatePreview = () => {
+    if (!cpR) return;
+    const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
+    const hex = `rgb(${r}, ${g}, ${b})`;
+    if (colorPreview) colorPreview.style.background = hex;
+
+    const hexStr = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+    if (cpHex) cpHex.value = hexStr;
+
+    const color = new THREE.Color(r/255, g/255, b/255);
+    const hsl = { h: 0, s: 0, l: 0 };
+    color.getHSL(hsl);
+    hsl.h = (hsl.h + 0.5) % 1.0;
+    color.setHSL(hsl.h, hsl.s, hsl.l);
+    if (cpComp) cpComp.style.background = '#' + color.getHexString();
+  };
+
   const openColorPicker = (target) => {
+    if (!colorModal) return;
     colorTarget = target;
-    pickerTitle.textContent = target === 'paint' ? "Paint Color" : (target === 'background' ? "Background Color" : "Base Color");
+    if (pickerTitle) pickerTitle.textContent = target === 'paint' ? "Paint Color" : (target === 'background' ? "Background Color" : "Base Color");
 
     if (target === 'material' && state.activeMesh) {
       state.saveState(state.activeMesh);
     }
 
-    const currentColor = target === 'paint' ? state.paintColor : 
-                         target === 'background' ? state.scene.background : 
+    const currentColor = target === 'paint' ? state.paintColor :
+                         target === 'background' ? state.scene.background :
                          (state.activeMesh ? state.activeMesh.material.color : new THREE.Color(0xffffff));
-                         
-    cpR.value = Math.round(currentColor.r * 255);
-    cpG.value = Math.round(currentColor.g * 255);
-    cpB.value = Math.round(currentColor.b * 255);
+
+    if (cpR) cpR.value = Math.round(currentColor.r * 255);
+    if (cpG) cpG.value = Math.round(currentColor.g * 255);
+    if (cpB) cpB.value = Math.round(currentColor.b * 255);
     updatePreview();
 
     colorModal.classList.add("show");
   };
 
-  if (colorBtn && colorModal) {
-    colorBtn.onclick = () => openColorPicker('paint');
-    if (bgBtn) bgBtn.onclick = () => openColorPicker('background');
-    if (matColorBtn) matColorBtn.onclick = () => openColorPicker('material');
+  if (colorBtn) colorBtn.onclick = () => openColorPicker('paint');
+  if (bgBtn) bgBtn.onclick = () => openColorPicker('background');
+  if (matColorBtn) matColorBtn.onclick = () => openColorPicker('material');
 
-    colorClose.onclick = () => colorModal.classList.remove("show");
+  if (colorModal) {
+    if (colorClose) colorClose.onclick = () => colorModal.classList.remove("show");
     
-    cpApply.onclick = () => {
-      const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
-      const hex = `rgb(${r}, ${g}, ${b})`;
-      
-      if (colorTarget === 'paint') {
-        state.setPaintColor(`#${new THREE.Color(r/255, g/255, b/255).getHexString()}`);
-      } else if (colorTarget === 'background') {
-        if (state.scene) state.scene.background.set(hex);
-      } else if (colorTarget === 'material' && state.activeMesh) {
-        state.activeMesh.material.color.set(hex);
-        state.activeMesh.material.needsUpdate = true;
-        if (state.updateMaterialPreview) state.updateMaterialPreview(state.activeMesh.material);
-        if (matColorBtn) matColorBtn.style.background = '#' + state.activeMesh.material.color.getHexString();
-        if (state.syncUI) state.syncUI();
-      }
-      colorModal.classList.remove("show");
-    };
+    if (cpApply) {
+      cpApply.onclick = () => {
+        if (!cpR) return;
+        const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
+        const hex = `rgb(${r}, ${g}, ${b})`;
 
-    const updatePreview = () => {
-      const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
-      const hex = `rgb(${r}, ${g}, ${b})`;
-      colorPreview.style.background = hex;
-      
-      const hexStr = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
-      if (cpHex) cpHex.value = hexStr;
-      
-      const color = new THREE.Color(r/255, g/255, b/255);
-      const hsl = { h: 0, s: 0, l: 0 };
-      color.getHSL(hsl);
-      hsl.h = (hsl.h + 0.5) % 1.0;
-      color.setHSL(hsl.h, hsl.s, hsl.l);
-      if (cpComp) cpComp.style.background = '#' + color.getHexString();
-    };
+        if (colorTarget === 'paint') {
+          state.setPaintColor(`#${new THREE.Color(r/255, g/255, b/255).getHexString()}`);
+        } else if (colorTarget === 'background') {
+          if (state.scene) state.scene.background.set(hex);
+        } else if (colorTarget === 'material' && state.activeMesh) {
+          state.activeMesh.material.color.set(hex);
+          state.activeMesh.material.needsUpdate = true;
+          if (state.updateMaterialPreview) state.updateMaterialPreview(state.activeMesh.material);
+          if (matColorBtn) matColorBtn.style.background = '#' + state.activeMesh.material.color.getHexString();
+          if (state.syncUI) state.syncUI();
+        }
+        colorModal.classList.remove("show");
+      };
+    }
 
-    cpR.oninput = updatePreview;
-    cpG.oninput = updatePreview;
-    cpB.oninput = updatePreview;
-    
+    if (cpR) cpR.oninput = updatePreview;
+    if (cpG) cpG.oninput = updatePreview;
+    if (cpB) cpB.oninput = updatePreview;
+
     if (cpHex) {
       cpHex.onchange = (e) => {
         const val = e.target.value.replace('#', '');
@@ -215,34 +221,36 @@ export function initUI(state, viewGizmo) {
       };
     }
 
-    const ctx = colorWheel.getContext('2d');
-    const radius = colorWheel.width / 2;
-    for (let angle = 0; angle < 360; angle++) {
-      const startAngle = (angle - 1) * Math.PI / 180;
-      const endAngle = (angle + 1) * Math.PI / 180;
+    if (colorWheel) {
+      const ctx = colorWheel.getContext('2d');
+      const radius = colorWheel.width / 2;
+      for (let angle = 0; angle < 360; angle++) {
+        const startAngle = (angle - 1) * Math.PI / 180;
+        const endAngle = (angle + 1) * Math.PI / 180;
+        ctx.beginPath();
+        ctx.moveTo(radius, radius);
+        ctx.arc(radius, radius, radius, startAngle, endAngle);
+        ctx.fillStyle = `hsl(${angle}, 100%, 50%)`;
+        ctx.fill();
+      }
+      const grad = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.moveTo(radius, radius);
-      ctx.arc(radius, radius, radius, startAngle, endAngle);
-      ctx.fillStyle = `hsl(${angle}, 100%, 50%)`;
+      ctx.arc(radius, radius, radius, 0, 2 * Math.PI);
       ctx.fill();
-    }
-    const grad = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(0.5, 'rgba(255,255,255,0)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(radius, radius, radius, 0, 2 * Math.PI);
-    ctx.fill();
 
-    colorWheel.onpointerdown = (e) => {
-       const rect = colorWheel.getBoundingClientRect();
-       const x = e.clientX - rect.left;
-       const y = e.clientY - rect.top;
-       const data = ctx.getImageData(x, y, 1, 1).data;
-       cpR.value = data[0]; cpG.value = data[1]; cpB.value = data[2];
-       updatePreview();
-    };
+      colorWheel.onpointerdown = (e) => {
+        const rect = colorWheel.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const data = ctx.getImageData(x, y, 1, 1).data;
+        cpR.value = data[0]; cpG.value = data[1]; cpB.value = data[2];
+        updatePreview();
+      };
+    }
 
     document.querySelectorAll('.swatch').forEach(sw => {
       sw.onclick = () => {
