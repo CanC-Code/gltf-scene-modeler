@@ -30,6 +30,7 @@ export class ViewGizmo {
       new THREE.EdgesGeometry(geo),
       new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 2 })
     );
+    edges.raycast = () => {}; // disable raycast on edges — only cube faces are clickable
     this.cube.add(edges);
     this.scene.add(this.cube);
 
@@ -68,7 +69,7 @@ export class ViewGizmo {
       this.raycaster.setFromCamera(this.pointer, this.camera);
       const hits = this.raycaster.intersectObject(this.cube);
       
-      if (hits.length > 0) {
+      if (hits.length > 0 && hits[0].face) {
         // Store the normal, transformed by the cube's current rotation
         this.clickedNormal = hits[0].face.normal.clone();
         this.clickedNormal.applyQuaternion(this.cube.quaternion);
