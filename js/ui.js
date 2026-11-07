@@ -416,7 +416,6 @@ export function initUI(state, viewGizmo) {
   };
 
   const saveMatState = () => { if (state.activeMesh) state.saveState(state.activeMesh); };
-  if (matColor) matColor.addEventListener('pointerdown', saveMatState);
   if (matRough) matRough.addEventListener('pointerdown', saveMatState);
   if (matMetal) matMetal.addEventListener('pointerdown', saveMatState);
 
