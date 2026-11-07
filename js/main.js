@@ -103,7 +103,17 @@ function captureState(mesh) {
   const col = mesh.geometry.attributes.color;
   const sw = mesh.geometry.attributes.skinWeight;
   const si = mesh.geometry.attributes.skinIndex;
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null };
+  
+  let canvasSnap = null;
+  if (mesh.userData.paintCanvas) {
+    const c = mesh.userData.paintCanvas;
+    canvasSnap = document.createElement('canvas');
+    canvasSnap.width = c.width;
+    canvasSnap.height = c.height;
+    canvasSnap.getContext('2d').drawImage(c, 0, 0);
+  }
+
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -127,6 +137,17 @@ function undo() {
   }
   if (prev.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', prev.skinWeight);
   if (prev.skinIndex)  state.activeMesh.geometry.setAttribute('skinIndex',  prev.skinIndex);
+  
+  if (prev.canvasSnap && state.activeMesh.userData.paintCanvas) {
+    const currentCanvas = state.activeMesh.userData.paintCanvas;
+    const ctx = currentCanvas.getContext('2d');
+    ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
+    ctx.drawImage(prev.canvasSnap, 0, 0);
+    if (state.activeMesh.userData.paintTexture) {
+      state.activeMesh.userData.paintTexture.needsUpdate = true;
+    }
+  }
+
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
@@ -148,6 +169,17 @@ function redo() {
   }
   if (next.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', next.skinWeight);
   if (next.skinIndex)  state.activeMesh.geometry.setAttribute('skinIndex',  next.skinIndex);
+  
+  if (next.canvasSnap && state.activeMesh.userData.paintCanvas) {
+    const currentCanvas = state.activeMesh.userData.paintCanvas;
+    const ctx = currentCanvas.getContext('2d');
+    ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
+    ctx.drawImage(next.canvasSnap, 0, 0);
+    if (state.activeMesh.userData.paintTexture) {
+      state.activeMesh.userData.paintTexture.needsUpdate = true;
+    }
+  }
+
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
