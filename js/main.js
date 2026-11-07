@@ -62,6 +62,9 @@ scene.add(transform);
 
 transform.addEventListener('dragging-changed', e => {
   controls.enabled = !e.value;
+  if (e.value === true && state.activeMesh) {
+    saveState(state.activeMesh); // Snapshot transform + geometry before drag
+  }
   if (!e.value && state.mode === 'edit' && state.activeMesh) {
     state.activeMesh.geometry.computeVertexNormals();
     state.brush.rebuildGrid();
@@ -113,7 +116,7 @@ function captureState(mesh) {
     canvasSnap.getContext('2d').drawImage(c, 0, 0);
   }
 
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap };
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone() };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -137,6 +140,13 @@ function undo() {
   }
   if (prev.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', prev.skinWeight);
   if (prev.skinIndex)  state.activeMesh.geometry.setAttribute('skinIndex',  prev.skinIndex);
+  
+  if (prev.meshPos) {
+    state.activeMesh.position.copy(prev.meshPos);
+    state.activeMesh.quaternion.copy(prev.meshQuat);
+    state.activeMesh.scale.copy(prev.meshScale);
+    selectionBox.setFromObject(state.activeMesh);
+  }
   
   if (prev.canvasSnap && state.activeMesh.userData.paintCanvas) {
     const currentCanvas = state.activeMesh.userData.paintCanvas;
@@ -169,6 +179,13 @@ function redo() {
   }
   if (next.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', next.skinWeight);
   if (next.skinIndex)  state.activeMesh.geometry.setAttribute('skinIndex',  next.skinIndex);
+  
+  if (next.meshPos) {
+    state.activeMesh.position.copy(next.meshPos);
+    state.activeMesh.quaternion.copy(next.meshQuat);
+    state.activeMesh.scale.copy(next.meshScale);
+    selectionBox.setFromObject(state.activeMesh);
+  }
   
   if (next.canvasSnap && state.activeMesh.userData.paintCanvas) {
     const currentCanvas = state.activeMesh.userData.paintCanvas;
