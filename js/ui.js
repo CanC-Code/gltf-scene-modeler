@@ -219,6 +219,7 @@ export function initUI(state, viewGizmo) {
   const matRough = document.getElementById("mat-roughness");
   const matMetal = document.getElementById("mat-metalness");
   const matTex = document.getElementById("mat-texture");
+  const matNormal = document.getElementById("mat-normal");
 
   const updateMaterialUI = (mesh) => {
     if (!mesh || !mesh.material) return;
@@ -227,6 +228,7 @@ export function initUI(state, viewGizmo) {
     if (matRough) matRough.value = m.roughness;
     if (matMetal) matMetal.value = m.metalness;
     if (matTex) matTex.value = ''; // Reset file input
+    if (matNormal) matNormal.value = '';
   };
 
   const applyUV = (type) => {
@@ -268,6 +270,20 @@ export function initUI(state, viewGizmo) {
     state.activeMesh.material.needsUpdate = true;
     
     if (window.showToast) window.showToast('Canvas ready! Switch to Paint mode.');
+  };
+
+  if (matNormal) matNormal.onchange = (e) => {
+    if (!state.activeMesh || !state.activeMesh.material || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    const url = URL.createObjectURL(file);
+    new THREE.TextureLoader().load(url, (texture) => {
+      texture.colorSpace = THREE.NoColorSpace; // Normal maps MUST be linear
+      texture.flipY = false; // glTF standard
+      state.activeMesh.material.normalMap = texture;
+      state.activeMesh.material.needsUpdate = true;
+      URL.revokeObjectURL(url);
+      if (window.showToast) window.showToast('Normal Map applied!');
+    });
   };
 
   if (matColor) matColor.oninput = (e) => {
