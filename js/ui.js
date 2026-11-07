@@ -103,6 +103,23 @@ export function initUI(state, viewGizmo) {
   const bindMultiBtn = document.getElementById("bindMulti");
   if (bindMultiBtn) bindMultiBtn.onclick = () => state.bindToActiveSkeleton();
 
+  const ikBtn = document.getElementById("enableIKBtn");
+  if (ikBtn) {
+    ikBtn.onclick = () => {
+      if (state.ikEnabled) {
+        state.disableIK();
+        ikBtn.textContent = "Enable IK on Active Bone";
+        ikBtn.style.background = "#ff4081";
+      } else {
+        state.enableIK();
+        if (state.ikEnabled) {
+          ikBtn.textContent = "Disable IK";
+          ikBtn.style.background = "#d32f2f";
+        }
+      }
+    };
+  }
+
   const showSkelBtn = document.getElementById("showSkeleton");
   if (showSkelBtn) showSkelBtn.onclick = () => {
     if (state.skeletonHelper) {

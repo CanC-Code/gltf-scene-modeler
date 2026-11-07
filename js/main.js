@@ -379,6 +379,8 @@ const state = {
   hemiLight,
   animationFPS: 24,
   loopAnim: false,
+  ikEnabled: false,
+  ikTarget: null,
   _baseUVs: null,
 
   applyEnvironmentPreset(preset) {
@@ -993,6 +995,7 @@ const state = {
   },
 
   selectBone(index) {
+    if (this.ikEnabled) this.disableIK();
     if (!this.currentBones || !this.currentBones[index]) return;
     this.activeBoneIndex = index;
     if (this.brush) this.brush.setActiveBone(index);
@@ -1124,6 +1127,108 @@ const state = {
     if (label) label.textContent = `Frame: ${Math.round(frameIndex)}`;
   },
 
+  enableIK() {
+    if (!this.currentBones || this.currentBones.length < 2) {
+      if (window.showToast) window.showToast("Need at least 2 bones.");
+      return;
+    }
+    if (this.activeBoneIndex < 1) {
+      if (window.showToast) window.showToast("Select a bone with a parent.");
+      return;
+    }
+    this.activeMesh.updateMatrixWorld(true);
+    const lastBone = this.currentBones[this.activeBoneIndex];
+    const prevBone = this.currentBones[this.activeBoneIndex - 1];
+    const lastW = new THREE.Vector3();
+    const prevW = new THREE.Vector3();
+    lastBone.getWorldPosition(lastW);
+    prevBone.getWorldPosition(prevW);
+    const tail = lastW.clone().add(lastW.clone().sub(prevW));
+    if (this.ikTarget) scene.remove(this.ikTarget);
+    this.ikTarget = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
+    this.ikTarget.position.copy(tail);
+    scene.add(this.ikTarget);
+    transform.attach(this.ikTarget);
+    transform.setMode('translate');
+    this.ikEnabled = true;
+    if (window.showToast) window.showToast("IK enabled. Drag the pink target.");
+  },
+  disableIK() {
+    if (this.ikTarget) { scene.remove(this.ikTarget); this.ikTarget = null; }
+    this.ikEnabled = false;
+    if (this.currentBones && this.currentBones[this.activeBoneIndex]) {
+      transform.attach(this.currentBones[this.activeBoneIndex]);
+    } else {
+      transform.detach();
+    }
+    if (window.showToast) window.showToast("IK disabled.");
+  },
+  solveIK() {
+    if (!this.ikEnabled || !this.ikTarget || !this.currentBones) return;
+    const chain = this.currentBones.slice(0, this.activeBoneIndex + 1);
+    if (chain.length < 2) return;
+    this.activeMesh.updateMatrixWorld(true);
+    const wp = chain.map(b => { const p = new THREE.Vector3(); b.getWorldPosition(p); return p; });
+    const lastW = wp[wp.length - 1];
+    const prevW = wp[wp.length - 2];
+    wp.push(lastW.clone().add(lastW.clone().sub(prevW)));
+    const target = this.ikTarget.position.clone();
+    const rootPos = wp[0].clone();
+    const lengths = [];
+    for (let i = 0; i < wp.length - 1; i++) lengths.push(wp[i + 1].distanceTo(wp[i]));
+    const totalLen = lengths.reduce((a, b) => a + b, 0);
+    if (rootPos.distanceTo(target) > totalLen - 0.01) {
+      const dir = target.clone().sub(rootPos).normalize();
+      for (let i = 1; i < wp.length; i++) wp[i] = wp[i - 1].clone().add(dir.clone().multiplyScalar(lengths[i - 1]));
+    } else {
+      for (let iter = 0; iter < 15; iter++) {
+        wp[wp.length - 1].copy(target);
+        for (let i = wp.length - 2; i >= 0; i--) {
+          const dir = wp[i].clone().sub(wp[i + 1]).normalize();
+          wp[i].copy(wp[i + 1].clone().add(dir.multiplyScalar(lengths[i])));
+        }
+        wp[0].copy(rootPos);
+        for (let i = 1; i < wp.length; i++) {
+          const dir = wp[i].clone().sub(wp[i - 1]).normalize();
+          wp[i].copy(wp[i - 1].clone().add(dir.multiplyScalar(lengths[i - 1])));
+        }
+        if (wp[wp.length - 1].distanceTo(target) < 0.01) break;
+      }
+    }
+    for (let i = 0; i < chain.length; i++) {
+      const bone = chain[i];
+      bone.updateMatrixWorld(true);
+      const currW = new THREE.Vector3();
+      bone.getWorldPosition(currW);
+      let currChildW;
+      if (i < chain.length - 1) {
+        currChildW = new THREE.Vector3();
+        chain[i + 1].getWorldPosition(currChildW);
+      } else {
+        const prevBoneW = new THREE.Vector3();
+        if (i > 0) {
+          chain[i - 1].getWorldPosition(prevBoneW);
+          currChildW = currW.clone().add(currW.clone().sub(prevBoneW));
+        } else {
+          currChildW = currW.clone().add(new THREE.Vector3(0, 1, 0));
+        }
+      }
+      const currDir = currChildW.clone().sub(currW).normalize();
+      const desiredDir = wp[i + 1].clone().sub(currW).normalize();
+      const worldRot = new THREE.Quaternion().setFromUnitVectors(currDir, desiredDir);
+      const boneWorldQuat = new THREE.Quaternion();
+      bone.getWorldQuaternion(boneWorldQuat);
+      const newWorldQuat = worldRot.clone().multiply(boneWorldQuat);
+      if (bone.parent) {
+        const parentWorldQuat = new THREE.Quaternion();
+        bone.parent.getWorldQuaternion(parentWorldQuat);
+        bone.quaternion.copy(parentWorldQuat.clone().invert().multiply(newWorldQuat));
+      } else {
+        bone.quaternion.copy(newWorldQuat);
+      }
+      bone.updateMatrixWorld(true);
+    }
+  },
   addKeyframe() {
     if (!this.currentBones) return;
     const fps = this.animationFPS || 24;
@@ -1902,6 +2007,92 @@ if (trackpadSurface) {
 }
 
 
+function bevelSelected(amount = 0.2) {
+  if (!state.activeMesh || state.selectedVertices.size === 0) return;
+  saveState(state.activeMesh);
+  const geo = state.activeMesh.geometry;
+  if (!geo.index) {
+    if (window.showToast) window.showToast("Bevel requires indexed geometry.");
+    return;
+  }
+  const index = geo.index.array;
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const attrSnapshots = {};
+  for (const name in geo.attributes) {
+    const attr = geo.attributes[name];
+    attrSnapshots[name] = {
+      data: Array.from(attr.array),
+      itemSize: attr.itemSize,
+      ctor: attr.array.constructor,
+      normalized: attr.normalized
+    };
+  }
+  let nextIdx = pos.count;
+  const clonesPerVertex = new Map();
+  const newIndices = [];
+  for (let t = 0; t < index.length; t += 3) {
+    const tri = [index[t], index[t+1], index[t+2]];
+    const clonedTri = tri.map((vIdx, k) => {
+      if (!state.selectedVertices.has(vIdx)) return vIdx;
+      const aIdx = tri[(k + 1) % 3];
+      const bIdx = tri[(k + 2) % 3];
+      const mx = (pos.getX(aIdx) + pos.getX(bIdx)) / 2;
+      const my = (pos.getY(aIdx) + pos.getY(bIdx)) / 2;
+      const mz = (pos.getZ(aIdx) + pos.getZ(bIdx)) / 2;
+      const vx = pos.getX(vIdx), vy = pos.getY(vIdx), vz = pos.getZ(vIdx);
+      const nx = vx + (mx - vx) * amount;
+      const ny = vy + (my - vy) * amount;
+      const nz = vz + (mz - vz) * amount;
+      for (const name in attrSnapshots) {
+        const snap = attrSnapshots[name];
+        for (let p = 0; p < snap.itemSize; p++) {
+          snap.data.push(snap.data[vIdx * snap.itemSize + p]);
+        }
+      }
+      attrSnapshots.position.data[nextIdx * 3] = nx;
+      attrSnapshots.position.data[nextIdx * 3 + 1] = ny;
+      attrSnapshots.position.data[nextIdx * 3 + 2] = nz;
+      const cloneIdx = nextIdx++;
+      if (!clonesPerVertex.has(vIdx)) clonesPerVertex.set(vIdx, []);
+      clonesPerVertex.get(vIdx).push(cloneIdx);
+      return cloneIdx;
+    });
+    newIndices.push(clonedTri[0], clonedTri[1], clonedTri[2]);
+  }
+  for (const [vIdx, clones] of clonesPerVertex) {
+    if (clones.length < 3) continue;
+    const vPos = new THREE.Vector3(pos.getX(vIdx), pos.getY(vIdx), pos.getZ(vIdx));
+    const vN = new THREE.Vector3(nrm ? nrm.getX(vIdx) : 0, nrm ? nrm.getY(vIdx) : 1, nrm ? nrm.getZ(vIdx) : 0).normalize();
+    let tangent = new THREE.Vector3(1, 0, 0);
+    if (Math.abs(vN.dot(tangent)) > 0.9) tangent.set(0, 1, 0);
+    const bitangent = new THREE.Vector3().crossVectors(vN, tangent).normalize();
+    const realTangent = new THREE.Vector3().crossVectors(bitangent, vN).normalize();
+    clones.sort((a, b) => {
+      const pa = new THREE.Vector3(attrSnapshots.position.data[a * 3], attrSnapshots.position.data[a * 3 + 1], attrSnapshots.position.data[a * 3 + 2]).sub(vPos);
+      const pb = new THREE.Vector3(attrSnapshots.position.data[b * 3], attrSnapshots.position.data[b * 3 + 1], attrSnapshots.position.data[b * 3 + 2]).sub(vPos);
+      const angleA = Math.atan2(pa.dot(bitangent), pa.dot(realTangent));
+      const angleB = Math.atan2(pb.dot(bitangent), pb.dot(realTangent));
+      return angleA - angleB;
+    });
+    for (let i = 1; i < clones.length - 1; i++) {
+      newIndices.push(clones[0], clones[i], clones[i+1]);
+    }
+  }
+  for (const name in attrSnapshots) {
+    const snap = attrSnapshots[name];
+    geo.setAttribute(name, new THREE.BufferAttribute(new snap.ctor(snap.data), snap.itemSize, snap.normalized));
+  }
+  geo.setIndex(newIndices);
+  compactGeometry(geo);
+  state.selectedVertices.clear();
+  syncPointsCloud();
+  updateEditGizmo();
+  geo.computeVertexNormals();
+  if (state.brush) state.brush.rebuildGrid();
+  if (window.showToast) window.showToast(`Beveled ${clonesPerVertex.size} vertices.`);
+}
+
 function weldSelectedVertices() {
   if (!state.activeMesh || state.selectedVertices.size < 2) {
     if (window.showToast) window.showToast("Select at least 2 vertices to weld.");
@@ -2105,6 +2296,7 @@ document.getElementById("extrudeBtn").onclick = extrudeSelected;
 document.getElementById("deleteVertexBtn").onclick = deleteSelectedVertices;
 document.getElementById("weldBtn").onclick = weldSelectedVertices;
 document.getElementById("snapBtn").onclick = snapSelectedToGrid;
+document.getElementById("bevelBtn").onclick = () => bevelSelected(0.2);
 document.getElementById("clearSelection").onclick = () => {
   state.selectedVertices.clear();
   syncPointsCloud();
@@ -2147,6 +2339,8 @@ function animate() {
       }
     }
   }
+  
+  if (state.ikEnabled && state.ikTarget) state.solveIK();
   
   if (state.trackpadMode === 'camera' && controls) controls.update();
   if (canvasControls) canvasControls.update();
