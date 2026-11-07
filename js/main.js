@@ -652,20 +652,13 @@ const state = {
     if (window.showToast) window.showToast("Armature created! Now click 'Bind Skin to Bones'.");
   },
 
-  bindSkin() {
-    if (!this.activeMesh || !this.currentBones) return;
-    if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
-    const skeleton = new THREE.Skeleton(this.currentBones);
-    const geo = this.activeMesh.geometry;
+  _calculateSkinWeights(mesh) {
+    const geo = mesh.geometry;
     const pos = geo.attributes.position;
     const posCount = pos.count;
 
-    // --- Compute each bone's HEAD and TAIL in MESH-LOCAL space -----------
-    // Weights are computed in the same coordinate space as vertex positions
-    // (mesh local), so the top-4 inverse-distance weights match what the
-    // skinned mesh shader sees.
-    this.activeMesh.updateMatrixWorld(true);
-    const meshMatrixInv = new THREE.Matrix4().copy(this.activeMesh.matrixWorld).invert();
+    mesh.updateMatrixWorld(true);
+    const meshMatrixInv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
     const segments = this.currentBones.map((bone) => {
       const head = new THREE.Vector3();
       bone.getWorldPosition(head);
@@ -696,14 +689,11 @@ const state = {
     const closest = new THREE.Vector3();
     const ab = new THREE.Vector3();
     const ap = new THREE.Vector3();
-
-    const POWER = 2.0;   // higher = tighter falloff (more rigid); lower = softer
-    const EPS = 0.05;    // prevents div-by-zero at bone centerline
+    const POWER = 2.0;
+    const EPS = 0.05;
 
     for (let i = 0; i < posCount; i++) {
       v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-
-      // Distance from this vertex to each bone SEGMENT (not just head)
       const dists = segments.map(seg => {
         ab.subVectors(seg.tail, seg.head);
         ap.subVectors(v, seg.head);
@@ -712,12 +702,8 @@ const state = {
         closest.copy(seg.head).addScaledVector(ab, t);
         return v.distanceTo(closest);
       });
-
-      // Inverse-distance-power weighting, keep top 4, normalize
       const invW = dists.map(d => 1 / Math.pow(d + EPS, POWER));
-      const indexed = invW.map((w, idx) => ({ w, idx }))
-                         .sort((a, b) => b.w - a.w)
-                         .slice(0, 4);
+      const indexed = invW.map((w, idx) => ({ w, idx })).sort((a, b) => b.w - a.w).slice(0, 4);
       const totalW = indexed.reduce((s, x) => s + x.w, 0) || 1;
       for (let j = 0; j < 4; j++) {
         const entry = indexed[j];
@@ -733,16 +719,31 @@ const state = {
 
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+  },
 
-    const skinnedMesh = new THREE.SkinnedMesh(geo, this.activeMesh.material);
-    skinnedMesh.position.copy(this.activeMesh.position);
-    skinnedMesh.rotation.copy(this.activeMesh.rotation);
-    skinnedMesh.scale.copy(this.activeMesh.scale);
-    skinnedMesh.add(this.currentBones[0]);
+  bindSkin() {
+    if (!this.activeMesh || !this.currentBones) return;
+    if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
+
+    const mesh = this.activeMesh;
+    this._calculateSkinWeights(mesh);
+
+    const skinnedMesh = new THREE.SkinnedMesh(mesh.geometry, mesh.material);
+    skinnedMesh.position.copy(mesh.position);
+    skinnedMesh.rotation.copy(mesh.rotation);
+    skinnedMesh.scale.copy(mesh.scale);
+    skinnedMesh.add(this.currentBones[0]); // Primary mesh owns the bones
+
+    const skeleton = new THREE.Skeleton(this.currentBones);
     skinnedMesh.bind(skeleton);
 
-    scene.remove(this.activeMesh);
+    scene.remove(mesh);
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
+    
+    // FIX: Replace in objects array so UI stays in sync
+    const idx = this.objects.indexOf(mesh);
+    if (idx !== -1) this.objects[idx] = skinnedMesh;
+
     scene.add(skinnedMesh);
     this.activeMesh = skinnedMesh;
 
@@ -752,6 +753,36 @@ const state = {
 
     if (window.showToast) window.showToast("Skin bound successfully! Select Move/Rotate to pose.");
     this.selectBone(0);
+    this.updateObjectList();
+  },
+
+  bindToActiveSkeleton() {
+    if (!this.activeMesh || !this.currentBones) {
+      if (window.showToast) window.showToast("No active skeleton to bind to.");
+      return;
+    }
+    
+    const mesh = this.activeMesh;
+    this._calculateSkinWeights(mesh);
+    
+    const skinnedMesh = new THREE.SkinnedMesh(mesh.geometry, mesh.material);
+    skinnedMesh.position.copy(mesh.position);
+    skinnedMesh.rotation.copy(mesh.rotation);
+    skinnedMesh.scale.copy(mesh.scale);
+    // Do NOT add bones to this mesh. It shares the skeleton owned by the first mesh.
+    
+    const skeleton = new THREE.Skeleton(this.currentBones);
+    skinnedMesh.bind(skeleton);
+    
+    scene.remove(mesh);
+    const idx = this.objects.indexOf(mesh);
+    if (idx !== -1) this.objects[idx] = skinnedMesh;
+    
+    scene.add(skinnedMesh);
+    this.activeMesh = skinnedMesh;
+    
+    if (window.showToast) window.showToast("Mesh bound to active skeleton!");
+    this.updateObjectList();
   },
 
   updateBoneList() {

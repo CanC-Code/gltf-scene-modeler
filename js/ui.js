@@ -77,6 +77,9 @@ export function initUI(state, viewGizmo) {
   const bindBtn = document.getElementById("bindSkin");
   if (bindBtn) bindBtn.onclick = () => state.bindSkin();
 
+  const bindMultiBtn = document.getElementById("bindMulti");
+  if (bindMultiBtn) bindMultiBtn.onclick = () => state.bindToActiveSkeleton();
+
   const showSkelBtn = document.getElementById("showSkeleton");
   if (showSkelBtn) showSkelBtn.onclick = () => {
     if (state.skeletonHelper) {
