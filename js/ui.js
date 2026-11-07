@@ -91,6 +91,9 @@ export function initUI(state, viewGizmo) {
   const addChildBoneBtn = document.getElementById("addChildBone");
   if (addChildBoneBtn) addChildBoneBtn.onclick = () => state.addChildBone();
 
+  const deleteBoneBtn = document.getElementById("deleteBone");
+  if (deleteBoneBtn) deleteBoneBtn.onclick = () => state.deleteBone();
+
   const bindBtn = document.getElementById("bindSkin");
   if (bindBtn) bindBtn.onclick = () => state.bindSkin();
 

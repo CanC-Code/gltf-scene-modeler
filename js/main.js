@@ -708,12 +708,22 @@ const state = {
     const proxyGeo = new THREE.SphereGeometry(0.3, 8, 8);
     const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
     
+    const activeGeo = new THREE.SphereGeometry(0.35, 12, 12);
+    const activeMat = new THREE.MeshBasicMaterial({ color: 0x4a90e2, transparent: true, opacity: 0.5 });
+
     this.currentBones.forEach((bone, idx) => {
       const proxy = new THREE.Mesh(proxyGeo, proxyMat);
       proxy.userData.boneIndex = idx;
       bone.getWorldPosition(proxy.position);
       this.boneProxies.add(proxy);
     });
+
+    if (this.currentBones[this.activeBoneIndex]) {
+      const activeMesh = new THREE.Mesh(activeGeo, activeMat);
+      activeMesh.userData.boneIndex = this.activeBoneIndex;
+      this.currentBones[this.activeBoneIndex].getWorldPosition(activeMesh.position);
+      this.boneProxies.add(activeMesh);
+    }
     scene.add(this.boneProxies);
   },
 
@@ -936,17 +946,18 @@ const state = {
       if (lbl) lbl.textContent = 'Active: None';
       return;
     }
-    const names = ["Root Bone", "Mid Bone", "End Bone"];
+
     this.currentBones.forEach((bone, index) => {
       const div = document.createElement("div");
       div.className = `list-item ${index === this.activeBoneIndex ? 'active' : ''}`;
-      div.innerHTML = `<span>${names[index]}</span>`;
+      div.innerHTML = `<span>${bone.name || 'Bone_' + index}</span>`;
       div.onclick = () => this.selectBone(index);
       list.appendChild(div);
     });
-    
-    const label = document.getElementById("active-bone-label");
-    if (label) label.textContent = `Active: ${names[this.activeBoneIndex]}`;
+
+    const active = this.currentBones[this.activeBoneIndex];
+    const label = document.getElementById('active-bone-label');
+    if (label) label.textContent = `Active: ${active ? (active.name || 'Bone_' + this.activeBoneIndex) : 'None'}`;
   },
 
   selectBone(index) {
@@ -954,9 +965,46 @@ const state = {
     this.activeBoneIndex = index;
     if (this.brush) this.brush.setActiveBone(index);
     transform.attach(this.currentBones[index]);
-    transform.setMode('rotate'); // Default to rotate for posing
+    transform.setMode('rotate');
+    this.rebuildBoneProxies();
     this.updateBoneList();
     if (this.mode === 'weight_paint') this.updateWeightVisuals();
+  },
+
+  deleteBone() {
+    if (!this.currentBones || this.currentBones.length === 0) {
+      if (window.showToast) window.showToast("No bones to delete.");
+      return;
+    }
+    if (this.activeMesh && this.activeMesh.isSkinnedMesh && this.activeMesh.skeleton) {
+      if (window.showToast) window.showToast("Delete mesh before deleting bones from a bound rig.");
+      return;
+    }
+    const idx = this.activeBoneIndex;
+    const bone = this.currentBones[idx];
+    if (!bone) return;
+
+    const childBones = bone.children.filter(c => c.isBone);
+    if (childBones.length > 0 && idx === 0) {
+      if (window.showToast) window.showToast("Cannot delete root bone with children.");
+      return;
+    }
+
+    if (bone.parent && bone.parent.isBone) {
+      bone.parent.remove(bone);
+    } else if (this.activeMesh) {
+      this.activeMesh.remove(bone);
+    }
+
+    this.currentBones.splice(idx, 1);
+    this.activeBoneIndex = Math.max(0, idx - 1);
+
+    this.rebuildBoneProxies();
+    this.updateBoneList();
+    if (this.currentBones.length > 0) this.selectBone(this.activeBoneIndex);
+    else transform.detach();
+
+    if (window.showToast) window.showToast("Bone deleted.");
   },
 
   updateWeightVisuals() {
