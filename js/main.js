@@ -337,6 +337,7 @@ const state = {
   redo,
   envMap,
   envEnabled: true,
+  _baseUVs: null,
 
   toggleEnvironment() {
     this.envEnabled = !this.envEnabled;
@@ -528,6 +529,7 @@ const state = {
     if (this.mode === 'edit') syncPointsCloud();
 
     this.updateObjectList();
+    this.cacheBaseUVs();
     window.dispatchEvent(new CustomEvent('objectSelected', { detail: mesh }));
   },
 
@@ -995,6 +997,70 @@ const state = {
     };
     reader.readAsText(file);
     e.target.value = ''; // reset
+  },
+
+  cacheBaseUVs() {
+    if (this.activeMesh && this.activeMesh.geometry.attributes.uv) {
+      this._baseUVs = new Float32Array(this.activeMesh.geometry.attributes.uv.array);
+    } else {
+      this._baseUVs = null;
+    }
+    this.updateUVPreview();
+  },
+
+  applyUVTransform(scaleU, offsetU, scaleV, offsetV) {
+    if (!this.activeMesh || !this.activeMesh.geometry.attributes.uv || !this._baseUVs) return;
+    const uv = this.activeMesh.geometry.attributes.uv;
+    const base = this._baseUVs;
+    
+    for (let i = 0; i < uv.count; i++) {
+      // Apply scale, then offset
+      uv.setXY(i, (base[i * 2] * scaleU) + offsetU, (base[i * 2 + 1] * scaleV) + offsetV);
+    }
+    uv.needsUpdate = true;
+    this.updateUVPreview();
+  },
+
+  updateUVPreview() {
+    const canvas = document.getElementById('uv-preview');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw grid
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const x = (i / 4) * canvas.width;
+      const y = (i / 4) * canvas.height;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+
+    if (!this.activeMesh || !this.activeMesh.geometry.attributes.uv) return;
+    
+    const uv = this.activeMesh.geometry.attributes.uv;
+    const index = this.activeMesh.geometry.index;
+    ctx.strokeStyle = '#4a90e2';
+    ctx.lineWidth = 1.5;
+    
+    const drawLine = (a, b) => {
+      ctx.beginPath();
+      ctx.moveTo(uv.getX(a) * canvas.width, (1 - uv.getY(a)) * canvas.height);
+      ctx.lineTo(uv.getX(b) * canvas.width, (1 - uv.getY(b)) * canvas.height);
+      ctx.stroke();
+    };
+    
+    if (index) {
+      for (let i = 0; i < index.count; i += 3) {
+        const a = index.getX(i), b = index.getX(i+1), c = index.getX(i+2);
+        drawLine(a, b); drawLine(b, c); drawLine(c, a);
+      }
+    } else {
+      for (let i = 0; i < uv.count; i += 3) {
+        drawLine(i, i+1); drawLine(i+1, i+2); drawLine(i+2, i);
+      }
+    }
   },
 
   exportGLTF() {

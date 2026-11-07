@@ -251,12 +251,20 @@ export function initUI(state, viewGizmo) {
     if (matMetal) matMetal.value = m.metalness;
     if (matTex) matTex.value = ''; // Reset file input
     if (matNormal) matNormal.value = '';
+    if (document.getElementById('uv-scale-u')) {
+      document.getElementById('uv-scale-u').value = 1;
+      document.getElementById('uv-off-u').value = 0;
+      document.getElementById('uv-scale-v').value = 1;
+      document.getElementById('uv-off-v').value = 0;
+    }
+    if (state.updateUVPreview) state.updateUVPreview();
   };
 
   const applyUV = (type) => {
     if (!state.activeMesh) return;
     applyUVProjection(state.activeMesh.geometry, type);
     state.activeMesh.geometry.attributes.uv.needsUpdate = true;
+    state.cacheBaseUVs();
     
     // If painting, the canvas might need a repaint if they just set the unwrap
     if (state.activeMesh.userData.paintTexture) {
@@ -268,6 +276,34 @@ export function initUI(state, viewGizmo) {
   const btnUVPlanar = document.getElementById("uv-planar");
   const btnUVCyl = document.getElementById("uv-cyl");
   const btnUVSph = document.getElementById("uv-sph");
+  const uvScaleU = document.getElementById("uv-scale-u");
+  const uvOffU = document.getElementById("uv-off-u");
+  const uvScaleV = document.getElementById("uv-scale-v");
+  const uvOffV = document.getElementById("uv-off-v");
+  const uvReset = document.getElementById("uv-reset");
+
+  const applyUVSliders = () => {
+    if (!uvScaleU) return;
+    state.applyUVTransform(
+      parseFloat(uvScaleU.value), parseFloat(uvOffU.value),
+      parseFloat(uvScaleV.value), parseFloat(uvOffV.value)
+    );
+  };
+
+  if (uvScaleU) uvScaleU.oninput = applyUVSliders;
+  if (uvOffU) uvOffU.oninput = applyUVSliders;
+  if (uvScaleV) uvScaleV.oninput = applyUVSliders;
+  if (uvOffV) uvOffV.oninput = applyUVSliders;
+
+  if (uvReset) uvReset.onclick = () => {
+    if (uvScaleU) uvScaleU.value = 1;
+    if (uvOffU) uvOffU.value = 0;
+    if (uvScaleV) uvScaleV.value = 1;
+    if (uvOffV) uvOffV.value = 0;
+    applyUVSliders();
+    if (window.showToast) window.showToast('UVs reset');
+  };
+
   if (btnUVPlanar) btnUVPlanar.onclick = () => applyUV('planar');
   if (btnUVCyl) btnUVCyl.onclick = () => applyUV('cylindrical');
   if (btnUVSph) btnUVSph.onclick = () => applyUV('spherical');
