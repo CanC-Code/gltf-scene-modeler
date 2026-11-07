@@ -777,8 +777,12 @@ function extrudeSelected() {
   }
   
   const index = geometry.index.array;
-  let selectedFace = -1;
   const sel = Array.from(state.selectedVertices);
+  if (sel.length !== 3) {
+    if (window.showToast) window.showToast('Select exactly 3 vertices of one triangle.');
+    return;
+  }
+  let selectedFace = -1;
   for (let i = 0; i < index.length; i += 3) {
     const fv = [index[i], index[i+1], index[i+2]];
     if (sel.every(v => fv.includes(v))) {
@@ -798,7 +802,7 @@ function extrudeSelected() {
     state.brush.rebuildGrid();
     if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   } else {
-    if (window.showToast) window.showToast("Could not find a face for the selected vertices.");
+    if (window.showToast) window.showToast("Those 3 vertices are not all part of one triangle.");
   }
 }
 
