@@ -655,6 +655,9 @@ export function initUI(state, viewGizmo) {
   const addKfBtn = document.getElementById("addKeyframe");
   if (addKfBtn) addKfBtn.onclick = () => state.addKeyframe();
 
+  const delKfBtn = document.getElementById("deleteKeyframe");
+  if (delKfBtn) delKfBtn.onclick = () => state.deleteKeyframe();
+
   const playAnimBtn = document.getElementById("playAnim");
   if (playAnimBtn) playAnimBtn.onclick = () => state.playAnimation();
 
@@ -693,7 +696,7 @@ export function initUI(state, viewGizmo) {
 
   // --- SANITY CHECK ---
   setTimeout(() => {
-    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig', 'toolMove', 'toolRotate', 'toolScale', 'toolObject', 'toolPaint', 'toolEdit'];
+    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig', 'toolMove', 'toolRotate', 'toolScale', 'toolObject', 'toolPaint', 'toolEdit', 'deleteKeyframe'];
     const missing = criticalIds.filter(id => {
       const el = document.getElementById(id);
       return !el || (!el.onclick && !el.oninput);

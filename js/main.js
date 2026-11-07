@@ -1247,14 +1247,53 @@ const state = {
     
     const maxFrame = this.keyframes.length - 1;
     const scrub = document.getElementById('timeline-scrub');
-    if (scrub) {
-      scrub.max = maxFrame;
-      scrub.value = maxFrame;
-      scrub.disabled = false;
-    }
+    if (scrub) scrub.value = maxFrame;
+    this._refreshTimeline();
     this.scrubToTime(maxFrame);
     
     if (window.showToast) window.showToast(`Keyframe ${time} added!`);
+  },
+
+  _refreshTimeline() {
+    const scrub = document.getElementById('timeline-scrub');
+    const label = document.getElementById('timeline-label');
+    if (!scrub) return;
+    const maxFrame = Math.max(0, this.keyframes.length - 1);
+    scrub.max = maxFrame;
+    scrub.disabled = this.keyframes.length < 2;
+    let v = parseFloat(scrub.value);
+    if (isNaN(v) || v > maxFrame) v = maxFrame;
+    scrub.value = v;
+    if (label) label.textContent = `Frame: ${Math.round(v)} / ${maxFrame}`;
+  },
+
+  deleteKeyframe() {
+    if (!this.keyframes.length) {
+      if (window.showToast) window.showToast("No keyframes to delete.");
+      return;
+    }
+    const scrub = document.getElementById('timeline-scrub');
+    const idx = scrub ? Math.round(parseFloat(scrub.value)) : this.keyframes.length - 1;
+    if (idx < 0 || idx >= this.keyframes.length) return;
+
+    const fps = this.animationFPS || 24;
+    this.keyframes.splice(idx, 1);
+    // Rebuild times to keep them monotonic (0, 1/fps, 2/fps...)
+    this.keyframes.forEach((frame, i) => { frame.time = i / fps; });
+
+    if (this.keyframes.length === 0 && this.currentBones) {
+      // Reset bones to rest pose since there are no keyframes
+      this.currentBones.forEach(b => {
+        b.position.set(0, 0, 0);
+        b.quaternion.set(0, 0, 0, 1);
+      });
+      if (this.mixer) this.mixer.stopAllAction();
+    }
+
+    this._refreshTimeline();
+    const newIdx = Math.min(idx, this.keyframes.length - 1);
+    if (newIdx >= 0) this.scrubToTime(newIdx);
+    if (window.showToast) window.showToast(`Deleted keyframe ${idx}. ${this.keyframes.length} remaining.`);
   },
 
   playAnimation() {
