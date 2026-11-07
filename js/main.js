@@ -102,7 +102,8 @@ function captureState(mesh) {
   const norm = mesh.geometry.attributes.normal;
   const col = mesh.geometry.attributes.color;
   const sw = mesh.geometry.attributes.skinWeight;
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null };
+  const si = mesh.geometry.attributes.skinIndex;
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -125,6 +126,7 @@ function undo() {
     state.activeMesh.material.vertexColors = false;
   }
   if (prev.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', prev.skinWeight);
+  if (prev.skinIndex)  state.activeMesh.geometry.setAttribute('skinIndex',  prev.skinIndex);
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
@@ -145,6 +147,7 @@ function redo() {
     state.activeMesh.material.vertexColors = false;
   }
   if (next.skinWeight) state.activeMesh.geometry.setAttribute('skinWeight', next.skinWeight);
+  if (next.skinIndex)  state.activeMesh.geometry.setAttribute('skinIndex',  next.skinIndex);
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
