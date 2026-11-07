@@ -1030,6 +1030,70 @@ const state = {
     e.target.value = ''; // reset
   },
 
+  selectEdgeLoop(startIdx, additive = false) {
+    const geo = this.activeMesh.geometry;
+    if (!geo.index) return;
+    const pos = geo.attributes.position;
+    const index = geo.index.array;
+
+    // Build adjacency map on the fly
+    const vAdj = new Map();
+    for (let i = 0; i < index.length; i += 3) {
+      for (let j = 0; j < 3; j++) {
+        const a = index[i + j];
+        const b = index[i + (j+1)%3];
+        if (!vAdj.has(a)) vAdj.set(a, new Set());
+        if (!vAdj.has(b)) vAdj.set(b, new Set());
+        vAdj.get(a).add(b);
+        vAdj.get(b).add(a);
+      }
+    }
+
+    const loop = new Set([startIdx]);
+    const neighbors = Array.from(vAdj.get(startIdx) || []);
+    const getPos = (idx) => new THREE.Vector3(pos.getX(idx), pos.getY(idx), pos.getZ(idx));
+
+    for (const n of neighbors) {
+      let prev = startIdx;
+      let curr = n;
+      let steps = 0;
+      
+      while (curr !== undefined && steps < 1000) {
+        loop.add(curr);
+        const adj = Array.from(vAdj.get(curr) || []);
+        let next = -1;
+        let bestDot = -2;
+        
+        const currPos = getPos(curr);
+        const prevPos = getPos(prev);
+        const dir1 = currPos.clone().sub(prevPos).normalize();
+        
+        for (const cand of adj) {
+          if (cand === prev) continue;
+          const candPos = getPos(cand);
+          const dir2 = candPos.clone().sub(currPos).normalize();
+          const dot = dir1.dot(dir2);
+          if (dot > bestDot) {
+            bestDot = dot;
+            next = cand;
+          }
+        }
+        
+        if (next === -1 || loop.has(next)) break;
+        prev = curr;
+        curr = next;
+        steps++;
+      }
+    }
+
+    if (!additive) this.selectedVertices.clear();
+    loop.forEach(v => this.selectedVertices.add(v));
+    
+    syncPointsCloud();
+    updateEditGizmo();
+    if (window.showToast) window.showToast(`Selected loop of ${loop.size} vertices.`);
+  },
+
   cacheBaseUVs() {
     if (this.activeMesh && this.activeMesh.geometry.attributes.uv) {
       this._baseUVs = new Float32Array(this.activeMesh.geometry.attributes.uv.array);
@@ -1271,6 +1335,8 @@ function updateEditGizmo() {
 
 let boxSelecting = false;
 let boxStartX = 0, boxStartY = 0;
+let lastClickIdx = -1;
+let lastClickTime = 0;
 
 if (trackpadSurface) {
   trackpadSurface.addEventListener("pointerdown", e => {
@@ -1325,7 +1391,7 @@ if (trackpadSurface) {
     const dist = Math.sqrt((currentX - boxStartX)**2 + (currentY - boxStartY)**2);
     
     if (dist < 5) {
-      // It was a click, do the old raycast single selection
+      // It was a click
       const rect = trackpadSurface.getBoundingClientRect();
       const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
@@ -1341,15 +1407,31 @@ if (trackpadSurface) {
 
       if (hit) {
         const idx = hit.index;
-        if (state.selectedVertices.has(idx)) state.selectedVertices.delete(idx);
-        else state.selectedVertices.add(idx);
-        syncPointsCloud();
-        updateEditGizmo();
+        const now = Date.now();
+        
+        // Double click detection
+        if (idx === lastClickIdx && (now - lastClickTime) < 350) {
+          state.selectEdgeLoop(idx, e.shiftKey);
+          lastClickIdx = -1; // Reset so triple-click doesn't trigger again
+        } else {
+          // Single click behavior
+          if (!e.shiftKey && !state.selectedVertices.has(idx)) {
+            state.selectedVertices.clear();
+          }
+          if (state.selectedVertices.has(idx)) state.selectedVertices.delete(idx);
+          else state.selectedVertices.add(idx);
+          syncPointsCloud();
+          updateEditGizmo();
+          
+          lastClickIdx = idx;
+          lastClickTime = now;
+        }
       } else {
         // Clicked empty space, clear selection
         state.selectedVertices.clear();
         syncPointsCloud();
         updateEditGizmo();
+        lastClickIdx = -1;
       }
     } else {
       // It was a drag, do box selection
