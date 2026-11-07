@@ -88,8 +88,7 @@ transform.addEventListener('dragging-changed', e => {
     if (state.mode === 'edit') {
       const pos = state.activeMesh.geometry.attributes.position;
       state._editDragSnapshot = new Float32Array(pos.array);
-      state._editDragStartDummy = editDummy.position.clone();
-      state._editDragSelectedPos = Array.from(state.selectedVertices).map(idx => new THREE.Vector3(pos.getX(idx), pos.getY(idx), pos.getZ(idx)));
+      state._editDragStartMatrix = editDummy.matrix.clone(); // Store full matrix
     }
   } else if (!e.value && state.mode === 'edit' && state.activeMesh) {
     state.activeMesh.geometry.computeVertexNormals();
@@ -108,16 +107,23 @@ transform.addEventListener('objectChange', () => {
     const mesh = state.activeMesh;
     const pos = mesh.geometry.attributes.position;
 
-    const worldDelta = new THREE.Vector3().subVectors(editDummy.position, state.lastDummyPos);
-    const M3 = new THREE.Matrix3().setFromMatrix4(mesh.matrixWorld).invert();
-    const localDelta = worldDelta.clone().applyMatrix3(M3);
-
-    if (state.proportionalEnabled && state._editDragSnapshot) {
-      const worldTotalDelta = new THREE.Vector3().subVectors(editDummy.position, state._editDragStartDummy);
+    if (!state._editDragStartMatrix || !state._editDragSnapshot) return;
+    
+    // Compute the delta transformation matrix
+    editDummy.updateMatrix();
+    const deltaMatrix = new THREE.Matrix4().multiplyMatrices(editDummy.matrix, state._editDragStartMatrix.clone().invert());
+    
+    const meshMatrix = mesh.matrixWorld;
+    const invMeshMatrix = meshMatrix.clone().invert();
+    const snap = state._editDragSnapshot;
+    
+    if (state.proportionalEnabled) {
+      // Proportional edit is harder with matrices, but we can use the translation part
+      const worldTotalDelta = new THREE.Vector3().setFromMatrixPosition(deltaMatrix);
+      const M3 = new THREE.Matrix3().setFromMatrix4(meshMatrix).invert();
       const localTotalDelta = worldTotalDelta.clone().applyMatrix3(M3);
 
-      const snap = state._editDragSnapshot;
-      const selPos = state._editDragSelectedPos;
+      const selPos = Array.from(state.selectedVertices).map(idx => new THREE.Vector3(snap[idx * 3], snap[idx * 3 + 1], snap[idx * 3 + 2]));
       const radius = state.proportionalRadius;
 
       for (let i = 0; i < pos.count; i++) {
@@ -135,18 +141,22 @@ transform.addEventListener('objectChange', () => {
         }
 
         if (weight > 0) {
-          pos.setXYZ(i,
-            snap[i * 3] + localTotalDelta.x * weight,
-            snap[i * 3 + 1] + localTotalDelta.y * weight,
-            snap[i * 3 + 2] + localTotalDelta.z * weight
-          );
+          const v = new THREE.Vector3(vx, vy, vz);
+          v.applyMatrix4(meshMatrix);
+          // Apply only translation for proportional
+          const tDelta = new THREE.Vector3().setFromMatrixPosition(deltaMatrix);
+          v.add(tDelta.multiplyScalar(weight));
+          v.applyMatrix4(invMeshMatrix);
+          pos.setXYZ(i, v.x, v.y, v.z);
         }
       }
     } else {
       state.selectedVertices.forEach(idx => {
-        pos.setXYZ(idx, pos.getX(idx) + localDelta.x,
-                        pos.getY(idx) + localDelta.y,
-                        pos.getZ(idx) + localDelta.z);
+        const v = new THREE.Vector3(snap[idx * 3], snap[idx * 3 + 1], snap[idx * 3 + 2]);
+        v.applyMatrix4(meshMatrix);
+        v.applyMatrix4(deltaMatrix);
+        v.applyMatrix4(invMeshMatrix);
+        pos.setXYZ(idx, v.x, v.y, v.z);
       });
     }
 
@@ -1995,7 +2005,7 @@ if (trackpadSurface) {
 
       // Standard Vertex Raycast
       const distToMesh = camera.position.distanceTo(state.activeMesh.position);
-      raycaster.params.Points.threshold = distToMesh * 0.03;
+      raycaster.params.Points.threshold = distToMesh * 0.012; // Smaller threshold for exact selection
 
       const hit = raycaster.intersectObject(pointsCloud)[0];
       raycaster.params.Points.threshold = 1;
@@ -2419,6 +2429,26 @@ if (btnModeCam && btnModeBrsh) {
   btnModeBrsh.classList.remove("active");
   document.querySelector("#trackpad-surface span").textContent = "Move Camera (Trackpad)";
 }
+
+document.getElementById("selectAllBtn").onclick = () => {
+  if (!state.activeMesh) return;
+  const count = state.activeMesh.geometry.attributes.position.count;
+  for (let i = 0; i < count; i++) state.selectedVertices.add(i);
+  syncPointsCloud();
+  updateEditGizmo();
+};
+
+document.getElementById("invertSelBtn").onclick = () => {
+  if (!state.activeMesh) return;
+  const count = state.activeMesh.geometry.attributes.position.count;
+  const newSel = new Set();
+  for (let i = 0; i < count; i++) {
+    if (!state.selectedVertices.has(i)) newSel.add(i);
+  }
+  state.selectedVertices = newSel;
+  syncPointsCloud();
+  updateEditGizmo();
+};
 
 document.getElementById("extrudeBtn").onclick = extrudeSelected;
 document.getElementById("deleteVertexBtn").onclick = deleteSelectedVertices;

@@ -167,32 +167,33 @@ export class ViewGizmo {
     if (this.meshClone) {
       this.cube.remove(this.meshClone);
       this.meshClone.geometry.dispose();
+      this.meshClone.material.dispose();
       this.meshClone = null;
     }
     if (!mesh) return;
 
-    this.meshClone = mesh.clone();
-    this.meshClone.geometry = mesh.geometry.clone();
-
-    const box = new THREE.Box3().setFromObject(this.meshClone);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-    if (maxDim > 0) this.meshClone.scale.setScalar(1.2 / maxDim);
+    // Clone only the geometry so we don't inherit object position/rotation
+    this.meshClone = new THREE.Mesh(mesh.geometry.clone());
     
+    // Center the geometry perfectly within the cube
+    this.meshClone.geometry.computeBoundingBox();
+    const bbox = this.meshClone.geometry.boundingBox;
     const center = new THREE.Vector3();
-    box.getCenter(center);
-    this.meshClone.position.sub(center);
+    bbox.getCenter(center);
+    this.meshClone.geometry.translate(-center.x, -center.y, -center.z);
+    
+    // Scale to fit the cube nicely
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0) this.meshClone.scale.setScalar(1.4 / maxDim);
 
-    // Always use a fresh solid material for accurate preview
     const previewColor = mesh.material ? mesh.material.color.getHex() : 0x88ccff;
     this.meshClone.material = new THREE.MeshStandardMaterial({
       color: previewColor,
-      roughness: 0.4,
-      metalness: 0.1,
+      roughness: mesh.material ? mesh.material.roughness : 0.4,
+      metalness: mesh.material ? mesh.material.metalness : 0.1,
       transparent: false,
-      opacity: 1.0,
-      flatShading: false,
       vertexColors: !!(mesh.geometry.attributes && mesh.geometry.attributes.color)
     });
 
