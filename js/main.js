@@ -435,7 +435,7 @@ const state = {
       if (this.activeMesh.geometry.attributes.color) {
         this._savedColors = this.activeMesh.geometry.attributes.color.clone();
       } else {
-        this._savedColors = null; // nothing to preserve
+        this._savedColors = null;
       }
     }
     // Restore (or fully remove) on EXIT from weight paint
@@ -451,10 +451,11 @@ const state = {
       this._savedColors = null;
       this.activeMesh.material.needsUpdate = true;
     }
-    
+
     this.mode = mode;
     const isBoneTarget = transform.object && transform.object.isBone;
 
+    // UI Panel Toggles
     document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit" && mode !== "weight_paint" && !isBoneTarget);
     document.getElementById("rig-panel").classList.toggle("active", mode === "rig" || mode === "weight_paint" || isBoneTarget);
     document.getElementById("edit-panel").classList.toggle("active", mode === "edit");
@@ -466,7 +467,9 @@ const state = {
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
 
-      if (mode === "weight_paint") { this.updateWeightVisuals(); } else {
+      if (mode === "weight_paint") { 
+        this.updateWeightVisuals(); 
+      } else {
         if (this.activeMesh && this.activeMesh.geometry.attributes.color) {
           this.activeMesh.material.vertexColors = true;
         } else if (this.activeMesh) {
@@ -494,35 +497,32 @@ const state = {
       controls.enabled = true;
       pointsCloud.visible = false;
       wireframeLines.visible = false;
-    } else if (mode === "object" || mode === "move" || mode === "rotate" || mode === "scale") {
-      wireframeLines.visible = false;
-      pointsCloud.visible = false;
-      if (this.activeMesh) this.activeMesh.visible = true;
-      if (actionArea) actionArea.style.pointerEvents = "none";
-      if (this.activeMesh) this.activeMesh.visible = true;
-      if (actionArea) actionArea.style.pointerEvents = "none";
-    } else if (mode === "object") {
-      if (this.activeMesh) transform.attach(this.activeMesh);
-      transform.setMode('translate');
-      controls.enabled = true;
-      pointsCloud.visible = false;
-      if (this.activeMesh) this.activeMesh.visible = true;
-      if (actionArea) actionArea.style.pointerEvents = "none";
-    } else if (this.activeMesh) { // move, rotate, scale
-      if (isBoneTarget) {
-        transform.setMode(mode === "move" ? "translate" : mode);
-      } else {
-        transform.attach(this.activeMesh);
-        transform.setMode(mode === "move" ? "translate" : mode);
-      }
-      controls.enabled = true;
-      pointsCloud.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else {
-      transform.detach();
+      // Object, Move, Rotate, Scale
+      pointsCloud.visible = false;
+      wireframeLines.visible = false;
+      if (this.activeMesh) this.activeMesh.visible = true;
+      if (actionArea) actionArea.style.pointerEvents = "none";
+
+      if (isBoneTarget) {
+        // Keep gizmo on the bone, just swap tool
+        if (mode === "move") transform.setMode("translate");
+        else if (mode === "rotate") transform.setMode("rotate");
+        else if (mode === "scale") transform.setMode("scale");
+      } else if (this.activeMesh) {
+        // Attach to mesh
+        transform.attach(this.activeMesh);
+        if (mode === "move") transform.setMode("translate");
+        else if (mode === "rotate") transform.setMode("rotate");
+        else if (mode === "scale") transform.setMode("scale");
+        else transform.setMode("translate"); // Object mode defaults to translate
+        selectionBox.setFromObject(this.activeMesh);
+      } else {
+        transform.detach();
+      }
       controls.enabled = true;
-      if (actionArea) actionArea.style.pointerEvents = "auto";
     }
   },
 
