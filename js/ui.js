@@ -634,6 +634,46 @@ export function initUI(state, viewGizmo) {
     });
   };
 
+  // --- Animation Controls ---
+  const addKfBtn = document.getElementById("addKeyframe");
+  if (addKfBtn) addKfBtn.onclick = () => state.addKeyframe();
+
+  const playAnimBtn = document.getElementById("playAnim");
+  if (playAnimBtn) playAnimBtn.onclick = () => state.playAnimation();
+
+  const resetAnimBtn = document.getElementById("resetAnim");
+  if (resetAnimBtn) resetAnimBtn.onclick = () => {
+    if (state.mixer) state.mixer.stopAllAction();
+    state.keyframes = [];
+    state.setMode('rig');
+    const scrubEl = document.getElementById('timeline-scrub');
+    if (scrubEl) { scrubEl.max = 0; scrubEl.value = 0; scrubEl.disabled = true; }
+    const lbl = document.getElementById('timeline-label');
+    if (lbl) lbl.textContent = 'Frame: 0';
+    if (window.showToast) window.showToast("Animation reset.");
+  };
+
+  const scrubEl = document.getElementById('timeline-scrub');
+  if (scrubEl) scrubEl.oninput = (e) => state.scrubToTime(parseFloat(e.target.value));
+
+  const fpsSlider = document.getElementById('anim-fps');
+  const fpsLabel = document.getElementById('fps-label');
+  if (fpsSlider) {
+    fpsSlider.oninput = (e) => {
+      state.animationFPS = parseInt(e.target.value) || 24;
+      if (fpsLabel) fpsLabel.textContent = `${state.animationFPS} fps`;
+    };
+  }
+
+  const loopToggle = document.getElementById('toggleLoop');
+  if (loopToggle) {
+    loopToggle.onclick = () => {
+      state.loopAnim = !state.loopAnim;
+      loopToggle.textContent = `Loop Animation: ${state.loopAnim ? 'ON' : 'OFF'}`;
+      loopToggle.classList.toggle('active', state.loopAnim);
+    };
+  }
+
   // Sync UI when a new object is selected
   window.addEventListener('objectSelected', (e) => updateMaterialUI(e.detail));
   // Also sync on load
