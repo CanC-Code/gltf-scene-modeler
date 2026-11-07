@@ -108,21 +108,29 @@ export function initUI(state, viewGizmo) {
     }
   };
 
-    const transformBtn = document.getElementById("transformBtn");
+  const transformBtn = document.getElementById("transformBtn");
   const transformMenu = document.getElementById("transformMenu");
   if (transformBtn && transformMenu) {
     transformBtn.onclick = (e) => {
       e.stopPropagation();
+      const rect = transformBtn.getBoundingClientRect();
+      transformMenu.style.position = "fixed";
+      transformMenu.style.top = `${rect.bottom + 4}px`;
+      transformMenu.style.left = `${rect.left}px`;
       transformMenu.style.display = transformMenu.style.display === "none" ? "flex" : "none";
     };
     document.addEventListener("click", () => { if (transformMenu) transformMenu.style.display = "none"; });
   }
 
-    const viewBtn = document.getElementById("viewBtn");
+  const viewBtn = document.getElementById("viewBtn");
   const viewMenu = document.getElementById("viewMenu");
   if (viewBtn && viewMenu) {
     viewBtn.onclick = (e) => {
       e.stopPropagation();
+      const rect = viewBtn.getBoundingClientRect();
+      viewMenu.style.position = "fixed";
+      viewMenu.style.top = `${rect.bottom + 4}px`;
+      viewMenu.style.left = `${rect.left}px`;
       viewMenu.style.display = viewMenu.style.display === "none" ? "flex" : "none";
     };
     document.addEventListener("click", () => { if (viewMenu) viewMenu.style.display = "none"; });
