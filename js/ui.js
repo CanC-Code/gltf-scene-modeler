@@ -261,6 +261,7 @@ export function initUI(state, viewGizmo) {
       document.getElementById('uv-off-v').value = 0;
     }
     if (state.updateUVPreview) state.updateUVPreview();
+    if (state.updateMaterialPreview) state.updateMaterialPreview(m);
   };
 
   const applyUV = (type) => {
@@ -342,6 +343,7 @@ export function initUI(state, viewGizmo) {
       texture.flipY = false; // glTF standard
       state.activeMesh.material.normalMap = texture;
       state.activeMesh.material.needsUpdate = true;
+      state.updateMaterialPreview(state.activeMesh.material);
       URL.revokeObjectURL(url);
       if (window.showToast) window.showToast('Normal Map applied!');
     });
@@ -350,18 +352,21 @@ export function initUI(state, viewGizmo) {
   if (matColor) matColor.oninput = (e) => {
     if (state.activeMesh && state.activeMesh.material) {
       state.activeMesh.material.color.set(e.target.value);
+      state.updateMaterialPreview(state.activeMesh.material);
     }
   };
 
   if (matRough) matRough.oninput = (e) => {
     if (state.activeMesh && state.activeMesh.material) {
       state.activeMesh.material.roughness = parseFloat(e.target.value);
+      state.updateMaterialPreview(state.activeMesh.material);
     }
   };
 
   if (matMetal) matMetal.oninput = (e) => {
     if (state.activeMesh && state.activeMesh.material) {
       state.activeMesh.material.metalness = parseFloat(e.target.value);
+      state.updateMaterialPreview(state.activeMesh.material);
     }
   };
 
@@ -374,6 +379,7 @@ export function initUI(state, viewGizmo) {
       texture.flipY = false; // glTF standard
       state.activeMesh.material.map = texture;
       state.activeMesh.material.needsUpdate = true;
+      state.updateMaterialPreview(state.activeMesh.material);
       URL.revokeObjectURL(url);
       if (window.showToast) window.showToast('Texture applied!');
     });

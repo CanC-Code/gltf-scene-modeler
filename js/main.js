@@ -18,6 +18,30 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
+// --- Material Preview Setup ---
+const previewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+previewRenderer.setSize(128, 128);
+previewRenderer.setPixelRatio(window.devicePixelRatio);
+previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+const previewContainer = document.getElementById('mat-preview-container');
+if (previewContainer) previewContainer.appendChild(previewRenderer.domElement);
+
+const previewScene = new THREE.Scene();
+const previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+previewCamera.position.set(0, 0, 3.5);
+
+const previewGeo = new THREE.SphereGeometry(1, 64, 64);
+const previewMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.1 });
+const previewMesh = new THREE.Mesh(previewGeo, previewMat);
+previewScene.add(previewMesh);
+
+const previewLight = new THREE.DirectionalLight(0xffffff, 2);
+previewLight.position.set(2, 2, 3);
+previewScene.add(previewLight);
+previewScene.add(new THREE.AmbientLight(0xffffff, 0.5));
+// ------------------------------------
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xb0c4de);
 
@@ -159,6 +183,7 @@ const envTex = new THREE.CanvasTexture(envCanvas);
 envTex.mapping = THREE.EquirectangularReflectionMapping;
 const envMap = pmremGenerator.fromEquirectangular(envTex).texture;
 scene.environment = envMap;
+previewScene.environment = envMap;
 envTex.dispose();
 pmremGenerator.dispose();
 
@@ -1094,6 +1119,18 @@ const state = {
     if (window.showToast) window.showToast(`Selected loop of ${loop.size} vertices.`);
   },
 
+  updateMaterialPreview(mat) {
+    if (!mat) return;
+    previewMat.color.copy(mat.color);
+    previewMat.roughness = mat.roughness;
+    previewMat.metalness = mat.metalness;
+    previewMat.map = mat.map || null;
+    previewMat.normalMap = mat.normalMap || null;
+    previewMat.vertexColors = mat.vertexColors;
+    previewMat.wireframe = mat.wireframe;
+    previewMat.needsUpdate = true;
+  },
+
   cacheBaseUVs() {
     if (this.activeMesh && this.activeMesh.geometry.attributes.uv) {
       this._baseUVs = new Float32Array(this.activeMesh.geometry.attributes.uv.array);
@@ -1599,5 +1636,10 @@ function animate() {
   }
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
+  
+  if (previewMesh) {
+    previewMesh.rotation.y += 0.005;
+    previewRenderer.render(previewScene, previewCamera);
+  }
 }
 animate();
