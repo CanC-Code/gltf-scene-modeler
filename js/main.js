@@ -1601,6 +1601,44 @@ if (trackpadSurface) {
 }
 
 
+function compactGeometry(geo) {
+  if (!geo.index) return;
+  const oldIndex = geo.index.array;
+  
+  const usedMap = new Map(); // oldIdx -> newIdx
+  const newIndices = [];
+  let newIdx = 0;
+  
+  for (let i = 0; i < oldIndex.length; i++) {
+    const oldIdx = oldIndex[i];
+    if (!usedMap.has(oldIdx)) {
+      usedMap.set(oldIdx, newIdx++);
+    }
+    newIndices.push(usedMap.get(oldIdx));
+  }
+  
+  // Build new attributes
+  const newAttrs = {};
+  for (const name in geo.attributes) {
+    const oldAttr = geo.attributes[name];
+    const itemSize = oldAttr.itemSize;
+    const newArray = new oldAttr.array.constructor(usedMap.size * itemSize);
+    
+    usedMap.forEach((newI, oldI) => {
+      for (let k = 0; k < itemSize; k++) {
+        newArray[newI * itemSize + k] = oldAttr.array[oldI * itemSize + k];
+      }
+    });
+    
+    newAttrs[name] = new THREE.BufferAttribute(newArray, itemSize, oldAttr.normalized);
+  }
+  
+  for (const name in newAttrs) {
+    geo.setAttribute(name, newAttrs[name]);
+  }
+  geo.setIndex(newIndices);
+}
+
 function deleteSelectedVertices() {
   if (!state.activeMesh || state.selectedVertices.size === 0) return;
   const geo = state.activeMesh.geometry;
@@ -1622,6 +1660,7 @@ function deleteSelectedVertices() {
   }
   
   geo.setIndex(newIndices);
+  compactGeometry(geo); // Remove orphaned vertices
   state.selectedVertices.clear();
   
   syncPointsCloud();
