@@ -287,7 +287,17 @@ const state = {
 
   focusCamera() {
     if (!this.activeMesh) return;
-    const box = new THREE.Box3().setFromObject(this.activeMesh);
+    let box;
+    if (this.activeMesh.isSkinnedMesh && typeof this.activeMesh.computeBoundingBox === 'function') {
+      // computeBoundingBox() walks every vertex through its bone transforms
+      // and produces the DEFORMED shape (in the mesh's local space).
+      // setFromObject() would only see the raw bind-pose positions.
+      this.activeMesh.computeBoundingBox();
+      box = this.activeMesh.boundingBox.clone().applyMatrix4(this.activeMesh.matrixWorld);
+    } else {
+      box = new THREE.Box3().setFromObject(this.activeMesh);
+    }
+    if (box.isEmpty()) return;
     const size = box.getSize(new THREE.Vector3()).length();
     const center = box.getCenter(new THREE.Vector3());
     const fitHeightDistance = size / (2 * Math.tan(Math.PI * camera.fov / 360));
