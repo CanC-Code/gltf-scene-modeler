@@ -67,8 +67,8 @@ const editDummy = new THREE.Object3D();
 scene.add(editDummy);
 
 const cursorGroup = new THREE.Group();
-const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false });
-cursorGroup.add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 32), cursorMat));
+const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false });
+cursorGroup.add(new THREE.Mesh(new THREE.RingGeometry(0.95, 1.0, 32), cursorMat));
 const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: true, depthWrite: false });
 cursorGroup.add(new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), dotMat));
 const crossGeo = new THREE.BufferGeometry();
@@ -1388,6 +1388,17 @@ function handleAction() {
   else if (state.mode === "paint") {
     if (state.activeMesh.userData.paintCanvas) {
       state.brush.paintTexture(localPoint, state.symmetryEnabled);
+      
+      // GUI Alignment: Live update the 2D mini-texture viewer
+      const miniTex = document.getElementById('mini-tex');
+      if (miniTex) {
+        const ctx = miniTex.getContext('2d');
+        if (miniTex.width !== state.activeMesh.userData.paintCanvas.width) {
+          miniTex.width = state.activeMesh.userData.paintCanvas.width;
+          miniTex.height = state.activeMesh.userData.paintCanvas.height;
+        }
+        ctx.drawImage(state.activeMesh.userData.paintCanvas, 0, 0);
+      }
     } else {
       state.brush.paint(localPoint, state.symmetryEnabled);
     }

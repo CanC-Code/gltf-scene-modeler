@@ -331,6 +331,17 @@ export function initUI(state, viewGizmo) {
       document.getElementById('uv-off-v').value = 0;
     }
     if (state.updateUVPreview) state.updateUVPreview();
+    
+    // GUI Alignment: clear the mini texture viewer
+    const miniTex = document.getElementById('mini-tex');
+    if (miniTex) {
+      const ctx = miniTex.getContext('2d');
+      ctx.fillStyle = '#1e1e1e';
+      ctx.fillRect(0, 0, miniTex.width, miniTex.height);
+      if (m.map && m.map.image) {
+        ctx.drawImage(m.map.image, 0, 0, miniTex.width, miniTex.height);
+      }
+    }
     if (state.updateMaterialPreview) state.updateMaterialPreview(m);
   };
 
