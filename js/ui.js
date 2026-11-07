@@ -474,6 +474,7 @@ export function initUI(state, viewGizmo) {
     }
   };
 
+
   const matAlpha = document.getElementById("mat-alpha");
   if (matAlpha) {
     matAlpha.addEventListener('pointerdown', saveMatState);
