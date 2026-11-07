@@ -99,7 +99,7 @@ transform.addEventListener('dragging-changed', e => {
     state.brush.rebuildGrid();
     state._editDragSnapshot = null;
   }
-}););
+});
 
 transform.addEventListener('objectChange', () => {
   if (state.mode === 'edit' && state.selectedVertices.size > 0 && state.activeMesh) {
@@ -154,7 +154,7 @@ transform.addEventListener('objectChange', () => {
   } else if (state.activeMesh) {
     selectionBox.setFromObject(state.activeMesh);
   }
-}););
+});
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
