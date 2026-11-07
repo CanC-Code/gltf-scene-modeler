@@ -84,7 +84,7 @@ export function initUI(state, viewGizmo) {
     }
   };
 
-  const modes = ["Sculpt", "Paint", "Edit", "Rig", "Move", "Rotate", "Scale"];
+  const modes = ["Object", "Sculpt", "Paint", "Edit", "Rig", "Move", "Rotate", "Scale"];
   modes.forEach(m => {
     const btn = document.getElementById("tool" + m);
     if (btn) btn.onclick = () => {

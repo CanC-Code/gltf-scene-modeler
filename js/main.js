@@ -230,31 +230,28 @@ const state = {
         this.activeMesh.geometry.attributes.color.needsUpdate = true;
         this.activeMesh.material.vertexColors = true;
       } else {
-        // We CREATED the colour attribute for weight visualisation only.
-        // Remove it entirely so the mesh looks unpainted again.
         this.activeMesh.geometry.deleteAttribute('color');
         this.activeMesh.material.vertexColors = false;
       }
       this._savedColors = null;
       this.activeMesh.material.needsUpdate = true;
     }
+    
     this.mode = mode;
+    const isBoneTarget = transform.object && transform.object.isBone;
 
-    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit" && mode !== "weight_paint");
-    document.getElementById("rig-panel").classList.toggle("active", mode === "rig" || mode === "weight_paint");
+    document.getElementById("scene-panel").classList.toggle("active", mode !== "rig" && mode !== "edit" && mode !== "weight_paint" && !isBoneTarget);
+    document.getElementById("rig-panel").classList.toggle("active", mode === "rig" || mode === "weight_paint" || isBoneTarget);
     document.getElementById("edit-panel").classList.toggle("active", mode === "edit");
     document.getElementById("sculpt-panel").classList.toggle("active", mode === "sculpt" || mode === "paint" || mode === "weight_paint");
 
     if (mode === "sculpt" || mode === "paint" || mode === "weight_paint") {
       transform.detach();
-      pointsCloud.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
       controls.enabled = (this.trackpadMode === 'camera');
       if (actionArea) actionArea.style.pointerEvents = "auto";
-      
-      if (mode === "weight_paint") {
-        this.updateWeightVisuals();
-      } else {
+
+      if (mode === "weight_paint") { this.updateWeightVisuals(); } else {
         if (this.activeMesh && this.activeMesh.geometry.attributes.color) {
           this.activeMesh.material.vertexColors = true;
         } else if (this.activeMesh) {
@@ -275,9 +272,20 @@ const state = {
       pointsCloud.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
-    } else if (this.activeMesh) {
-      transform.attach(this.activeMesh);
-      transform.setMode(mode === "move" ? "translate" : mode);
+    } else if (mode === "object") {
+      if (this.activeMesh) transform.attach(this.activeMesh);
+      transform.setMode('translate');
+      controls.enabled = true;
+      pointsCloud.visible = false;
+      if (this.activeMesh) this.activeMesh.visible = true;
+      if (actionArea) actionArea.style.pointerEvents = "none";
+    } else if (this.activeMesh) { // move, rotate, scale
+      if (isBoneTarget) {
+        transform.setMode(mode === "move" ? "translate" : mode);
+      } else {
+        transform.attach(this.activeMesh);
+        transform.setMode(mode === "move" ? "translate" : mode);
+      }
       controls.enabled = true;
       pointsCloud.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
@@ -356,12 +364,14 @@ const state = {
   },
 
   selectObject(mesh) {
-    // A weight-paint colour snapshot belongs to the PREVIOUS mesh.
-    // If the user switches objects mid weight-paint, drop it so we don't
-    // overwrite the NEW object's colours on mode exit.
     this._savedColors = null;
     this.activeMesh = mesh;
-    if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig" && this.mode !== "edit" && this.mode !== "weight_paint") transform.attach(mesh);
+    
+    if (this.mode === "rig" || this.mode === "weight_paint") {
+      this.setMode("object");
+    } else if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "edit") {
+      transform.attach(mesh);
+    }
 
     this.brush = new SculptBrush(mesh);
     this.brush.setPaintColor(this.paintColor);
@@ -610,7 +620,7 @@ const state = {
     this.activeBoneIndex = index;
     if (this.brush) this.brush.setActiveBone(index);
     transform.attach(this.currentBones[index]);
-    transform.setMode('translate');
+    transform.setMode('rotate'); // Default to rotate for posing
     this.updateBoneList();
     if (this.mode === 'weight_paint') this.updateWeightVisuals();
   },
