@@ -324,6 +324,10 @@ const state = {
   },
 
   selectObject(mesh) {
+    // A weight-paint colour snapshot belongs to the PREVIOUS mesh.
+    // If the user switches objects mid weight-paint, drop it so we don't
+    // overwrite the NEW object's colours on mode exit.
+    this._savedColors = null;
     this.activeMesh = mesh;
     if (this.mode !== "sculpt" && this.mode !== "paint" && this.mode !== "rig" && this.mode !== "edit" && this.mode !== "weight_paint") transform.attach(mesh);
 
