@@ -586,6 +586,11 @@ const state = {
     scene.remove(this.activeMesh);
     this.activeMesh.geometry.dispose();
     this.activeMesh.material.dispose();
+    
+    // Prevent undoing into the deleted mesh's state
+    undoStack.length = 0;
+    redoStack.length = 0;
+
     if (this.skeletonHelper) { scene.remove(this.skeletonHelper); this.skeletonHelper = null; }
     if (this.boneProxies) { scene.remove(this.boneProxies); this.boneProxies = null; }
     if (this.tempSkin)       { scene.remove(this.tempSkin);       this.tempSkin = null; }
