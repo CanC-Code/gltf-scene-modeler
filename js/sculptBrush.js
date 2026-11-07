@@ -140,10 +140,10 @@ export class SculptBrush {
     colorAttr.needsUpdate = true;
   }
 
-  paintTexture(localPoint, symmetry = false) {
+  paintTexture(localPoint, sym = { x: false, y: false }) {
     if (!this.geometry.attributes.uv) {
       // Fallback to vertex colors if no UVs exist
-      return this.paint(localPoint, symmetry);
+      return this.paint(localPoint, sym);
     }
     const canvas = this.mesh.userData.paintCanvas;
     const texture = this.mesh.userData.paintTexture;
@@ -153,7 +153,9 @@ export class SculptBrush {
     const pos = this.geometry.attributes.position;
     const uv = this.geometry.attributes.uv;
     const centers = [localPoint.clone()];
-    if (symmetry) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.y) centers.push(new THREE.Vector3(localPoint.x, -localPoint.y, localPoint.z));
+    if (sym.x && sym.y) centers.push(new THREE.Vector3(-localPoint.x, -localPoint.y, localPoint.z));
 
     const v = new THREE.Vector3();
     const colorHex = '#' + this.paintColor.getHexString();
