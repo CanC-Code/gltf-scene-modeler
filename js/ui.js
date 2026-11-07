@@ -2,6 +2,7 @@ import * as THREE from "../three/three.module.js";
 import { applyUVProjection } from "./topology.js";
 
 export function initUI(state, viewGizmo) {
+  const matColorBtn = document.getElementById("mat-color-btn");
   const toggleMenu = document.getElementById("toggleMenu"), menu = document.getElementById("menu");
   if (toggleMenu && menu) toggleMenu.onclick = () => menu.classList.toggle("collapsed");
 
@@ -298,7 +299,6 @@ export function initUI(state, viewGizmo) {
   const matMetal = document.getElementById("mat-metalness");
   const matTex = document.getElementById("mat-texture");
   const matNormal = document.getElementById("mat-normal");
-  const matColorBtn = document.getElementById("mat-color-btn");
 
   const updateMaterialUI = (mesh) => {
     if (!mesh || !mesh.material) return;
@@ -418,12 +418,6 @@ export function initUI(state, viewGizmo) {
   if (matRough) matRough.addEventListener('pointerdown', saveMatState);
   if (matMetal) matMetal.addEventListener('pointerdown', saveMatState);
 
-  if (matColor) matColor.oninput = (e) => {
-    if (state.activeMesh && state.activeMesh.material) {
-      state.activeMesh.material.color.set(e.target.value);
-      state.updateMaterialPreview(state.activeMesh.material);
-    }
-  };
 
   if (matRough) matRough.oninput = (e) => {
     if (state.activeMesh && state.activeMesh.material) {
