@@ -288,12 +288,13 @@ export function initUI(state, viewGizmo) {
 
   const saveUVState = () => { if (state.activeMesh) state.saveState(state.activeMesh); };
   const uvScaleUEl = document.getElementById("uv-scale-u");
-  if (uvScaleUEl) {
-    uvScaleUEl.addEventListener('pointerdown', saveUVState);
-    document.getElementById('uv-off-u').addEventListener('pointerdown', saveUVState);
-    document.getElementById('uv-scale-v').addEventListener('pointerdown', saveUVState);
-    document.getElementById('uv-off-v').addEventListener('pointerdown', saveUVState);
-  }
+  const uvOffUEl = document.getElementById("uv-off-u");
+  const uvScaleVEl = document.getElementById("uv-scale-v");
+  const uvOffVEl = document.getElementById("uv-off-v");
+  if (uvScaleUEl) uvScaleUEl.addEventListener('pointerdown', saveUVState);
+  if (uvOffUEl) uvOffUEl.addEventListener('pointerdown', saveUVState);
+  if (uvScaleVEl) uvScaleVEl.addEventListener('pointerdown', saveUVState);
+  if (uvOffVEl) uvOffVEl.addEventListener('pointerdown', saveUVState);
 
   const applyUVSliders = () => {
     if (!uvScaleU) return;

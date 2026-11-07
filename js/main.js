@@ -245,19 +245,8 @@ function undo() {
     state.activeMesh.material.metalness = prev.matMetal;
     state.activeMesh.material.map = prev.matMap;
     state.activeMesh.material.normalMap = prev.matNormalMap;
-    state.activeMesh.material.needsUpdate = true;
   }
   
-  if (prev.canvasSnap && state.activeMesh.userData.paintCanvas) {
-    const currentCanvas = state.activeMesh.userData.paintCanvas;
-    const ctx = currentCanvas.getContext('2d');
-    ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
-    ctx.drawImage(prev.canvasSnap, 0, 0);
-    if (state.activeMesh.userData.paintTexture) {
-      state.activeMesh.userData.paintTexture.needsUpdate = true;
-    }
-  }
-
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
@@ -294,19 +283,8 @@ function redo() {
     state.activeMesh.material.metalness = next.matMetal;
     state.activeMesh.material.map = next.matMap;
     state.activeMesh.material.normalMap = next.matNormalMap;
-    state.activeMesh.material.needsUpdate = true;
   }
   
-  if (next.canvasSnap && state.activeMesh.userData.paintCanvas) {
-    const currentCanvas = state.activeMesh.userData.paintCanvas;
-    const ctx = currentCanvas.getContext('2d');
-    ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
-    ctx.drawImage(next.canvasSnap, 0, 0);
-    if (state.activeMesh.userData.paintTexture) {
-      state.activeMesh.userData.paintTexture.needsUpdate = true;
-    }
-  }
-
   state.activeMesh.material.needsUpdate = true;
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
