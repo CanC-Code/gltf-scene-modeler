@@ -47,10 +47,13 @@ export class SculptBrush {
       if (region.length === 0) continue;
       avgNormal.set(0,0,0);
       for (const i of region) {
-        n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
-        avgNormal.add(n);
+        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+        if (v.distanceTo(c) <= this.radius) {
+          n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
+          avgNormal.add(n);
+        }
       }
-      avgNormal.normalize();
+      if (avgNormal.lengthSq() > 0) avgNormal.normalize();
 
       for (const i of region) {
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
@@ -66,35 +69,35 @@ export class SculptBrush {
           case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
           case "smooth":
             avgPos.set(0,0,0);
-            let neighbors = 0;
+            const neighbors = new Set();
             if (this.adjacencyMap[i] && this.geometry.index) {
               this.adjacencyMap[i].forEach(faceIndex => {
                 for (let j = 0; j < 3; j++) {
                   const neighborIdx = this.geometry.index.array[faceIndex * 3 + j];
-                  if (neighborIdx !== i) {
-                    avgPos.x += pos.getX(neighborIdx);
-                    avgPos.y += pos.getY(neighborIdx);
-                    avgPos.z += pos.getZ(neighborIdx);
-                    neighbors++;
-                  }
+                  if (neighborIdx !== i) neighbors.add(neighborIdx);
                 }
               });
             }
-            if (neighbors > 0) {
-              avgPos.divideScalar(neighbors);
-              const maxDist = this.radius * 0.3;
-              let dx = (avgPos.x - v.x) * influence;
-              let dy = (avgPos.y - v.y) * influence;
-              let dz = (avgPos.z - v.z) * influence;
-              const moveDist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-              if (moveDist > maxDist) {
-                const scale = maxDist / moveDist;
-                dx *= scale; dy *= scale; dz *= scale;
-              }
-              ox = dx; oy = dy; oz = dz;
+            if (neighbors.size > 0) {
+              neighbors.forEach(nIdx => {
+                avgPos.x += pos.getX(nIdx);
+                avgPos.y += pos.getY(nIdx);
+                avgPos.z += pos.getZ(nIdx);
+              });
+              avgPos.divideScalar(neighbors.size);
+              // No artificial clamping — falloff handles the strength
+              ox = (avgPos.x - v.x) * influence;
+              oy = (avgPos.y - v.y) * influence;
+              oz = (avgPos.z - v.z) * influence;
             }
             break;
-          case "flatten": ox = -avgNormal.x * dist * influence; oy = -avgNormal.y * dist * influence; oz = -avgNormal.z * dist * influence; break;
+          case "flatten": 
+            // Distance from the plane defined by the brush center (c) and avgNormal
+            const distToPlane = (v.x - c.x) * avgNormal.x + (v.y - c.y) * avgNormal.y + (v.z - c.z) * avgNormal.z;
+            ox = -avgNormal.x * distToPlane * influence; 
+            oy = -avgNormal.y * distToPlane * influence; 
+            oz = -avgNormal.z * distToPlane * influence; 
+            break;
           case "pinch": ox = -(v.x - c.x) * influence; oy = -(v.y - c.y) * influence; oz = -(v.z - c.z) * influence; break;
         }
         pos.setXYZ(i, v.x + ox, v.y + oy, v.z + oz);
