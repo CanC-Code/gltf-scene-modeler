@@ -155,17 +155,11 @@ export function initUI(state, viewGizmo) {
         if (b) b.classList.remove("active"); 
       });
       
-      // Update Transform button label
+      // Update Transform button highlight only (no text change — prevents jitter)
       if (["move", "rotate", "scale"].includes(m.toLowerCase())) {
-        if (transformBtn) {
-          transformBtn.classList.add("active");
-          transformBtn.textContent = m + " ▼";
-        }
+        if (transformBtn) transformBtn.classList.add("active");
       } else {
-        if (transformBtn) {
-          transformBtn.classList.remove("active");
-          transformBtn.textContent = "Transform ▼"; // Reset text
-        }
+        if (transformBtn) transformBtn.classList.remove("active");
       }
       
       btn.classList.add("active");
@@ -673,6 +667,21 @@ export function initUI(state, viewGizmo) {
       loopToggle.classList.toggle('active', state.loopAnim);
     };
   }
+
+  // --- SANITY CHECK ---
+  setTimeout(() => {
+    const criticalIds = ['transformBtn', 'viewBtn', 'addKeyframe', 'playAnim', 'timeline-scrub', 'anim-fps', 'toggleLoop', 'toolSculpt', 'toolRig'];
+    const missing = criticalIds.filter(id => {
+      const el = document.getElementById(id);
+      return !el || (!el.onclick && !el.oninput);
+    });
+    if (missing.length > 0) {
+      console.error("Missing UI hooks:", missing);
+      if (window.showToast) window.showToast(`UI Sanity Check Failed: ${missing.join(', ')}`);
+    } else {
+      console.log("UI Sanity Check Passed: All critical hooks attached.");
+    }
+  }, 100);
 
   // Sync UI when a new object is selected
   window.addEventListener('objectSelected', (e) => updateMaterialUI(e.detail));
