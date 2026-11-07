@@ -154,6 +154,27 @@ function redo() {
   if (state.mode === 'edit') syncPointsCloud();
 }
 
+// Ensures a geometry has a `uv` attribute so GLTFExporter always writes
+// TEXCOORD_0. Three.js primitives (Box/Sphere) already have UVs; this fallback
+// fires for imported GLBs that were authored without UVs, and for any custom
+// geometry added later. Simple XY-planar projection — valid but not unwrapped.
+function ensureUVs(geometry) {
+  if (!geometry || geometry.attributes.uv) return false;
+  const pos = geometry.attributes.position;
+  if (!pos) return false;
+  geometry.computeBoundingBox();
+  const bb = geometry.boundingBox;
+  const sx = Math.max(1e-6, bb.max.x - bb.min.x);
+  const sy = Math.max(1e-6, bb.max.y - bb.min.y);
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    uv[i * 2]     = (pos.getX(i) - bb.min.x) / sx;
+    uv[i * 2 + 1] = (pos.getY(i) - bb.min.y) / sy;
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return true;
+}
+
 const actionArea = document.getElementById("action-area");
 const state = {
   mode: "sculpt",
@@ -329,6 +350,7 @@ const state = {
   addObject(mesh) {
     this.objects.push(mesh);
     scene.add(mesh);
+    ensureUVs(mesh.geometry);
     this.selectObject(mesh);
     this.updateObjectList();
   },
