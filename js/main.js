@@ -63,6 +63,12 @@ const pointsCloud = new THREE.Points(new THREE.BufferGeometry(), pointsMat);
 pointsCloud.visible = false;
 scene.add(pointsCloud);
 
+const wireframeGeo = new THREE.WireframeGeometry(new THREE.BufferGeometry());
+const wireframeMat = new THREE.LineBasicMaterial({ color: 0x4a90e2, transparent: true, opacity: 0.4 });
+const wireframeLines = new THREE.LineSegments(wireframeGeo, wireframeMat);
+wireframeLines.visible = false;
+scene.add(wireframeLines);
+
 const editDummy = new THREE.Object3D();
 scene.add(editDummy);
 
@@ -442,7 +448,15 @@ const state = {
       }
     } else if (mode === "edit") {
       pointsCloud.visible = true;
-      if (this.activeMesh) this.activeMesh.visible = false;
+      wireframeLines.visible = true;
+      if (this.activeMesh) {
+        this.activeMesh.visible = false;
+        wireframeLines.geometry.dispose();
+        wireframeLines.geometry = new THREE.WireframeGeometry(this.activeMesh.geometry);
+        wireframeLines.position.copy(this.activeMesh.position);
+        wireframeLines.quaternion.copy(this.activeMesh.quaternion);
+        wireframeLines.scale.copy(this.activeMesh.scale);
+      }
       syncPointsCloud();
       controls.enabled = true;
       transform.detach();
@@ -451,6 +465,7 @@ const state = {
       this.selectBone(this.activeBoneIndex);
       controls.enabled = true;
       pointsCloud.visible = false;
+      wireframeLines.visible = false;
       if (this.activeMesh) this.activeMesh.visible = true;
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (mode === "object") {
@@ -1586,6 +1601,41 @@ if (trackpadSurface) {
 }
 
 
+function deleteSelectedVertices() {
+  if (!state.activeMesh || state.selectedVertices.size === 0) return;
+  const geo = state.activeMesh.geometry;
+  if (!geo.index) {
+    if (window.showToast) window.showToast("Requires indexed geometry.");
+    return;
+  }
+
+  saveState(state.activeMesh);
+  
+  const index = geo.index.array;
+  const newIndices = [];
+  
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i], b = index[i+1], c = index[i+2];
+    if (!state.selectedVertices.has(a) && !state.selectedVertices.has(b) && !state.selectedVertices.has(c)) {
+      newIndices.push(a, b, c);
+    }
+  }
+  
+  geo.setIndex(newIndices);
+  state.selectedVertices.clear();
+  
+  syncPointsCloud();
+  updateEditGizmo();
+  
+  if (state.activeMesh) {
+    wireframeLines.geometry.dispose();
+    wireframeLines.geometry = new THREE.WireframeGeometry(geo);
+  }
+  
+  if (state.brush) state.brush.rebuildGrid();
+  if (window.showToast) window.showToast("Vertices deleted.");
+}
+
 function extrudeSelected() {
   if (!state.activeMesh || state.selectedVertices.size === 0) return;
   const geometry = state.activeMesh.geometry;
@@ -1646,6 +1696,7 @@ if (btnModeCam && btnModeBrsh) {
 }
 
 document.getElementById("extrudeBtn").onclick = extrudeSelected;
+document.getElementById("deleteVertexBtn").onclick = deleteSelectedVertices;
 document.getElementById("clearSelection").onclick = () => {
   state.selectedVertices.clear();
   syncPointsCloud();
