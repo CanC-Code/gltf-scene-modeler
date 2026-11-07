@@ -155,11 +155,17 @@ export function initUI(state, viewGizmo) {
         if (b) b.classList.remove("active"); 
       });
       
-      // Update Transform button highlight only (no text change — prevents jitter)
+      // Update Transform button: highlight + label (min-width prevents jitter)
       if (["move", "rotate", "scale"].includes(m.toLowerCase())) {
-        if (transformBtn) transformBtn.classList.add("active");
+        if (transformBtn) {
+          transformBtn.classList.add("active");
+          transformBtn.textContent = m + " ▼";
+        }
       } else {
-        if (transformBtn) transformBtn.classList.remove("active");
+        if (transformBtn) {
+          transformBtn.classList.remove("active");
+          transformBtn.textContent = "Transform ▼";
+        }
       }
       
       btn.classList.add("active");
