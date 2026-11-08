@@ -84,6 +84,9 @@ export function initUI(state, viewGizmo) {
   if (applyBtn) applyBtn.onclick = () => state.applyTransform();
   if (centerBtn) centerBtn.onclick = () => state.centerOrigin();
 
+  const subdivideBtn = document.getElementById("subdivideBtn");
+  if (subdivideBtn) subdivideBtn.onclick = () => state.subdivideMesh();
+
   // Rigging UI
   const addBoneBtn = document.getElementById("addBoneChain");
   if (addBoneBtn) addBoneBtn.onclick = () => state.addBoneChain();

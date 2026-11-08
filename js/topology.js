@@ -198,6 +198,168 @@ export function extrudeFaces(geometry, faceIndices) {
   return geometry;
 }
 
+export function subdivideLoop(geometry) {
+  if (!geometry.index) return geometry;
+  const pos = geometry.attributes.position;
+  const index = geometry.index.array;
+  const origCount = pos.count;
+
+  const getPos = (i) => new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+  const key = (a, b) => a < b ? a + ',' + b : b + ',' + a;
+
+  // Build edge table + vertex adjacency + boundary detection
+  const edgeMap = new Map();
+  const edgeList = [];
+  const vAdj = new Map();
+  const vBoundary = new Set();
+
+  for (let i = 0; i < origCount; i++) vAdj.set(i, new Set());
+
+  for (let i = 0; i < index.length; i += 3) {
+    const tri = [index[i], index[i+1], index[i+2]];
+    for (let j = 0; j < 3; j++) {
+      const v1 = tri[j], v2 = tri[(j + 1) % 3];
+      vAdj.get(v1).add(v2);
+      vAdj.get(v2).add(v1);
+      const k = key(v1, v2);
+      if (!edgeMap.has(k)) {
+        const e = { v1, v2, faces: [], newIdx: -1 };
+        edgeMap.set(k, e);
+        edgeList.push(e);
+      }
+      edgeMap.get(k).faces.push(i / 3);
+    }
+  }
+
+  // Boundary vertices: those on an edge with only 1 adjacent face
+  for (const e of edgeList) {
+    if (e.faces.length !== 2) {
+      vBoundary.add(e.v1);
+      vBoundary.add(e.v2);
+    }
+  }
+
+  // Compute new positions for original vertices (vertex points)
+  const vertexNewPos = new Map();
+  for (let i = 0; i < origCount; i++) {
+    const v = getPos(i);
+    const neighbors = Array.from(vAdj.get(i));
+    const n = neighbors.length;
+    if (n === 0) { vertexNewPos.set(i, v.clone()); continue; }
+
+    if (vBoundary.has(i)) {
+      // Boundary vertex: 6/8 * v + 1/8 * (sum of boundary neighbors)
+      const bNeighbors = neighbors.filter(nb => vBoundary.has(nb));
+      if (bNeighbors.length === 2) {
+        const s = getPos(bNeighbors[0]).add(getPos(bNeighbors[1]));
+        vertexNewPos.set(i, v.clone().multiplyScalar(0.75).add(s.multiplyScalar(0.125)));
+      } else {
+        vertexNewPos.set(i, v.clone());
+      }
+    } else {
+      // Interior vertex: β = 3/16 if n==3 else 3/(8n)
+      const beta = n === 3 ? 3/16 : (3 / (8 * n));
+      const sum = new THREE.Vector3();
+      for (const nb of neighbors) sum.add(getPos(nb));
+      vertexNewPos.set(i, v.clone().multiplyScalar(1 - n * beta).add(sum.multiplyScalar(beta)));
+    }
+  }
+
+  // Compute new positions for edge points
+  const edgeNewPos = new Map();
+  for (const edge of edgeList) {
+    const p1 = getPos(edge.v1);
+    const p2 = getPos(edge.v2);
+    if (edge.faces.length === 2) {
+      // Interior: 3/8*(p1+p2) + 1/8*(p3+p4) where p3,p4 are opposite verts
+      const oppV = (faceIdx) => {
+        const base = faceIdx * 3;
+        const fv = [index[base], index[base+1], index[base+2]];
+        return fv.find(x => x !== edge.v1 && x !== edge.v2);
+      };
+      const p3 = getPos(oppV(edge.faces[0]));
+      const p4 = getPos(oppV(edge.faces[1]));
+      edgeNewPos.set(key(edge.v1, edge.v2),
+        p1.clone().multiplyScalar(3/8)
+          .add(p2.clone().multiplyScalar(3/8))
+          .add(p3.clone().multiplyScalar(1/8))
+          .add(p4.clone().multiplyScalar(1/8)));
+    } else {
+      // Boundary: simple midpoint
+      edgeNewPos.set(key(edge.v1, edge.v2), p1.clone().add(p2).multiplyScalar(0.5));
+    }
+  }
+
+  // Build new attribute buffers
+  const newCount = origCount + edgeList.length;
+  const newAttrs = {};
+  for (const name of Object.keys(geometry.attributes)) {
+    const attr = geometry.attributes[name];
+    const arr = new attr.array.constructor(newCount * attr.itemSize);
+    for (let i = 0; i < attr.array.length; i++) arr[i] = attr.array[i];
+    newAttrs[name] = { itemSize: attr.itemSize, normalized: attr.normalized, arr, src: attr };
+  }
+
+  // Set vertex point positions
+  vertexNewPos.forEach((p, i) => {
+    newAttrs.position.arr[i * 3] = p.x;
+    newAttrs.position.arr[i * 3 + 1] = p.y;
+    newAttrs.position.arr[i * 3 + 2] = p.z;
+  });
+
+  // Set edge point positions + interpolate attributes
+  let edgeNext = origCount;
+  for (const edge of edgeList) {
+    const p = edgeNewPos.get(key(edge.v1, edge.v2));
+    edge.newIdx = edgeNext;
+    newAttrs.position.arr[edgeNext * 3] = p.x;
+    newAttrs.position.arr[edgeNext * 3 + 1] = p.y;
+    newAttrs.position.arr[edgeNext * 3 + 2] = p.z;
+
+    for (const name of Object.keys(newAttrs)) {
+      if (name === 'position') continue;
+      const { itemSize, arr, src } = newAttrs[name];
+      if (name === 'skinIndex') {
+        // Indices cannot be averaged — copy from v1
+        for (let k = 0; k < itemSize; k++) {
+          arr[edgeNext * itemSize + k] = src.array[edge.v1 * itemSize + k];
+        }
+      } else {
+        // Linear average (UVs, colors, weights)
+        for (let k = 0; k < itemSize; k++) {
+          const a = src.array[edge.v1 * itemSize + k];
+          const b = src.array[edge.v2 * itemSize + k];
+          arr[edgeNext * itemSize + k] = (a + b) * 0.5;
+        }
+      }
+    }
+    edgeNext++;
+  }
+
+  // Build new index (4 triangles per original)
+  const newIndex = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i], b = index[i+1], c = index[i+2];
+    const ab = edgeMap.get(key(a,b)).newIdx;
+    const bc = edgeMap.get(key(b,c)).newIdx;
+    const ca = edgeMap.get(key(c,a)).newIdx;
+    newIndex.push(a, ab, ca);
+    newIndex.push(b, bc, ab);
+    newIndex.push(c, ca, bc);
+    newIndex.push(ab, bc, ca);
+  }
+
+  // Write back
+  for (const name of Object.keys(newAttrs)) {
+    const { itemSize, normalized, arr } = newAttrs[name];
+    geometry.setAttribute(name, new THREE.BufferAttribute(arr, itemSize, normalized));
+  }
+  geometry.setIndex(newIndex);
+  geometry.computeVertexNormals();
+
+  return geometry;
+}
+
 export function applyUVProjection(geometry, type) {
   if (!geometry || !geometry.attributes.position) return;
   const pos = geometry.attributes.position;

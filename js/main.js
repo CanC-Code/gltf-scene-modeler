@@ -7,7 +7,7 @@ import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
 import { mergeVertices } from "../three/utils/BufferGeometryUtils.js";
-import { extrudeFaces } from "./topology.js";
+import { extrudeFaces, subdivideLoop } from "./topology.js";
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -1756,6 +1756,24 @@ const state = {
 
     if (this.updateMaterialPreview) this.updateMaterialPreview(mat);
     if (this.updateUVPreview) this.updateUVPreview();
+  },
+
+  subdivideMesh() {
+    if (!this.activeMesh) return;
+    if (!this.activeMesh.geometry.index) {
+      if (window.showToast) window.showToast("Subdivision requires indexed geometry.");
+      return;
+    }
+    const triCount = this.activeMesh.geometry.index.count / 3;
+    if (triCount > 40000) {
+      if (window.showToast) window.showToast(`Too many triangles (${triCount}). Subdividing would exceed mobile limits.`);
+      return;
+    }
+    saveState(this.activeMesh);
+    subdivideLoop(this.activeMesh.geometry);
+    this.activeMesh.userData.subdivLevel = (this.activeMesh.userData.subdivLevel || 0) + 1;
+    refreshAfterTopologyEdit();
+    if (window.showToast) window.showToast(`Subdivided to Level ${this.activeMesh.userData.subdivLevel}. ${(this.activeMesh.geometry.index.count / 3)} triangles.`);
   },
 
   applyTransform() {
