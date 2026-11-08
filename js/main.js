@@ -1025,6 +1025,7 @@ const state = {
 
   bindSkin() {
     if (!this.activeMesh || !this.currentBones) return;
+    if (this.ikEnabled) this.disableIK();
     if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
 
     const mesh = this.activeMesh;
@@ -1066,6 +1067,8 @@ const state = {
       return;
     }
     
+    if (this.ikEnabled) this.disableIK();
+
     const mesh = this.activeMesh;
     this._calculateSkinWeights(mesh);
     
@@ -2686,7 +2689,7 @@ function animate() {
     }
   }
   
-  if (state.ikEnabled && state.ikTarget) state.solveIK();
+  if (state.ikEnabled && state.ikTarget && (!state.mixer || state.mixer.timeScale === 0)) state.solveIK();
   
   if (state.trackpadMode === 'camera' && controls) controls.update();
   if (canvasControls) canvasControls.update();
