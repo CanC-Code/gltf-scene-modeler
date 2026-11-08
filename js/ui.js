@@ -3,6 +3,18 @@ import { applyUVProjection } from "./topology.js";
 
 export function initUI(state, viewGizmo) {
   const matColorBtn = document.getElementById("mat-color-btn");
+
+  // --- Settings Modal Logic ---
+  const settingsModal = document.getElementById("settings-modal");
+  const settingsBtn = document.getElementById("settingsBtn");
+  const closeSettings = document.getElementById("close-settings");
+  if (settingsBtn && settingsModal) {
+    settingsBtn.onclick = () => settingsModal.style.display = "flex";
+    if (closeSettings) closeSettings.onclick = () => settingsModal.style.display = "none";
+    settingsModal.onclick = (e) => {
+      if (e.target === settingsModal) settingsModal.style.display = "none";
+    };
+  }
   const toggleMenu = document.getElementById("toggleMenu"), menu = document.getElementById("menu"), backdrop = document.getElementById("menu-backdrop");
   
   const toggleMenuDrawer = () => {
