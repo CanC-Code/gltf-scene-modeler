@@ -1487,12 +1487,24 @@ const state = {
         o.texture = obj.userData.paintCanvas.toDataURL('image/png');
       }
       if (obj.isSkinnedMesh && obj.skeleton) {
-        o.bones = obj.skeleton.bones.map(b => ({
-          name: b.name,
-          pos: b.position.toArray(),
-          quat: b.quaternion.toArray(),
-          roll: b.rotation.y || 0
-        }));
+        const skelBones = obj.skeleton.bones;
+        o.bones = skelBones.map((b, i) => {
+          // Find parent bone's index in the same skeleton array
+          let parentIndex = -1;
+          if (b.parent && b.parent.isBone) {
+            parentIndex = skelBones.indexOf(b.parent);
+          }
+          return {
+            name: b.name,
+            pos: b.position.toArray(),
+            quat: b.quaternion.toArray(),
+            roll: b.rotation.y || 0,
+            parentIndex
+          };
+        });
+        // Preserve bind pose: boneInverses + bindMatrix
+        o.boneInverses = obj.skeleton.boneInverses.map(m => m.toArray().flat());
+        o.bindMatrix = obj.bindMatrix.toArray().flat();
       }
       data.objects.push(o);
     });
@@ -1559,10 +1571,46 @@ const state = {
               bone.rotation.y = b.roll || 0;
               return bone;
             });
-            for (let i = 0; i < bones.length - 1; i++) bones[i].add(bones[i+1]);
-            mesh.add(bones[0]);
-            const skel = new THREE.Skeleton(bones);
-            mesh.bind(skel);
+            // Rebuild hierarchy from saved parentIndex (fixes branched rigs)
+            const hasParentInfo = o.bones.some(b => b.parentIndex !== undefined);
+            if (hasParentInfo) {
+              o.bones.forEach((b, i) => {
+                if (b.parentIndex !== undefined && b.parentIndex >= 0 && bones[b.parentIndex]) {
+                  bones[b.parentIndex].add(bones[i]);
+                }
+              });
+              // Roots (parentIndex -1) become children of the mesh
+              o.bones.forEach((b, i) => {
+                if (b.parentIndex === undefined || b.parentIndex < 0) {
+                  mesh.add(bones[i]);
+                }
+              });
+            } else {
+              // Legacy format: fall back to linear chain
+              for (let i = 0; i < bones.length - 1; i++) bones[i].add(bones[i+1]);
+              if (bones[0]) mesh.add(bones[0]);
+            }
+
+            // Restore boneInverses (preserves original bind pose)
+            let skel;
+            if (o.boneInverses && Array.isArray(o.boneInverses) && o.boneInverses.length === bones.length) {
+              const invs = o.boneInverses.map(arr => {
+                const m = new THREE.Matrix4();
+                m.fromArray(arr);
+                return m;
+              });
+              skel = new THREE.Skeleton(bones, invs);
+            } else {
+              skel = new THREE.Skeleton(bones);
+            }
+
+            // Restore bindMatrix if saved
+            let bindMat = undefined;
+            if (o.bindMatrix && Array.isArray(o.bindMatrix) && o.bindMatrix.length === 16) {
+              bindMat = new THREE.Matrix4().fromArray(o.bindMatrix);
+            }
+            mesh.bind(skel, bindMat);
+
             this.currentBones = bones;
             this.skeletonHelper = new THREE.SkeletonHelper(mesh);
             scene.add(this.skeletonHelper);
