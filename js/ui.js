@@ -128,14 +128,6 @@ export function initUI(state, viewGizmo) {
     };
   }
 
-  const showSkelBtn = document.getElementById("showSkeleton");
-  if (showSkelBtn) showSkelBtn.onclick = () => {
-    if (state.skeletonHelper) {
-      state.skeletonHelper.visible = !state.skeletonHelper.visible;
-      showSkelBtn.classList.toggle("active", state.skeletonHelper.visible);
-    }
-  };
-
   const transformBtn = document.getElementById("transformBtn");
   const transformMenu = document.getElementById("transformMenu");
   if (transformBtn && transformMenu) {
