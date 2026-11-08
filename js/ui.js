@@ -424,53 +424,6 @@ export function initUI(state, viewGizmo) {
     state.proportionalRadius = parseFloat(e.target.value);
   };
 
-  // --- Lighting Controls ---
-  const lightInt = document.getElementById("light-intensity");
-  if (lightInt) {
-    lightInt.oninput = (e) => {
-      if (state.dirLight) state.dirLight.intensity = parseFloat(e.target.value);
-    };
-  }
-
-  const lightColorBtn = document.getElementById("light-color-btn");
-  if (lightColorBtn) {
-    lightColorBtn.onclick = () => {
-      // Re-use the unified color picker for lights
-      const modal = document.getElementById("color-picker-modal");
-      const title = document.getElementById("color-picker-title");
-      if (title) title.textContent = "Light Color";
-      
-      // We override the apply button behavior temporarily
-      const applyBtn = document.getElementById("cp-apply");
-      const originalClick = applyBtn.onclick;
-      
-      applyBtn.onclick = () => {
-        const r = parseInt(document.getElementById("cp-r").value);
-        const g = parseInt(document.getElementById("cp-g").value);
-        const b = parseInt(document.getElementById("cp-b").value);
-        if (state.dirLight) state.dirLight.color.setRGB(r/255, g/255, b/255);
-        if (lightColorBtn) lightColorBtn.style.background = `rgb(${r},${g},${b})`;
-        modal.classList.remove("show");
-        applyBtn.onclick = originalClick; // Restore
-      };
-      
-      // Set current color
-      if (state.dirLight) {
-        const c = state.dirLight.color;
-        document.getElementById("cp-r").value = Math.round(c.r * 255);
-        document.getElementById("cp-g").value = Math.round(c.g * 255);
-        document.getElementById("cp-b").value = Math.round(c.b * 255);
-      }
-      modal.classList.add("show");
-    };
-  }
-
-  const envStudio = document.getElementById("env-studio");
-  const envSunset = document.getElementById("env-sunset");
-  const envDark = document.getElementById("env-dark");
-  if (envStudio) envStudio.onclick = () => state.applyEnvironmentPreset('studio');
-  if (envSunset) envSunset.onclick = () => state.applyEnvironmentPreset('sunset');
-  if (envDark) envDark.onclick = () => state.applyEnvironmentPreset('dark');
 
 
 
@@ -741,6 +694,97 @@ export function initUI(state, viewGizmo) {
       faceSelectBtn.textContent = `Face Select: ${state.faceSelectMode ? 'ON' : 'OFF'}`;
       faceSelectBtn.classList.toggle("active", state.faceSelectMode);
       faceSelectBtn.style.background = state.faceSelectMode ? "#4a90e2" : "#444";
+    };
+  }
+
+  // --- Explicitly bind Settings Modal Controls ---
+  const envStudio = document.getElementById("env-studio");
+  const envSunset = document.getElementById("env-sunset");
+  const envDark = document.getElementById("env-dark");
+  if (envStudio) envStudio.onclick = () => state.applyEnvironmentPreset('studio');
+  if (envSunset) envSunset.onclick = () => state.applyEnvironmentPreset('sunset');
+  if (envDark) envDark.onclick = () => state.applyEnvironmentPreset('dark');
+
+  const lightInt = document.getElementById("light-intensity");
+  if (lightInt) {
+    lightInt.oninput = (e) => {
+      if (state.dirLight) state.dirLight.intensity = parseFloat(e.target.value);
+    };
+  }
+
+  const trackpadSlider = document.getElementById("trackpadSensitivity");
+  if (trackpadSlider) {
+    trackpadSlider.oninput = (e) => {
+      state.trackpadSensitivity = parseFloat(e.target.value);
+    };
+  }
+
+  const lightColorBtn = document.getElementById("light-color-btn");
+  if (lightColorBtn) {
+    lightColorBtn.onclick = () => {
+      // Re-use the unified color picker for lights
+      const modal = document.getElementById("color-picker-modal");
+      const title = document.getElementById("color-picker-title");
+      if (title) title.textContent = "Light Color";
+      
+      const applyBtn = document.getElementById("cp-apply");
+      const originalClick = applyBtn.onclick;
+      
+      applyBtn.onclick = () => {
+        const r = parseInt(document.getElementById("cp-r").value);
+        const g = parseInt(document.getElementById("cp-g").value);
+        const b = parseInt(document.getElementById("cp-b").value);
+        if (state.dirLight) state.dirLight.color.setRGB(r/255, g/255, b/255);
+        if (lightColorBtn) lightColorBtn.style.background = `rgb(${r},${g},${b})`;
+        modal.classList.remove("show");
+        applyBtn.onclick = originalClick;
+      };
+      
+      if (state.dirLight) {
+        const c = state.dirLight.color;
+        document.getElementById("cp-r").value = Math.round(c.r * 255);
+        document.getElementById("cp-g").value = Math.round(c.g * 255);
+        document.getElementById("cp-b").value = Math.round(c.b * 255);
+      }
+      modal.classList.add("show");
+    };
+  }
+  
+  const toggleEnvBtn = document.getElementById("toggle-env");
+  if (toggleEnvBtn) {
+    toggleEnvBtn.onclick = () => {
+      state.toggleEnvironment();
+      toggleEnvBtn.classList.toggle("active", state.envEnabled);
+    };
+  }
+  
+  const bgColorBtn = document.getElementById("btn-bg-color");
+  if (bgColorBtn) {
+    bgColorBtn.onclick = () => {
+      // Re-use color picker for background (similar to light color logic)
+      const modal = document.getElementById("color-picker-modal");
+      const title = document.getElementById("color-picker-title");
+      if (title) title.textContent = "Background Color";
+      
+      const applyBtn = document.getElementById("cp-apply");
+      const originalClick = applyBtn.onclick;
+      
+      applyBtn.onclick = () => {
+        const r = parseInt(document.getElementById("cp-r").value);
+        const g = parseInt(document.getElementById("cp-g").value);
+        const b = parseInt(document.getElementById("cp-b").value);
+        if (state.scene) state.scene.background.setRGB(r/255, g/255, b/255);
+        modal.classList.remove("show");
+        applyBtn.onclick = originalClick;
+      };
+      
+      if (state.scene && state.scene.background) {
+        const c = state.scene.background;
+        document.getElementById("cp-r").value = Math.round(c.r * 255);
+        document.getElementById("cp-g").value = Math.round(c.g * 255);
+        document.getElementById("cp-b").value = Math.round(c.b * 255);
+      }
+      modal.classList.add("show");
     };
   }
 
