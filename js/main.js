@@ -238,7 +238,7 @@ pmremGenerator.dispose();
 
 
 const undoStack = [], redoStack = [];
-function captureState(mesh) {
+function captureState(mesh, stateObj) {
   const pos = mesh.geometry.attributes.position;
   const norm = mesh.geometry.attributes.normal;
   const col = mesh.geometry.attributes.color;
@@ -256,11 +256,18 @@ function captureState(mesh) {
     canvasSnap.getContext('2d').drawImage(c, 0, 0);
   }
 
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: mesh.material.color.getHex(), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, matOpacity: mesh.material.opacity, matTransparent: mesh.material.transparent, matFlatShading: mesh.material.flatShading, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone() };
+  const bonePoses = (stateObj.currentBones && stateObj.currentBones.length) ? stateObj.currentBones.map(b => ({
+    pos: b.position.clone(),
+    quat: b.quaternion.clone()
+  })) : null;
+
+  const keyframesSnap = stateObj.keyframes ? JSON.parse(JSON.stringify(stateObj.keyframes)) : [];
+
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: mesh.material.color.getHex(), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, matOpacity: mesh.material.opacity, matTransparent: mesh.material.transparent, matFlatShading: mesh.material.flatShading, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone(), bonePoses, keyframesSnap };
 }
 function saveState(mesh) {
   if (!mesh) return;
-  const snap = captureState(mesh);
+  const snap = captureState(mesh, state);
   undoStack.push(snap);
   
   // Dynamic limit: prevent OOM on large texture canvases
@@ -271,7 +278,7 @@ function saveState(mesh) {
 }
 function undo() {
   if (!state.activeMesh || !undoStack.length) return;
-  const snap = captureState(state.activeMesh);
+  const snap = captureState(state.activeMesh, state);
   redoStack.push(snap);
   const maxStates = snap.canvasSnap ? 5 : 20;
   if (redoStack.length > maxStates) redoStack.shift();
@@ -306,6 +313,21 @@ function undo() {
   }
   
   state.activeMesh.material.needsUpdate = true;
+  
+  // Restore rigging / animation state
+  if (prev.bonePoses && state.currentBones) {
+    prev.bonePoses.forEach((p, i) => {
+      if (state.currentBones[i]) {
+        state.currentBones[i].position.copy(p.pos);
+        state.currentBones[i].quaternion.copy(p.quat);
+        state.currentBones[i].updateMatrixWorld(true);
+      }
+    });
+  }
+  if (prev.keyframesSnap) {
+    state.keyframes = prev.keyframesSnap;
+  }
+
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   if (state.mode === 'edit') syncPointsCloud();
@@ -313,7 +335,7 @@ function undo() {
 }
 function redo() {
   if (!state.activeMesh || !redoStack.length) return;
-  const snap = captureState(state.activeMesh);
+  const snap = captureState(state.activeMesh, state);
   undoStack.push(snap);
   const maxStates = snap.canvasSnap ? 5 : 20;
   if (undoStack.length > maxStates) undoStack.shift();
@@ -348,6 +370,21 @@ function redo() {
   }
   
   state.activeMesh.material.needsUpdate = true;
+  
+  // Restore rigging / animation state
+  if (next.bonePoses && state.currentBones) {
+    next.bonePoses.forEach((p, i) => {
+      if (state.currentBones[i]) {
+        state.currentBones[i].position.copy(p.pos);
+        state.currentBones[i].quaternion.copy(p.quat);
+        state.currentBones[i].updateMatrixWorld(true);
+      }
+    });
+  }
+  if (next.keyframesSnap) {
+    state.keyframes = next.keyframesSnap;
+  }
+
   if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   if (state.mode === 'edit') syncPointsCloud();
