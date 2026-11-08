@@ -4,6 +4,14 @@ import { applyUVProjection } from "./topology.js";
 export function initUI(state, viewGizmo) {
   const matColorBtn = document.getElementById("mat-color-btn");
 
+  // Material Preset buttons
+  document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.onclick = () => {
+      const presetName = btn.getAttribute('data-preset');
+      state.applyMaterialPreset(presetName);
+    };
+  });
+
   // --- Settings Modal Logic ---
   const settingsModal = document.getElementById("settings-modal");
   const settingsBtn = document.getElementById("settingsBtn");

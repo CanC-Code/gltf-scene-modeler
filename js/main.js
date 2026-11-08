@@ -469,6 +469,51 @@ const state = {
   ikTarget: null,
   _baseUVs: null,
 
+  applyMaterialPreset(presetName) {
+    if (!this.activeMesh || !this.activeMesh.material) return;
+    const mat = this.activeMesh.material;
+    
+    const presets = {
+      skin:    { color: 0xffddc4, roughness: 0.55, metalness: 0.0, opacity: 1.0, transparent: false },
+      metal:   { color: 0x8a8a8a, roughness: 0.35, metalness: 0.9, opacity: 1.0, transparent: false },
+      chrome:  { color: 0xe8e8e8, roughness: 0.05, metalness: 1.0, opacity: 1.0, transparent: false },
+      gold:    { color: 0xffb739, roughness: 0.25, metalness: 1.0, opacity: 1.0, transparent: false },
+      glass:   { color: 0xc8e8ff, roughness: 0.05, metalness: 0.1, opacity: 0.25, transparent: true },
+      wood:    { color: 0x8b5a2b, roughness: 0.75, metalness: 0.05, opacity: 1.0, transparent: false },
+      stone:   { color: 0x7a7a7a, roughness: 0.9, metalness: 0.0, opacity: 1.0, transparent: false },
+      cloth:   { color: 0x4a7ab5, roughness: 0.9, metalness: 0.0, opacity: 1.0, transparent: false },
+      rubber:  { color: 0x222222, roughness: 0.95, metalness: 0.0, opacity: 1.0, transparent: false },
+      plastic: { color: 0xff6b6b, roughness: 0.4, metalness: 0.0, opacity: 1.0, transparent: false },
+      ice:     { color: 0xaaddff, roughness: 0.1, metalness: 0.3, opacity: 0.5, transparent: true },
+      default: { color: 0x88ccff, roughness: 0.4, metalness: 0.1, opacity: 1.0, transparent: false }
+    };
+    
+    const p = presets[presetName];
+    if (!p) return;
+    
+    saveState(this.activeMesh);
+    
+    mat.color.setHex(p.color);
+    mat.roughness = p.roughness;
+    mat.metalness = p.metalness;
+    mat.opacity = p.opacity;
+    mat.transparent = p.transparent;
+    mat.needsUpdate = true;
+    
+    // Sync UI sliders + color swatch
+    const cb = document.getElementById('mat-color-btn');
+    if (cb) cb.style.background = '#' + mat.color.getHexString();
+    const r = document.getElementById('mat-roughness');
+    const mt = document.getElementById('mat-metalness');
+    const a = document.getElementById('mat-alpha');
+    if (r) r.value = p.roughness;
+    if (mt) mt.value = p.metalness;
+    if (a) a.value = p.opacity;
+    
+    this.updateMaterialPreview(mat);
+    if (window.showToast) window.showToast(`Preset: ${presetName.charAt(0).toUpperCase() + presetName.slice(1)}`);
+  },
+
   applyEnvironmentPreset(preset) {
     if (preset === 'studio') {
       scene.background = new THREE.Color(0x2a2a2a);
