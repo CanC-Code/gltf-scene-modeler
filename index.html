@@ -310,6 +310,37 @@
       transform: translateY(0);
     }
 
+
+    #mat-slots-bar { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+    .mat-slot {
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #ddd;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .mat-slot:hover { background: rgba(255,255,255,0.1); }
+    .mat-slot.active {
+      background: #0078ff;
+      color: #fff;
+      border-color: #0078ff;
+    }
+    #mat-slot-actions { display: flex; gap: 4px; margin-bottom: 10px; }
+    #mat-slot-actions button {
+      flex: 1;
+      padding: 6px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #ddd;
+      cursor: pointer;
+    }
+    #mat-slot-actions button:hover { background: rgba(255,255,255,0.1); }
+
 </style>
 </head>
 
@@ -392,6 +423,14 @@
             <div id="mat-preview-container" style="display: none;"></div>
           </div>
           
+          <label style="margin-bottom: 6px;">Material Slots</label>
+          <div id="mat-slots-bar"></div>
+          <div id="mat-slot-actions">
+            <button id="addMaterialSlotBtn">+ Add Slot</button>
+            <button id="removeMaterialSlotBtn">− Remove</button>
+          </div>
+          <button id="assignFacesBtn" style="display: none; margin-bottom: 10px; background: #7b1fa2;">Assign Selected Faces to Active Slot</button>
+
           <label style="margin-bottom: 6px;">Material Presets</label>
           <div class="preset-grid">
             <button data-preset="skin">Skin</button>

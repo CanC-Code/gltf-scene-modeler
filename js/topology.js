@@ -96,7 +96,7 @@ export function updateNormals(geometry, region, adjacencyMap) {
   normal.needsUpdate = true;
 }
 
-export function extrudeFaces(geometry, faceIndices) {
+export function extrudeFaces(geometry, faceIndices, faceMaterials) {
   if (!geometry.index) return geometry;
   const pos = geometry.attributes.position;
   const index = geometry.index.array;
@@ -198,11 +198,12 @@ export function extrudeFaces(geometry, faceIndices) {
   return geometry;
 }
 
-export function subdivideLoop(geometry) {
+export function subdivideLoop(geometry, faceMaterials) {
   if (!geometry.index) return geometry;
   const pos = geometry.attributes.position;
   const index = geometry.index.array;
   const origCount = pos.count;
+  const origTriCount = index.length / 3;
 
   const getPos = (i) => new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
   const key = (a, b) => a < b ? a + ',' + b : b + ',' + a;
@@ -360,11 +361,12 @@ export function subdivideLoop(geometry) {
   return geometry;
 }
 
-export function decimateMesh(geometry, targetRatio = 0.5) {
+export function decimateMesh(geometry, targetRatio = 0.5, faceMaterials) {
   if (!geometry.index) return geometry;
   const pos = geometry.attributes.position;
   const index = geometry.index.array;
   const origCount = pos.count;
+  const origTriCount = index.length / 3;
 
   // 1. Compute bbox to determine cluster grid size
   geometry.computeBoundingBox();
@@ -459,13 +461,20 @@ export function decimateMesh(geometry, targetRatio = 0.5) {
 
   // 4. Remap index, drop degenerate triangles
   const newIndex = [];
+  const survivorFM = [];
   for (let i = 0; i < index.length; i += 3) {
     const a = vertexToCluster[index[i]];
     const b = vertexToCluster[index[i + 1]];
     const c = vertexToCluster[index[i + 2]];
     if (a !== b && b !== c && c !== a) {
       newIndex.push(a, b, c);
+      survivorFM.push(Array.isArray(faceMaterials) ? (faceMaterials[i / 3] || 0) : 0);
     }
+  }
+
+  if (Array.isArray(faceMaterials)) {
+    faceMaterials.length = 0;
+    for (const v of survivorFM) faceMaterials.push(v);
   }
 
   // 5. Write back

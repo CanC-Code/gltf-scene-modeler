@@ -1960,7 +1960,7 @@ const state = {
     }
     
     saveState(this.activeMesh);
-    decimateMesh(this.activeMesh.geometry, 0.5);
+    decimateMesh(this.activeMesh.geometry, 0.5, this.activeMesh.userData.faceMaterialIndices);
     refreshAfterTopologyEdit();
     
     const afterTris = this.activeMesh.geometry.index.count / 3;
@@ -1980,7 +1980,7 @@ const state = {
       return;
     }
     saveState(this.activeMesh);
-    subdivideLoop(this.activeMesh.geometry);
+    subdivideLoop(this.activeMesh.geometry, this.activeMesh.userData.faceMaterialIndices);
     this.activeMesh.userData.subdivLevel = (this.activeMesh.userData.subdivLevel || 0) + 1;
     refreshAfterTopologyEdit();
     if (window.showToast) window.showToast(`Subdivided to Level ${this.activeMesh.userData.subdivLevel}. ${(this.activeMesh.geometry.index.count / 3)} triangles.`);
@@ -2739,6 +2739,22 @@ function refreshAfterTopologyEdit() {
   const mesh = state.activeMesh;
   const geo = mesh.geometry;
   
+  // Sync faceMaterialIndices
+  if (mesh.userData.materialSlots && geo.index) {
+    const triCount = geo.index.count / 3;
+    if (!mesh.userData.faceMaterialIndices) {
+      mesh.userData.faceMaterialIndices = new Array(triCount).fill(mesh.userData.activeSlot || 0);
+    } else {
+      const fmi = mesh.userData.faceMaterialIndices;
+      const active = mesh.userData.activeSlot || 0;
+      while (fmi.length < triCount) fmi.push(active);
+      if (fmi.length > triCount) fmi.length = triCount;
+    }
+    if (mesh.userData.materialSlots.length > 1 && typeof rebuildMaterialGroups === "function") {
+      rebuildMaterialGroups(mesh);
+    }
+  }
+
   // Recompute bounding volumes so the mesh doesn't get frustum-culled
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
@@ -2857,7 +2873,7 @@ function extrudeSelected() {
   
   if (selectedFace !== -1) {
     saveState(state.activeMesh);
-    extrudeFaces(geometry, facesToExtrude);
+    extrudeFaces(geometry, facesToExtrude, state.activeMesh.userData.faceMaterialIndices);
     state.selectedVertices.clear();
     syncPointsCloud();
     transform.detach();

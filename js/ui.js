@@ -298,7 +298,7 @@ export function initUI(state, viewGizmo) {
 
     const currentColor = target === 'paint' ? state.paintColor :
                          target === 'background' ? state.scene.background :
-                         (state.activeMesh ? state.activeMesh.material.color : new THREE.Color(0xffffff));
+                         (state.activeMesh ? state.getActiveMaterial().color : new THREE.Color(0xffffff));
 
     if (cpR) cpR.value = Math.round(currentColor.r * 255);
     if (cpG) cpG.value = Math.round(currentColor.g * 255);
@@ -326,10 +326,10 @@ export function initUI(state, viewGizmo) {
         } else if (colorTarget === 'background') {
           if (state.scene) state.scene.background.set(hex);
         } else if (colorTarget === 'material' && state.activeMesh) {
-          state.activeMesh.material.color.set(hex);
-          state.activeMesh.material.needsUpdate = true;
-          if (state.updateMaterialPreview) state.updateMaterialPreview(state.activeMesh.material);
-          if (matColorBtn) matColorBtn.style.background = '#' + state.activeMesh.material.color.getHexString();
+          state.getActiveMaterial().color.set(hex);
+          state.getActiveMaterial().needsUpdate = true;
+          if (state.updateMaterialPreview) state.updateMaterialPreview(state.getActiveMaterial());
+          if (matColorBtn) matColorBtn.style.background = '#' + state.getActiveMaterial().color.getHexString();
           if (state.syncUI) state.syncUI();
         }
         colorModal.classList.remove("show");
@@ -553,23 +553,23 @@ export function initUI(state, viewGizmo) {
     
     state.activeMesh.userData.paintCanvas = canvas;
     state.activeMesh.userData.paintTexture = texture;
-    state.activeMesh.material.map = texture;
-    state.activeMesh.material.needsUpdate = true;
+    state.getActiveMaterial().map = texture;
+    state.getActiveMaterial().needsUpdate = true;
     
     if (window.showToast) window.showToast('Canvas ready! Switch to Paint mode.');
   };
 
   if (matNormal) matNormal.onchange = (e) => {
     if (state.activeMesh) state.saveState(state.activeMesh);
-    if (!state.activeMesh || !state.activeMesh.material || !e.target.files[0]) return;
+    if (!state.activeMesh || !state.getActiveMaterial() || !e.target.files[0]) return;
     const file = e.target.files[0];
     const url = URL.createObjectURL(file);
     new THREE.TextureLoader().load(url, (texture) => {
       texture.colorSpace = THREE.NoColorSpace; // Normal maps MUST be linear
       texture.flipY = false; // glTF standard
-      state.activeMesh.material.normalMap = texture;
-      state.activeMesh.material.needsUpdate = true;
-      state.updateMaterialPreview(state.activeMesh.material);
+      state.getActiveMaterial().normalMap = texture;
+      state.getActiveMaterial().needsUpdate = true;
+      state.updateMaterialPreview(state.getActiveMaterial());
       URL.revokeObjectURL(url);
       if (window.showToast) window.showToast('Normal Map applied!');
     });
@@ -581,16 +581,16 @@ export function initUI(state, viewGizmo) {
 
 
   if (matRough) matRough.oninput = (e) => {
-    if (state.activeMesh && state.activeMesh.material) {
-      state.activeMesh.material.roughness = parseFloat(e.target.value);
-      state.updateMaterialPreview(state.activeMesh.material);
+    if (state.activeMesh && state.getActiveMaterial()) {
+      state.getActiveMaterial().roughness = parseFloat(e.target.value);
+      state.updateMaterialPreview(state.getActiveMaterial());
     }
   };
 
   if (matMetal) matMetal.oninput = (e) => {
-    if (state.activeMesh && state.activeMesh.material) {
-      state.activeMesh.material.metalness = parseFloat(e.target.value);
-      state.updateMaterialPreview(state.activeMesh.material);
+    if (state.activeMesh && state.getActiveMaterial()) {
+      state.getActiveMaterial().metalness = parseFloat(e.target.value);
+      state.updateMaterialPreview(state.getActiveMaterial());
     }
   };
 
@@ -599,21 +599,21 @@ export function initUI(state, viewGizmo) {
   if (matAlpha) {
     matAlpha.addEventListener('pointerdown', saveMatState);
     matAlpha.oninput = (e) => {
-      if (state.activeMesh && state.activeMesh.material) {
+      if (state.activeMesh && state.getActiveMaterial()) {
         const val = parseFloat(e.target.value);
-        state.activeMesh.material.opacity = val;
-        state.activeMesh.material.transparent = val < 1.0;
-        state.activeMesh.material.needsUpdate = true;
-        state.updateMaterialPreview(state.activeMesh.material);
+        state.getActiveMaterial().opacity = val;
+        state.getActiveMaterial().transparent = val < 1.0;
+        state.getActiveMaterial().needsUpdate = true;
+        state.updateMaterialPreview(state.getActiveMaterial());
       }
     };
   }
 
   const flatBtn = document.getElementById("toggleFlatShading");
   if (flatBtn) flatBtn.onclick = () => {
-    if (!state.activeMesh || !state.activeMesh.material) return;
+    if (!state.activeMesh || !state.getActiveMaterial()) return;
     state.saveState(state.activeMesh); // Catch for undo
-    const m = state.activeMesh.material;
+    const m = state.getActiveMaterial();
     m.flatShading = !m.flatShading;
     m.needsUpdate = true;
     state.updateMaterialPreview(m);
@@ -623,7 +623,7 @@ export function initUI(state, viewGizmo) {
 
   if (matTex) matTex.onchange = (e) => {
     if (state.activeMesh) state.saveState(state.activeMesh);
-    if (!state.activeMesh || !state.activeMesh.material || !e.target.files[0]) return;
+    if (!state.activeMesh || !state.getActiveMaterial() || !e.target.files[0]) return;
     const file = e.target.files[0];
     const url = URL.createObjectURL(file);
     new THREE.TextureLoader().load(url, (texture) => {
@@ -631,9 +631,9 @@ export function initUI(state, viewGizmo) {
       texture.flipY = false; // glTF standard
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
-      state.activeMesh.material.map = texture;
-      state.activeMesh.material.needsUpdate = true;
-      state.updateMaterialPreview(state.activeMesh.material);
+      state.getActiveMaterial().map = texture;
+      state.getActiveMaterial().needsUpdate = true;
+      state.updateMaterialPreview(state.getActiveMaterial());
       URL.revokeObjectURL(url);
       if (window.showToast) window.showToast('Texture applied!');
     });
@@ -818,8 +818,39 @@ export function initUI(state, viewGizmo) {
     }
   });
 
+  // --- Material Slot bar ---
+  function renderMatSlots(mesh) {
+    const bar = document.getElementById("mat-slots-bar");
+    if (!bar) return;
+    bar.innerHTML = "";
+    if (!mesh) return;
+    state.ensureMaterialSlots(mesh);
+    const slots = mesh.userData.materialSlots || [mesh.material];
+    const active = mesh.userData.activeSlot || 0;
+    slots.forEach((mat, i) => {
+      const tab = document.createElement("div");
+      tab.className = "mat-slot" + (i === active ? " active" : "");
+      tab.textContent = "Slot " + i;
+      tab.style.borderLeft = "4px solid #" + (mat.color ? mat.color.getHexString() : "888888");
+      tab.onclick = () => { state.switchActiveSlot(i); renderMatSlots(mesh); };
+      bar.appendChild(tab);
+    });
+    const assignBtn = document.getElementById("assignFacesBtn");
+    if (assignBtn) assignBtn.style.display = (state.mode === "edit") ? "block" : "none";
+  }
+  window.renderMatSlots = renderMatSlots;
+
+  const addSlotBtn = document.getElementById("addMaterialSlotBtn");
+  if (addSlotBtn) addSlotBtn.onclick = () => { state.addMaterialSlot(); renderMatSlots(state.activeMesh); };
+
+  const removeSlotBtn = document.getElementById("removeMaterialSlotBtn");
+  if (removeSlotBtn) removeSlotBtn.onclick = () => { state.removeMaterialSlot(); renderMatSlots(state.activeMesh); };
+
+  const assignBtnEl = document.getElementById("assignFacesBtn");
+  if (assignBtnEl) assignBtnEl.onclick = () => { state.assignFacesToSlot(); renderMatSlots(state.activeMesh); };
+
   // Sync UI when a new object is selected
-  window.addEventListener('objectSelected', (e) => updateMaterialUI(e.detail));
+  window.addEventListener('objectSelected', (e) => { updateMaterialUI(e.detail); renderMatSlots(e.detail); });
   // Also sync on load
   updateMaterialUI(state.activeMesh);
 }
