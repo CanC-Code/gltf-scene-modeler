@@ -360,6 +360,125 @@ export function subdivideLoop(geometry) {
   return geometry;
 }
 
+export function decimateMesh(geometry, targetRatio = 0.5) {
+  if (!geometry.index) return geometry;
+  const pos = geometry.attributes.position;
+  const index = geometry.index.array;
+  const origCount = pos.count;
+
+  // 1. Compute bbox to determine cluster grid size
+  geometry.computeBoundingBox();
+  const bb = geometry.boundingBox;
+  const size = new THREE.Vector3();
+  bb.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+  // Grid resolution: want ~targetRatio * origCount clusters
+  const targetCells = origCount * targetRatio;
+  const cellSize = maxDim / Math.cbrt(targetCells);
+  if (cellSize <= 0) return geometry;
+
+  // 2. Cluster vertices by grid cell
+  const clusterMap = new Map();
+  const clusterMembers = [];
+  const vertexToCluster = new Int32Array(origCount);
+
+  for (let i = 0; i < origCount; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const cx = Math.floor(x / cellSize);
+    const cy = Math.floor(y / cellSize);
+    const cz = Math.floor(z / cellSize);
+    const key = cx + ',' + cy + ',' + cz;
+
+    if (!clusterMap.has(key)) {
+      const newIdx = clusterMembers.length;
+      clusterMap.set(key, newIdx);
+      clusterMembers.push([]);
+    }
+    const cIdx = clusterMap.get(key);
+    clusterMembers[cIdx].push(i);
+    vertexToCluster[i] = cIdx;
+  }
+
+  const newCount = clusterMembers.length;
+  if (newCount >= origCount) return geometry; // No reduction possible
+
+  // 3. Build cluster representative attributes
+  const newAttrs = {};
+  for (const name of Object.keys(geometry.attributes)) {
+    const attr = geometry.attributes[name];
+    const arr = new attr.array.constructor(newCount * attr.itemSize);
+    newAttrs[name] = { itemSize: attr.itemSize, normalized: attr.normalized, arr, src: attr };
+  }
+
+  for (let cIdx = 0; cIdx < newCount; cIdx++) {
+    const members = clusterMembers[cIdx];
+
+    // Average position
+    let px = 0, py = 0, pz = 0;
+    for (const m of members) {
+      px += pos.getX(m); py += pos.getY(m); pz += pos.getZ(m);
+    }
+    px /= members.length; py /= members.length; pz /= members.length;
+    newAttrs.position.arr[cIdx * 3] = px;
+    newAttrs.position.arr[cIdx * 3 + 1] = py;
+    newAttrs.position.arr[cIdx * 3 + 2] = pz;
+
+    // Average other attributes
+    for (const name of Object.keys(newAttrs)) {
+      if (name === 'position') continue;
+      const { itemSize, arr, src } = newAttrs[name];
+
+      if (name === 'skinIndex') {
+        // Copy from first member (can't average indices)
+        for (let k = 0; k < itemSize; k++) {
+          arr[cIdx * itemSize + k] = src.array[members[0] * itemSize + k];
+        }
+      } else if (name === 'normal') {
+        // Average and normalize
+        let nx = 0, ny = 0, nz = 0;
+        for (const m of members) {
+          nx += src.array[m * itemSize];
+          ny += src.array[m * itemSize + 1];
+          nz += src.array[m * itemSize + 2];
+        }
+        const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+        arr[cIdx * itemSize] = nx / len;
+        arr[cIdx * itemSize + 1] = ny / len;
+        arr[cIdx * itemSize + 2] = nz / len;
+      } else {
+        // Linear average (UV, color, skinWeight)
+        for (let k = 0; k < itemSize; k++) {
+          let sum = 0;
+          for (const m of members) sum += src.array[m * itemSize + k];
+          arr[cIdx * itemSize + k] = sum / members.length;
+        }
+      }
+    }
+  }
+
+  // 4. Remap index, drop degenerate triangles
+  const newIndex = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const a = vertexToCluster[index[i]];
+    const b = vertexToCluster[index[i + 1]];
+    const c = vertexToCluster[index[i + 2]];
+    if (a !== b && b !== c && c !== a) {
+      newIndex.push(a, b, c);
+    }
+  }
+
+  // 5. Write back
+  for (const name of Object.keys(newAttrs)) {
+    const { itemSize, normalized, arr } = newAttrs[name];
+    geometry.setAttribute(name, new THREE.BufferAttribute(arr, itemSize, normalized));
+  }
+  geometry.setIndex(newIndex);
+  geometry.computeVertexNormals();
+
+  return geometry;
+}
+
 export function applyUVProjection(geometry, type) {
   if (!geometry || !geometry.attributes.position) return;
   const pos = geometry.attributes.position;

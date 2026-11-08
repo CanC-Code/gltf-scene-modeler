@@ -107,6 +107,9 @@ export function initUI(state, viewGizmo) {
   const subdivideBtn = document.getElementById("subdivideBtn");
   if (subdivideBtn) subdivideBtn.onclick = () => state.subdivideMesh();
 
+  const decimateBtn = document.getElementById("decimateBtn");
+  if (decimateBtn) decimateBtn.onclick = () => state.decimateMesh();
+
   // Rigging UI
   const addBoneBtn = document.getElementById("addBoneChain");
   if (addBoneBtn) addBoneBtn.onclick = () => state.addBoneChain();

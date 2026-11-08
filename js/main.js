@@ -7,7 +7,7 @@ import { SculptBrush } from "./sculptBrush.js";
 import { initUI } from "./ui.js";
 import { ViewGizmo } from "./viewGizmo.js";
 import { mergeVertices } from "../three/utils/BufferGeometryUtils.js";
-import { extrudeFaces, subdivideLoop } from "./topology.js";
+import { extrudeFaces, subdivideLoop, decimateMesh } from "./topology.js";
 
 const canvas = document.getElementById("viewport");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -1801,6 +1801,27 @@ const state = {
 
     if (this.updateMaterialPreview) this.updateMaterialPreview(mat);
     if (this.updateUVPreview) this.updateUVPreview();
+  },
+
+  decimateMesh() {
+    if (!this.activeMesh) return;
+    if (!this.activeMesh.geometry.index) {
+      if (window.showToast) window.showToast("Decimation requires indexed geometry.");
+      return;
+    }
+    const beforeTris = this.activeMesh.geometry.index.count / 3;
+    if (beforeTris < 8) {
+      if (window.showToast) window.showToast("Mesh is too small to decimate.");
+      return;
+    }
+    
+    saveState(this.activeMesh);
+    decimateMesh(this.activeMesh.geometry, 0.5);
+    refreshAfterTopologyEdit();
+    
+    const afterTris = this.activeMesh.geometry.index.count / 3;
+    const reduction = ((1 - afterTris / beforeTris) * 100).toFixed(0);
+    if (window.showToast) window.showToast(`Decimated: ${beforeTris} → ${afterTris} tris (${reduction}% reduction)`);
   },
 
   subdivideMesh() {
