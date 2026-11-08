@@ -2068,7 +2068,9 @@ if (trackpadSurface) {
 if (actionArea) {
   actionArea.addEventListener("pointerdown", e => {
     if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale" || state.mode === "rig" || state.mode === "edit") return;
-    e.preventDefault(); isActionActive = true; saveState(state.activeMesh); handleAction();
+    e.preventDefault(); isActionActive = true; saveState(state.activeMesh); 
+    if (state.brush) state.brush.lastGrabPoint = null; // Reset grab state
+    handleAction();
   });
   actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
   actionArea.addEventListener("pointerup", () => { 

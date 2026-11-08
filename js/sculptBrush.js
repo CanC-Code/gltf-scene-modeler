@@ -9,6 +9,7 @@ export class SculptBrush {
     this.tool = "inflate";
     this.paintColor = new THREE.Color("#ff0000");
     this.activeBoneIndex = 0;
+    this.lastGrabPoint = null; // Required for Grab tool
   }
 
   setMesh(mesh) {
@@ -67,6 +68,26 @@ export class SculptBrush {
         switch (this.tool) {
           case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
           case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
+          case "grab":
+            if (!this.lastGrabPoint) this.lastGrabPoint = c.clone();
+            const grabDelta = c.clone().sub(this.lastGrabPoint);
+            ox = grabDelta.x * influence;
+            oy = grabDelta.y * influence;
+            oz = grabDelta.z * influence;
+            break;
+          case "clay":
+            // Build up material + flatten towards plane
+            const distToPlaneClay = (v.x - c.x) * avgNormal.x + (v.y - c.y) * avgNormal.y + (v.z - c.z) * avgNormal.z;
+            ox = avgNormal.x * influence * 1.5 - avgNormal.x * distToPlaneClay * influence * 0.5;
+            oy = avgNormal.y * influence * 1.5 - avgNormal.y * distToPlaneClay * influence * 0.5;
+            oz = avgNormal.z * influence * 1.5 - avgNormal.z * distToPlaneClay * influence * 0.5;
+            break;
+          case "crease":
+            // Pinch inward + push into surface
+            ox = (c.x - v.x) * influence * 0.5 - avgNormal.x * influence * 1.5;
+            oy = (c.y - v.y) * influence * 0.5 - avgNormal.y * influence * 1.5;
+            oz = (c.z - v.z) * influence * 0.5 - avgNormal.z * influence * 1.5;
+            break;
           case "smooth":
             avgPos.set(0,0,0);
             const neighbors = new Set();
@@ -105,6 +126,9 @@ export class SculptBrush {
     }
     pos.needsUpdate = true;
     if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices), this.adjacencyMap);
+    
+    // Update grab point for next frame
+    if (this.tool === 'grab') this.lastGrabPoint = localPoint.clone();
   }
 
   paint(localPoint, sym = { x: false, y: false }) {
