@@ -24,18 +24,8 @@ export class ViewGizmo {
     // 1. Invisible clickable cube (for face clicking)
     const hitGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    // Standard raycaster handles the world matrix automatically
     this.hitCube = new THREE.Mesh(hitGeo, hitMat);
-    this.hitCube.raycast = (raycaster, intersects) => {
-        // Custom raycast to return face normals easily
-        const mesh = new THREE.Mesh(hitGeo);
-        mesh.position.copy(this.cube.position);
-        mesh.quaternion.copy(this.cube.quaternion);
-        const tempHits = [];
-        mesh.raycast(raycaster, tempHits);
-        if (tempHits.length > 0) {
-            intersects.push(tempHits[0]);
-        }
-    };
     this.cube.add(this.hitCube);
 
     // 2. Visible wireframe cube
@@ -197,6 +187,7 @@ export class ViewGizmo {
       vertexColors: !!(mesh.geometry.attributes && mesh.geometry.attributes.color)
     });
 
+    this.meshClone.raycast = () => {}; // Prevent clone from blocking raycasts
     this.cube.add(this.meshClone);
   }
 
