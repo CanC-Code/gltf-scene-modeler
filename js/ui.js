@@ -290,6 +290,10 @@ export function initUI(state, viewGizmo) {
   const openColorPicker = (target) => {
     if (!colorModal) return;
     colorTarget = target;
+    // Always reset Apply to the default handler to break any leftover swap chain
+    if (cpApply && window.__defaultApplyHandler) {
+      cpApply.onclick = window.__defaultApplyHandler;
+    }
     if (pickerTitle) pickerTitle.textContent = target === 'paint' ? "Paint Color" : (target === 'background' ? "Background Color" : "Base Color");
 
     if (target === 'material' && state.activeMesh) {
@@ -316,7 +320,7 @@ export function initUI(state, viewGizmo) {
     if (colorClose) colorClose.onclick = () => colorModal.classList.remove("show");
     
     if (cpApply) {
-      cpApply.onclick = () => {
+      window.__defaultApplyHandler = () => {
         if (!cpR) return;
         const r = parseInt(cpR.value), g = parseInt(cpG.value), b = parseInt(cpB.value);
         const hex = `rgb(${r}, ${g}, ${b})`;
@@ -334,6 +338,7 @@ export function initUI(state, viewGizmo) {
         }
         colorModal.classList.remove("show");
       };
+      cpApply.onclick = window.__defaultApplyHandler;
     }
 
     if (cpR) cpR.oninput = updatePreview;
