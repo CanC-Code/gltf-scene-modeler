@@ -469,9 +469,120 @@ const state = {
   ikTarget: null,
   _baseUVs: null,
 
+  getActiveMaterial() {
+    if (!this.activeMesh) return null;
+    const slots = this.activeMesh.userData.materialSlots;
+    if (!slots) return this.activeMesh.material;
+    const idx = this.activeMesh.userData.activeSlot || 0;
+    return slots[idx] || slots[0] || this.activeMesh.material;
+  },
+
+  ensureMaterialSlots(mesh) {
+    if (!mesh || mesh.userData.materialSlots) return;
+    mesh.userData.materialSlots = [mesh.material];
+    mesh.userData.activeSlot = 0;
+    if (mesh.geometry.index) {
+      const triCount = mesh.geometry.index.count / 3;
+      mesh.userData.faceMaterialIndices = new Array(triCount).fill(0);
+    }
+  },
+
+  switchActiveSlot(idx) {
+    if (!this.activeMesh) return;
+    const slots = this.activeMesh.userData.materialSlots;
+    if (!slots || idx < 0 || idx >= slots.length) return;
+    this.activeMesh.userData.activeSlot = idx;
+    if (window.syncMaterialUI) window.syncMaterialUI(this.activeMesh);
+    if (window.showToast) window.showToast(`Editing Slot ${idx}`);
+  },
+
+  addMaterialSlot() {
+    if (!this.activeMesh) return;
+    const mesh = this.activeMesh;
+    this.ensureMaterialSlots(mesh);
+    const slots = mesh.userData.materialSlots;
+    if (slots.length >= 8) {
+      if (window.showToast) window.showToast("Maximum 8 material slots.");
+      return;
+    }
+    saveState(mesh);
+    const newMat = slots[mesh.userData.activeSlot || 0].clone();
+    slots.push(newMat);
+    mesh.userData.activeSlot = slots.length - 1;
+    if (!mesh.userData.faceMaterialIndices && mesh.geometry.index) {
+      mesh.userData.faceMaterialIndices = new Array(mesh.geometry.index.count / 3).fill(0);
+    }
+    rebuildMaterialGroups(mesh);
+    if (window.syncMaterialUI) window.syncMaterialUI(mesh);
+    if (window.showToast) window.showToast(`Added Slot ${slots.length - 1}`);
+  },
+
+  removeMaterialSlot() {
+    if (!this.activeMesh) return;
+    const mesh = this.activeMesh;
+    const slots = mesh.userData.materialSlots;
+    if (!slots || slots.length <= 1) {
+      if (window.showToast) window.showToast("Cannot remove last slot.");
+      return;
+    }
+    const idx = mesh.userData.activeSlot || 0;
+    if (idx === 0) {
+      if (window.showToast) window.showToast("Cannot remove Slot 0 (base).");
+      return;
+    }
+    saveState(mesh);
+    slots.splice(idx, 1);
+    // Reassign orphaned faces to slot 0
+    if (mesh.userData.faceMaterialIndices) {
+      const fmi = mesh.userData.faceMaterialIndices;
+      for (let i = 0; i < fmi.length; i++) {
+        if (fmi[i] === idx) fmi[i] = 0;
+        else if (fmi[i] > idx) fmi[i]--;
+      }
+    }
+    mesh.userData.activeSlot = 0;
+    rebuildMaterialGroups(mesh);
+    if (window.syncMaterialUI) window.syncMaterialUI(mesh);
+    if (window.showToast) window.showToast("Slot removed");
+  },
+
+  assignFacesToSlot() {
+    if (!this.activeMesh || this.selectedVertices.size === 0) {
+      if (window.showToast) window.showToast("Select faces in Edit mode first.");
+      return;
+    }
+    const mesh = this.activeMesh;
+    if (!mesh.geometry.index) return;
+    this.ensureMaterialSlots(mesh);
+    const slots = mesh.userData.materialSlots;
+    if (slots.length <= 1) {
+      if (window.showToast) window.showToast("Add a second slot first.");
+      return;
+    }
+    saveState(mesh);
+    const index = mesh.geometry.index.array;
+    const fmi = mesh.userData.faceMaterialIndices;
+    const activeSlot = mesh.userData.activeSlot || 0;
+    let assigned = 0;
+    for (let f = 0; f < fmi.length; f++) {
+      const a = index[f*3], b = index[f*3+1], c = index[f*3+2];
+      if (this.selectedVertices.has(a) && this.selectedVertices.has(b) && this.selectedVertices.has(c)) {
+        fmi[f] = activeSlot;
+        assigned++;
+      }
+    }
+    if (assigned === 0) {
+      if (window.showToast) window.showToast("No fully-selected triangles (need all 3 verts).");
+      return;
+    }
+    rebuildMaterialGroups(mesh);
+    if (window.showToast) window.showToast(`Assigned ${assigned} faces to Slot ${activeSlot}`);
+  },
+
   applyMaterialPreset(presetName) {
-    if (!this.activeMesh || !this.activeMesh.material) return;
-    const mat = this.activeMesh.material;
+    if (!this.activeMesh) return;
+    const mat = this.getActiveMaterial();
+    if (!mat) return;
     
     const presets = {
       skin:    { color: 0xffddc4, roughness: 0.55, metalness: 0.0, opacity: 1.0, transparent: false },
@@ -538,7 +649,10 @@ const state = {
   toggleEnvironment() {
     this.envEnabled = !this.envEnabled;
     scene.environment = this.envEnabled ? this.envMap : null;
-    this.objects.forEach(m => m.material.needsUpdate = true);
+    this.objects.forEach(m => {
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      mats.forEach(mat => { if (mat) mat.needsUpdate = true; });
+    });
   },
 
   updateSnap() {
@@ -679,7 +793,13 @@ const state = {
     if (window.showToast) window.showToast(`Grid ${gridHelper.visible ? 'ON' : 'OFF'}`);
   },
 
-  toggleWireframe() { this.wireframe = !this.wireframe; this.objects.forEach(m => m.material.wireframe = this.wireframe); },
+  toggleWireframe() { 
+    this.wireframe = !this.wireframe; 
+    this.objects.forEach(m => {
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      mats.forEach(mat => { if (mat) mat.wireframe = this.wireframe; });
+    }); 
+  },
 
   focusCamera() {
     if (!this.activeMesh) return;
@@ -797,6 +917,7 @@ const state = {
     this.objects.push(mesh);
     scene.add(mesh);
     ensureUVs(mesh.geometry);
+    this.ensureMaterialSlots(mesh);
     this.selectObject(mesh);
     this.updateObjectList();
   },
@@ -833,7 +954,9 @@ const state = {
     const src = this.activeMesh;
     const newMesh = src.clone();
     newMesh.geometry = src.geometry.clone();
-    newMesh.material = src.material.clone();
+    newMesh.material = Array.isArray(src.material) 
+      ? src.material.map(m => m.clone())
+      : src.material.clone();
     newMesh.position.x += 1.5;
 
     if (src.isSkinnedMesh && src.skeleton) {
@@ -855,7 +978,8 @@ const state = {
     if (idx > -1) this.objects.splice(idx, 1);
     scene.remove(this.activeMesh);
     this.activeMesh.geometry.dispose();
-    this.activeMesh.material.dispose();
+    const matsToDispose = Array.isArray(this.activeMesh.material) ? this.activeMesh.material : [this.activeMesh.material];
+    matsToDispose.forEach(mat => { if (mat) mat.dispose(); });
     
     // Prevent undoing into the deleted mesh's state
     undoStack.length = 0;
@@ -1267,8 +1391,8 @@ const state = {
       colors.setXYZ(i, w, 0, 1 - w);
     }
     colors.needsUpdate = true;
-    this.activeMesh.material.vertexColors = true;
-    this.activeMesh.material.needsUpdate = true;
+    const wMats = Array.isArray(this.activeMesh.material) ? this.activeMesh.material : [this.activeMesh.material];
+    wMats.forEach(mat => { if (mat) { mat.vertexColors = true; mat.needsUpdate = true; } });
   },
 
   _buildAnimationClip() {
@@ -1510,11 +1634,21 @@ const state = {
         pos: obj.position.toArray(),
         quat: obj.quaternion.toArray(),
         scale: obj.scale.toArray(),
-        color: '#' + obj.material.color.getHexString(),
-        roughness: obj.material.roughness,
-        metalness: obj.material.metalness,
-        opacity: obj.material.opacity,
-        transparent: obj.material.transparent,
+        materialSlots: (obj.userData.materialSlots || [Array.isArray(obj.material) ? obj.material[0] : obj.material]).map(mat => ({
+          color: '#' + mat.color.getHexString(),
+          roughness: mat.roughness,
+          metalness: mat.metalness,
+          opacity: mat.opacity !== undefined ? mat.opacity : 1.0,
+          transparent: mat.transparent || false,
+          flatShading: mat.flatShading || false
+        })),
+        activeSlot: obj.userData.activeSlot || 0,
+        faceMaterialIndices: obj.userData.faceMaterialIndices || null,
+        color: '#' + (Array.isArray(obj.material) ? obj.material[0] : obj.material).color.getHexString(),
+        roughness: (Array.isArray(obj.material) ? obj.material[0] : obj.material).roughness,
+        metalness: (Array.isArray(obj.material) ? obj.material[0] : obj.material).metalness,
+        opacity: (Array.isArray(obj.material) ? obj.material[0] : obj.material).opacity,
+        transparent: (Array.isArray(obj.material) ? obj.material[0] : obj.material).transparent,
         flatShading: obj.material.flatShading,
         geometry: {}
       };
@@ -1596,14 +1730,16 @@ const state = {
             }
           }
           
-          const mat = new THREE.MeshStandardMaterial({
-            color: o.color,
-            roughness: o.roughness,
-            metalness: o.metalness,
-            opacity: o.opacity !== undefined ? o.opacity : 1.0,
-            transparent: o.transparent || false,
-            flatShading: o.flatShading || false
-          });
+          const slotDefs = o.materialSlots || [{ color: o.color, roughness: o.roughness, metalness: o.metalness, opacity: o.opacity, transparent: o.transparent, flatShading: o.flatShading }];
+          const slots = slotDefs.map(sd => new THREE.MeshStandardMaterial({
+            color: sd.color,
+            roughness: sd.roughness,
+            metalness: sd.metalness,
+            opacity: sd.opacity !== undefined ? sd.opacity : 1.0,
+            transparent: sd.transparent || false,
+            flatShading: sd.flatShading || false
+          }));
+          const mat = slots.length === 1 ? slots[0] : slots;
           let mesh;
           
           if (o.isSkinned && o.bones) {
@@ -1664,6 +1800,13 @@ const state = {
             mesh = new THREE.Mesh(geo, mat);
           }
           
+          mesh.userData.materialSlots = slots;
+          mesh.userData.activeSlot = o.activeSlot || 0;
+          mesh.userData.faceMaterialIndices = o.faceMaterialIndices || null;
+          if (slots.length > 1 && mesh.geometry.index) {
+            rebuildMaterialGroups(mesh);
+          }
+
           mesh.position.fromArray(o.pos);
           mesh.quaternion.fromArray(o.quat);
           mesh.scale.fromArray(o.scale);
@@ -1780,7 +1923,8 @@ const state = {
 
   syncUI() {
     if (!this.activeMesh) return;
-    const mat = this.activeMesh.material;
+    const mat = this.getActiveMaterial();
+    if (!mat) return;
     const c = document.getElementById('mat-color');
     const r = document.getElementById('mat-roughness');
     const m = document.getElementById('mat-metalness');
@@ -1904,12 +2048,12 @@ const state = {
     if (!this.activeMesh) return;
     let canvas = this.activeMesh.userData.paintCanvas;
     if (!canvas) {
-      // If no canvas, but there is a texture map, try to draw that
-      if (this.activeMesh.material.map && this.activeMesh.material.map.image) {
+      const am = this.getActiveMaterial();
+      if (am && am.map && am.map.image) {
         canvas = document.createElement('canvas');
-        canvas.width = this.activeMesh.material.map.image.width;
-        canvas.height = this.activeMesh.material.map.image.height;
-        canvas.getContext('2d').drawImage(this.activeMesh.material.map.image, 0, 0);
+        canvas.width = am.map.image.width;
+        canvas.height = am.map.image.height;
+        canvas.getContext('2d').drawImage(am.map.image, 0, 0);
       } else {
         if (window.showToast) window.showToast('No texture to download.');
         return;
@@ -2081,6 +2225,47 @@ const state = {
     reader.readAsArrayBuffer(e.target.files[0]);
   }
 };
+
+function rebuildMaterialGroups(mesh) {
+  if (!mesh || !mesh.userData.materialSlots) return;
+  const slots = mesh.userData.materialSlots;
+  const fmi = mesh.userData.faceMaterialIndices;
+  const geo = mesh.geometry;
+  if (!geo || !geo.index) return;
+
+  if (slots.length === 1) {
+    mesh.material = slots[0];
+    geo.groups = [];
+    return;
+  }
+
+  mesh.material = slots;
+
+  if (!fmi) {
+    geo.groups = [{ start: 0, count: geo.index.count, materialIndex: 0 }];
+    return;
+  }
+
+  const groups = [];
+  let currentMat = -1;
+  let groupStartFace = 0;
+  const triCount = fmi.length;
+
+  for (let f = 0; f < triCount; f++) {
+    const mat = fmi[f] || 0;
+    if (mat !== currentMat) {
+      if (currentMat !== -1) {
+        groups.push({ start: groupStartFace * 3, count: (f - groupStartFace) * 3, materialIndex: currentMat });
+      }
+      currentMat = mat;
+      groupStartFace = f;
+    }
+  }
+  if (currentMat !== -1) {
+    groups.push({ start: groupStartFace * 3, count: (triCount - groupStartFace) * 3, materialIndex: currentMat });
+  }
+  geo.groups = groups;
+}
 
 function syncPointsCloud() {
   if (!state.activeMesh) return;
