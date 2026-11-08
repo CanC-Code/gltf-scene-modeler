@@ -744,6 +744,25 @@ export function initUI(state, viewGizmo) {
     };
   }
 
+  // GLOBAL_SETTINGS_DELEGATION — bulletproof fallback for settings button
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest && e.target.closest('#settingsBtn');
+    if (target) {
+      const modal = document.getElementById('settings-modal');
+      if (modal) modal.style.display = 'flex';
+      else console.warn('[settings] modal not found');
+    }
+    const close = e.target.closest && e.target.closest('#close-settings');
+    if (close) {
+      const modal = document.getElementById('settings-modal');
+      if (modal) modal.style.display = 'none';
+    }
+    // Click outside modal content closes it
+    if (e.target.id === 'settings-modal') {
+      e.target.style.display = 'none';
+    }
+  });
+
   // Sync UI when a new object is selected
   window.addEventListener('objectSelected', (e) => updateMaterialUI(e.detail));
   // Also sync on load
