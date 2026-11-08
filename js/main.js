@@ -1453,7 +1453,12 @@ const state = {
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
 
   saveProject() {
-    const data = { objects: [] };
+    const data = {
+      objects: [],
+      keyframes: this.keyframes,
+      animationFPS: this.animationFPS,
+      loopAnim: this.loopAnim
+    };
     this.objects.forEach(obj => {
       const o = {
         isSkinned: !!obj.isSkinnedMesh,
@@ -1463,6 +1468,9 @@ const state = {
         color: '#' + obj.material.color.getHexString(),
         roughness: obj.material.roughness,
         metalness: obj.material.metalness,
+        opacity: obj.material.opacity,
+        transparent: obj.material.transparent,
+        flatShading: obj.material.flatShading,
         geometry: {}
       };
       
@@ -1480,7 +1488,10 @@ const state = {
       }
       if (obj.isSkinnedMesh && obj.skeleton) {
         o.bones = obj.skeleton.bones.map(b => ({
-          name: b.name, pos: b.position.toArray(), quat: b.quaternion.toArray()
+          name: b.name,
+          pos: b.position.toArray(),
+          quat: b.quaternion.toArray(),
+          roll: b.rotation.y || 0
         }));
       }
       data.objects.push(o);
@@ -1504,6 +1515,9 @@ const state = {
         const data = JSON.parse(event.target.result);
         
         // Clear current scene
+        if (this.ikEnabled) this.disableIK();
+        if (this.ikTarget) { scene.remove(this.ikTarget); this.ikTarget = null; }
+        if (this.mixer) { this.mixer.stopAllAction(); this.mixer = null; }
         this.objects.forEach(o => scene.remove(o));
         this.objects = [];
         this.activeMesh = null;
@@ -1511,6 +1525,9 @@ const state = {
         if (this.skeletonHelper) { scene.remove(this.skeletonHelper); this.skeletonHelper = null; }
         if (this.boneProxies) { scene.remove(this.boneProxies); this.boneProxies = null; }
         this.currentBones = null;
+        this.keyframes = [];
+        this.animationFPS = 24;
+        this.loopAnim = false;
         
         data.objects.forEach(o => {
           const geo = new THREE.BufferGeometry();
@@ -1522,7 +1539,14 @@ const state = {
             }
           }
           
-          const mat = new THREE.MeshStandardMaterial({ color: o.color, roughness: o.roughness, metalness: o.metalness });
+          const mat = new THREE.MeshStandardMaterial({
+            color: o.color,
+            roughness: o.roughness,
+            metalness: o.metalness,
+            opacity: o.opacity !== undefined ? o.opacity : 1.0,
+            transparent: o.transparent || false,
+            flatShading: o.flatShading || false
+          });
           let mesh;
           
           if (o.isSkinned && o.bones) {
@@ -1532,6 +1556,7 @@ const state = {
               bone.name = b.name;
               bone.position.fromArray(b.pos);
               bone.quaternion.fromArray(b.quat);
+              bone.rotation.y = b.roll || 0;
               return bone;
             });
             for (let i = 0; i < bones.length - 1; i++) bones[i].add(bones[i+1]);
@@ -1570,6 +1595,12 @@ const state = {
           this.addObject(mesh);
         });
         
+        // Restore animation data
+        if (data.keyframes) this.keyframes = data.keyframes;
+        if (data.animationFPS) this.animationFPS = data.animationFPS;
+        if (data.loopAnim !== undefined) this.loopAnim = data.loopAnim;
+        this._refreshTimeline();
+
         if (window.showToast) window.showToast('Project loaded!');
       } catch (err) {
         console.error(err);
@@ -1893,7 +1924,7 @@ const state = {
         URL.revokeObjectURL(a.href);
       },
       (err) => { console.error("Export failed:", err); },
-      { binary: isBinary }
+      options
     );
   },
 
