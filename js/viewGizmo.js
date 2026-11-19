@@ -68,7 +68,7 @@ export class ViewGizmo {
     Object.assign(this.renderer.domElement.style, {
       position: "fixed", top: "12px", right: "12px",
       width: `${this.size}px`, height: `${this.size}px`,
-      cursor: "grab", zIndex: 30,
+      cursor: "grab", zIndex: 30, touchAction: "none",
       border: "2px solid #4a90e2", borderRadius: "8px"
     });
     document.body.appendChild(this.renderer.domElement);
@@ -76,7 +76,10 @@ export class ViewGizmo {
     // Interaction
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
+    this._offset = new THREE.Vector3();
+    this._spherical = new THREE.Spherical();
     this.dragging = false;
+    this.activePointerId = null;
     this.prev = new THREE.Vector2();
     this.dragStart = new THREE.Vector2();
     this.clickedNormal = null;
@@ -84,6 +87,8 @@ export class ViewGizmo {
     this.renderer.domElement.addEventListener("pointerdown", e => {
       e.stopPropagation();
       this.dragging = true;
+      this.activePointerId = e.pointerId;
+      this.renderer.domElement.setPointerCapture?.(e.pointerId);
       this.prev.set(e.clientX, e.clientY);
       this.dragStart.set(e.clientX, e.clientY);
       this.renderer.domElement.style.cursor = "grabbing";
@@ -112,6 +117,11 @@ export class ViewGizmo {
     });
 
     window.addEventListener("pointerup", e => {
+      if (!this.dragging) return;
+      if (this.activePointerId !== null) {
+        this.renderer.domElement.releasePointerCapture?.(this.activePointerId);
+        this.activePointerId = null;
+      }
       this.dragging = false;
       this.renderer.domElement.style.cursor = "grab";
       const dist = this.dragStart.distanceTo(new THREE.Vector2(e.clientX, e.clientY));
@@ -123,21 +133,24 @@ export class ViewGizmo {
 
     window.addEventListener("pointermove", e => {
       if (!this.dragging) return;
+      if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
       e.stopPropagation();
-      const dx = (e.clientX - this.prev.x) * 0.01;
-      const dy = (e.clientY - this.prev.y) * 0.01;
+      const dx = (e.clientX - this.prev.x) * 0.02;
+      const dy = (e.clientY - this.prev.y) * 0.02;
 
       if (this.mainCamera && this.controls) {
-        const offset = new THREE.Vector3();
-        offset.copy(this.mainCamera.position).sub(this.controls.target);
-        const spherical = new THREE.Spherical();
-        spherical.setFromVector3(offset);
-        spherical.theta -= dx;
-        spherical.phi -= dy;
-        spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
-        offset.setFromSpherical(spherical);
-        this.mainCamera.position.copy(this.controls.target).add(offset);
+        this._offset.copy(this.mainCamera.position).sub(this.controls.target);
+        this._spherical.setFromVector3(this._offset);
+        this._spherical.theta -= dx;
+        this._spherical.phi -= dy;
+        this._spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, this._spherical.phi));
+        this._offset.setFromSpherical(this._spherical);
+        this.mainCamera.position.copy(this.controls.target).add(this._offset);
         this.mainCamera.lookAt(this.controls.target);
+        const prevDamping = this.controls.enableDamping;
+        this.controls.enableDamping = false;
+        this.controls.update();
+        this.controls.enableDamping = prevDamping;
       }
       this.prev.set(e.clientX, e.clientY);
     });
@@ -146,7 +159,7 @@ export class ViewGizmo {
   snapToView(normal) {
     if (!this.mainCamera || !this.controls) return;
     const dist = this.mainCamera.position.distanceTo(this.controls.target);
-    const newPos = this.controls.target.clone().add(normal.multiplyScalar(dist));
+    const newPos = this.controls.target.clone().add(normal.clone().multiplyScalar(dist));
     this.mainCamera.position.copy(newPos);
     this.mainCamera.lookAt(this.controls.target);
     this.controls.update();
