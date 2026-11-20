@@ -445,12 +445,7 @@ function undo() {
     state.activeMesh.geometry.computeBoundingSphere();
   }
   syncWireframeIfVisible(state.activeMesh);
-  if (state.activeMesh && state.activeMesh.geometry) {
-    state.activeMesh.geometry.computeBoundingBox();
-    state.activeMesh.geometry.computeBoundingSphere();
-  }
-  syncWireframeIfVisible(state.activeMesh);
-  if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
+  if (state.brush) { state.brush.updateMesh(state.activeMesh); if (typeof state.brush.rebuildTopologyCaches === 'function') state.brush.rebuildTopologyCaches(); else state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   if (state.mode === 'edit') syncPointsCloud();
   state.syncUI();
@@ -505,7 +500,7 @@ function redo() {
     state.keyframes = next.keyframesSnap;
   }
 
-  if (state.brush) { state.brush.updateMesh(state.activeMesh); state.brush.rebuildGrid(); }
+  if (state.brush) { state.brush.updateMesh(state.activeMesh); if (typeof state.brush.rebuildTopologyCaches === 'function') state.brush.rebuildTopologyCaches(); else state.brush.rebuildGrid(); }
   if (viewGizmo) viewGizmo.updateMesh(state.activeMesh);
   if (state.mode === 'edit') syncPointsCloud();
   state.syncUI();
