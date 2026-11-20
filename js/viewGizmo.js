@@ -167,13 +167,14 @@ export class ViewGizmo {
   }
 
   updateMesh(mesh) {
+    this._lastSourceMesh = mesh || null;
     if (this.meshClone) {
       this.cube.remove(this.meshClone);
       this.meshClone.geometry.dispose();
       this.meshClone.material.dispose();
       this.meshClone = null;
     }
-    if (!mesh) return;
+    if (!mesh || !mesh.geometry) return;
 
     // Clone only the geometry so we don't inherit object position/rotation
     this.meshClone = new THREE.Mesh(mesh.geometry.clone());
@@ -191,17 +192,109 @@ export class ViewGizmo {
     const maxDim = Math.max(size.x, size.y, size.z);
     if (maxDim > 0) this.meshClone.scale.setScalar(1.4 / maxDim);
 
-    const previewColor = mesh.material ? mesh.material.color.getHex() : 0x88ccff;
+    const mat = mesh.material;
+    const previewColor = mat && mat.color ? mat.color.getHex() : 0x88ccff;
+    const previewMap = mat && mat.map ? mat.map : null;
+    if (previewMap) previewMap.needsUpdate = true;
     this.meshClone.material = new THREE.MeshStandardMaterial({
       color: previewColor,
-      roughness: mesh.material ? mesh.material.roughness : 0.4,
-      metalness: mesh.material ? mesh.material.metalness : 0.1,
+      map: previewMap,
+      roughness: mat && mat.roughness !== undefined ? mat.roughness : 0.4,
+      metalness: mat && mat.metalness !== undefined ? mat.metalness : 0.1,
       transparent: false,
       vertexColors: !!(mesh.geometry.attributes && mesh.geometry.attributes.color)
     });
+    this.meshClone.material.needsUpdate = true;
 
     this.meshClone.raycast = () => {}; // Prevent clone from blocking raycasts
     this.cube.add(this.meshClone);
+  }
+
+  syncMesh(mesh) {
+    if (!mesh || !mesh.geometry) {
+      this.updateMesh(null);
+      return;
+    }
+    const currentMap = mesh.material ? mesh.material.map || null : null;
+    const srcPos = mesh.geometry.attributes.position;
+    const clonePos = this.meshClone && this.meshClone.geometry.attributes.position;
+
+    if (
+      !this.meshClone ||
+      this._lastSourceMesh !== mesh ||
+      !srcPos ||
+      !clonePos ||
+      srcPos.count !== clonePos.count ||
+      (this.meshClone.material.map || null) !== currentMap
+    ) {
+      this.updateMesh(mesh);
+      return;
+    }
+
+    const _v = new THREE.Vector3();
+    const _min = new THREE.Vector3(Infinity, Infinity, Infinity);
+    const _max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+    for (let i = 0; i < srcPos.count; i++) {
+      _v.fromBufferAttribute(srcPos, i);
+      if (_v.x < _min.x) _min.x = _v.x;
+      if (_v.y < _min.y) _min.y = _v.y;
+      if (_v.z < _min.z) _min.z = _v.z;
+      if (_v.x > _max.x) _max.x = _v.x;
+      if (_v.y > _max.y) _max.y = _v.y;
+      if (_v.z > _max.z) _max.z = _v.z;
+    }
+    const cx = (_min.x + _max.x) * 0.5;
+    const cy = (_min.y + _max.y) * 0.5;
+    const cz = (_min.z + _max.z) * 0.5;
+    for (let i = 0; i < srcPos.count; i++) {
+      clonePos.setXYZ(
+        i,
+        srcPos.getX(i) - cx,
+        srcPos.getY(i) - cy,
+        srcPos.getZ(i) - cz
+      );
+    }
+    clonePos.needsUpdate = true;
+    this.meshClone.geometry.computeBoundingBox();
+    this.meshClone.geometry.computeBoundingSphere();
+    const maxDim = Math.max(_max.x - _min.x, _max.y - _min.y, _max.z - _min.z);
+    if (maxDim > 0) this.meshClone.scale.setScalar(1.4 / maxDim);
+
+    const srcNorm = mesh.geometry.attributes.normal;
+    const cloneNorm = this.meshClone.geometry.attributes.normal;
+    if (srcNorm && cloneNorm && srcNorm.count === cloneNorm.count) {
+      cloneNorm.array.set(srcNorm.array);
+      cloneNorm.needsUpdate = true;
+    }
+
+    const srcCol = mesh.geometry.attributes.color;
+    if (srcCol) {
+      let cloneCol = this.meshClone.geometry.attributes.color;
+      let matNeedsUpdate = false;
+      if (!cloneCol || cloneCol.count !== srcCol.count) {
+        cloneCol = new THREE.BufferAttribute(new Float32Array(srcCol.array), srcCol.itemSize);
+        this.meshClone.geometry.setAttribute("color", cloneCol);
+        matNeedsUpdate = true;
+      } else {
+        cloneCol.array.set(srcCol.array);
+        cloneCol.needsUpdate = true;
+      }
+      if (!this.meshClone.material.vertexColors) {
+        this.meshClone.material.vertexColors = true;
+        matNeedsUpdate = true;
+      }
+      if (this.meshClone.material.color && this.meshClone.material.color.getHex() !== 0xffffff) {
+        this.meshClone.material.color.setHex(0xffffff);
+        matNeedsUpdate = true;
+      }
+      if (matNeedsUpdate) {
+        this.meshClone.material.needsUpdate = true;
+      }
+    }
+
+    if (currentMap) {
+      currentMap.needsUpdate = true;
+    }
   }
 
   update() {

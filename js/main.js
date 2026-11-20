@@ -2328,8 +2328,9 @@ if (actionArea) {
     isActionActive = false; 
     if(state.brush) state.brush.rebuildGrid(); 
     if (state.mode === 'weight_paint') state.updateWeightVisuals();
+    if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) viewGizmo.syncMesh(state.activeMesh);
   });
-  actionArea.addEventListener("pointercancel", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid(); });
+  actionArea.addEventListener("pointercancel", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid();  if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) viewGizmo.syncMesh(state.activeMesh); });
 }
 
 function handleAction() {
@@ -2357,6 +2358,9 @@ function handleAction() {
     }
   }
   else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
+  if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) {
+    viewGizmo.syncMesh(state.activeMesh);
+  }
 }
 
 function updateEditGizmo() {
