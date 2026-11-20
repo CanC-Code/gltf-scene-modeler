@@ -24,7 +24,23 @@ export class SculptBrush {
 
   updateMesh(mesh) { this.setMesh(mesh); }
 
-  growMeshInScope(localPoint, sym = { x: false, y: false, z: false }) {
+  syncGeometryArrays() {
+    if (!this.geometry) return;
+    this.position = this.geometry.attributes.position;
+    this.normal = this.geometry.attributes.normal;
+  }
+
+  rebuildTopologyCaches() {
+    if (!this.geometry) return;
+    this.position = this.geometry.attributes.position;
+    this.normal = this.geometry.attributes.normal;
+    if (this.spatialHash) this.spatialHash.build(this.geometry);
+    else this.spatialHash = new SpatialHash(this.geometry, 0.5);
+    this.adjacencyMap = buildAdjacencyMap(this.geometry);
+  }
+
+
+  growMeshInScope(localPoint, sym = { x: false, y: false, z: false }, deferRebuild = false) {
     if (!this.dynamicGrowth || !this.geometry || !this.geometry.index) return false;
     if (this.tool === "paint" || this.tool === "weight") return false;
 
@@ -43,12 +59,13 @@ export class SculptBrush {
     const res = splitLongEdgesScoped(this.geometry, centers, this.radius, {
       scopeMultiplier: 1.15,
       edgeRatio: 0.45,
-      maxSplits: 48,
+      maxSplits: 36,
       faceMaterialIndices: faceMats,
+      deferRebuild,
     });
 
-    if (res.changed && this.mesh) {
-      this.setMesh(this.mesh);
+    if (res.changed && this.geometry) {
+      this.rebuildTopologyCaches();
     }
     return res.changed;
   }
@@ -60,113 +77,187 @@ export class SculptBrush {
   setPaintColor(color) { this.paintColor.copy(color); }
   setActiveBone(index) { this.activeBoneIndex = index; }
 
-  apply(localPoint, sym = { x: false, y: false }) {
+  apply(localPoint, sym = { x: false, y: false, z: false }) {
     const pos = this.position;
     const norm = this.normal;
+    if (!pos || !norm) return;
+
+    const sx = Boolean(sym.x);
+    const sy = Boolean(sym.y);
+    const sz = Boolean(sym.z);
+
     const baseCenters = [localPoint.clone()];
-    if (sym.x) baseCenters.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
-    if (sym.y) {
+    if (sx) baseCenters.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sy) {
       const yBatch = baseCenters.map(pt => new THREE.Vector3(pt.x, -pt.y, pt.z));
       baseCenters.push(...yBatch);
     }
-    if (sym.z) {
+    if (sz) {
       const zBatch = baseCenters.map(pt => new THREE.Vector3(pt.x, pt.y, -pt.z));
       baseCenters.push(...zBatch);
     }
-    const centers = baseCenters;
+
+    let primaryGrabDelta = null;
+    if (this.tool === "grab") {
+      if (!this.lastGrabPoint) {
+        this.lastGrabPoint = localPoint.clone();
+      }
+      primaryGrabDelta = localPoint.clone().sub(this.lastGrabPoint);
+    }
 
     const affectedVertices = new Set();
+    const neighborSet = new Set();
     const v = new THREE.Vector3();
     const n = new THREE.Vector3();
     const avgNormal = new THREE.Vector3();
     const avgPos = new THREE.Vector3();
+    const radiusSafe = Math.max(this.radius || 0.2, 1e-4);
+    const idxArray = this.geometry.index ? this.geometry.index.array : null;
 
-    for (const c of centers) {
-      const region = this.spatialHash.query(c, this.radius);
+    for (let cIdx = 0; cIdx < baseCenters.length; cIdx++) {
+      const c = baseCenters[cIdx];
+      const region = this.spatialHash.query(c, radiusSafe);
       if (region.length === 0) continue;
-      avgNormal.set(0,0,0);
-      for (const i of region) {
+
+      avgNormal.set(0, 0, 0);
+      for (let r = 0; r < region.length; r++) {
+        const i = region[r];
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-        if (v.distanceTo(c) <= this.radius) {
+        if (v.distanceTo(c) <= radiusSafe) {
           n.set(norm.getX(i), norm.getY(i), norm.getZ(i));
           avgNormal.add(n);
         }
       }
-      if (avgNormal.lengthSq() > 0) avgNormal.normalize();
+      if (avgNormal.lengthSq() > 1e-10) {
+        avgNormal.normalize();
+      } else {
+        avgNormal.set(0, 1, 0);
+      }
 
-      for (const i of region) {
+      // Mirror grab delta accurately for each symmetric center
+      let gx = 0, gy = 0, gz = 0;
+      if (this.tool === "grab" && primaryGrabDelta) {
+        let signX = 1, signY = 1, signZ = 1;
+        if (sx && Math.abs(c.x + localPoint.x) < 1e-5 && localPoint.x !== 0) signX = -1;
+        if (sy && Math.abs(c.y + localPoint.y) < 1e-5 && localPoint.y !== 0) signY = -1;
+        if (sz && Math.abs(c.z + localPoint.z) < 1e-5 && localPoint.z !== 0) signZ = -1;
+        gx = primaryGrabDelta.x * signX;
+        gy = primaryGrabDelta.y * signY;
+        gz = primaryGrabDelta.z * signZ;
+      }
+
+      for (let r = 0; r < region.length; r++) {
+        const i = region[r];
         v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
         const dist = v.distanceTo(c);
-        if (dist > this.radius) continue;
+        if (dist > radiusSafe) continue;
+
         affectedVertices.add(i);
-        const falloff = Math.pow(1 - dist / this.radius, 2);
-        const influence = falloff * this.strength;
+        const t = 1 - dist / radiusSafe;
+        const falloff = t * t;
+        const influence = THREE.MathUtils.clamp(falloff * this.strength, 0, 1);
 
         let ox = 0, oy = 0, oz = 0;
         switch (this.tool) {
-          case "inflate": ox = avgNormal.x * influence; oy = avgNormal.y * influence; oz = avgNormal.z * influence; break;
-          case "deflate": ox = -avgNormal.x * influence; oy = -avgNormal.y * influence; oz = -avgNormal.z * influence; break;
+          case "inflate":
+            ox = avgNormal.x * influence * radiusSafe * 0.25;
+            oy = avgNormal.y * influence * radiusSafe * 0.25;
+            oz = avgNormal.z * influence * radiusSafe * 0.25;
+            break;
+          case "deflate":
+            ox = -avgNormal.x * influence * radiusSafe * 0.25;
+            oy = -avgNormal.y * influence * radiusSafe * 0.25;
+            oz = -avgNormal.z * influence * radiusSafe * 0.25;
+            break;
           case "grab":
-            if (!this.lastGrabPoint) this.lastGrabPoint = c.clone();
-            const grabDelta = c.clone().sub(this.lastGrabPoint);
-            ox = grabDelta.x * influence;
-            oy = grabDelta.y * influence;
-            oz = grabDelta.z * influence;
+            ox = gx * influence;
+            oy = gy * influence;
+            oz = gz * influence;
             break;
-          case "clay":
-            // Build up material + flatten towards plane
-            const distToPlaneClay = (v.x - c.x) * avgNormal.x + (v.y - c.y) * avgNormal.y + (v.z - c.z) * avgNormal.z;
-            ox = avgNormal.x * influence * 1.5 - avgNormal.x * distToPlaneClay * influence * 0.5;
-            oy = avgNormal.y * influence * 1.5 - avgNormal.y * distToPlaneClay * influence * 0.5;
-            oz = avgNormal.z * influence * 1.5 - avgNormal.z * distToPlaneClay * influence * 0.5;
+          case "clay": {
+            const distToPlaneClay =
+              (v.x - c.x) * avgNormal.x +
+              (v.y - c.y) * avgNormal.y +
+              (v.z - c.z) * avgNormal.z;
+            const buildAmt = influence * radiusSafe * 0.22;
+            const planePull = THREE.MathUtils.clamp(influence * 0.5, 0, 0.85);
+            ox = avgNormal.x * buildAmt - avgNormal.x * distToPlaneClay * planePull;
+            oy = avgNormal.y * buildAmt - avgNormal.y * distToPlaneClay * planePull;
+            oz = avgNormal.z * buildAmt - avgNormal.z * distToPlaneClay * planePull;
             break;
-          case "crease":
-            // Pinch inward + push into surface
-            ox = (c.x - v.x) * influence * 0.5 - avgNormal.x * influence * 1.5;
-            oy = (c.y - v.y) * influence * 0.5 - avgNormal.y * influence * 1.5;
-            oz = (c.z - v.z) * influence * 0.5 - avgNormal.z * influence * 1.5;
+          }
+          case "crease": {
+            const pinchK = THREE.MathUtils.clamp(influence * 0.5, 0, 0.75);
+            const pushIn = influence * radiusSafe * 0.24;
+            ox = (c.x - v.x) * pinchK - avgNormal.x * pushIn;
+            oy = (c.y - v.y) * pinchK - avgNormal.y * pushIn;
+            oz = (c.z - v.z) * pinchK - avgNormal.z * pushIn;
             break;
-          case "smooth":
-            avgPos.set(0,0,0);
-            const neighbors = new Set();
-            if (this.adjacencyMap[i] && this.geometry.index) {
-              this.adjacencyMap[i].forEach(faceIndex => {
+          }
+          case "smooth": {
+            const faceList = this.adjacencyMap[i];
+            if (faceList && idxArray && faceList.length > 0) {
+              neighborSet.clear();
+              for (let f = 0; f < faceList.length; f++) {
+                const baseTri = faceList[f] * 3;
                 for (let j = 0; j < 3; j++) {
-                  const neighborIdx = this.geometry.index.array[faceIndex * 3 + j];
-                  if (neighborIdx !== i) neighbors.add(neighborIdx);
+                  const nIdx = idxArray[baseTri + j];
+                  if (nIdx !== i) neighborSet.add(nIdx);
                 }
-              });
-            }
-            if (neighbors.size > 0) {
-              neighbors.forEach(nIdx => {
-                avgPos.x += pos.getX(nIdx);
-                avgPos.y += pos.getY(nIdx);
-                avgPos.z += pos.getZ(nIdx);
-              });
-              avgPos.divideScalar(neighbors.size);
-              // No artificial clamping — falloff handles the strength
-              ox = (avgPos.x - v.x) * influence;
-              oy = (avgPos.y - v.y) * influence;
-              oz = (avgPos.z - v.z) * influence;
+              }
+              if (neighborSet.size > 0) {
+                avgPos.set(0, 0, 0);
+                neighborSet.forEach(nIdx => {
+                  avgPos.x += pos.getX(nIdx);
+                  avgPos.y += pos.getY(nIdx);
+                  avgPos.z += pos.getZ(nIdx);
+                });
+                avgPos.divideScalar(neighborSet.size);
+                const smoothK = THREE.MathUtils.clamp(influence, 0, 0.9);
+                ox = (avgPos.x - v.x) * smoothK;
+                oy = (avgPos.y - v.y) * smoothK;
+                oz = (avgPos.z - v.z) * smoothK;
+              }
             }
             break;
-          case "flatten": 
-            // Distance from the plane defined by the brush center (c) and avgNormal
-            const distToPlane = (v.x - c.x) * avgNormal.x + (v.y - c.y) * avgNormal.y + (v.z - c.z) * avgNormal.z;
-            ox = -avgNormal.x * distToPlane * influence; 
-            oy = -avgNormal.y * distToPlane * influence; 
-            oz = -avgNormal.z * distToPlane * influence; 
+          }
+          case "flatten": {
+            const distToPlane =
+              (v.x - c.x) * avgNormal.x +
+              (v.y - c.y) * avgNormal.y +
+              (v.z - c.z) * avgNormal.z;
+            const flatK = THREE.MathUtils.clamp(influence, 0, 0.95);
+            ox = -avgNormal.x * distToPlane * flatK;
+            oy = -avgNormal.y * distToPlane * flatK;
+            oz = -avgNormal.z * distToPlane * flatK;
             break;
-          case "pinch": ox = -(v.x - c.x) * influence; oy = -(v.y - c.y) * influence; oz = -(v.z - c.z) * influence; break;
+          }
+          case "pinch": {
+            const pinchFactor = THREE.MathUtils.clamp(influence, 0, 0.85);
+            ox = -(v.x - c.x) * pinchFactor;
+            oy = -(v.y - c.y) * pinchFactor;
+            oz = -(v.z - c.z) * pinchFactor;
+            break;
+          }
         }
-        pos.setXYZ(i, v.x + ox, v.y + oy, v.z + oz);
+        const nxPos = v.x + ox;
+        const nyPos = v.y + oy;
+        const nzPos = v.z + oz;
+        if (Number.isFinite(nxPos) && Number.isFinite(nyPos) && Number.isFinite(nzPos)) {
+          pos.setXYZ(i, nxPos, nyPos, nzPos);
+        }
       }
     }
-    pos.needsUpdate = true;
-    if (affectedVertices.size > 0) updateNormals(this.geometry, Array.from(affectedVertices), this.adjacencyMap);
-    
+
+    if (affectedVertices.size > 0) {
+      pos.needsUpdate = true;
+      updateNormals(this.geometry, Array.from(affectedVertices), this.adjacencyMap);
+    }
+
     // Update grab point for next frame
-    if (this.tool === 'grab') this.lastGrabPoint = localPoint.clone();
+    if (this.tool === "grab") {
+      this.lastGrabPoint = localPoint.clone();
+    }
   }
 
   paint(localPoint, sym = { x: false, y: false }) {
