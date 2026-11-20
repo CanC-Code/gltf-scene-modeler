@@ -107,6 +107,7 @@ export class SculptBrush {
 
     const affectedVertices = new Set();
     const neighborSet = new Set();
+      const visitedThisApply = new Set();
     const v = new THREE.Vector3();
     const n = new THREE.Vector3();
     const avgNormal = new THREE.Vector3();
@@ -152,6 +153,8 @@ export class SculptBrush {
         const dist = v.distanceTo(c);
         if (dist > radiusSafe) continue;
 
+      if (visitedThisApply.has(i)) continue;
+      visitedThisApply.add(i);
         affectedVertices.add(i);
         const t = 1 - dist / radiusSafe;
         const falloff = t * t;

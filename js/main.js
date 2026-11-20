@@ -72,6 +72,94 @@ cursorGroup.add(new THREE.LineSegments(crossGeo, crossMat));
 cursorGroup.visible = false;
 scene.add(cursorGroup);
 
+const mirrorCursorGroups = [];
+const mirrorCursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.3, depthTest: true, depthWrite: false });
+const mirrorDotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.75, depthTest: true, depthWrite: false });
+const mirrorCrossMat = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: true, depthWrite: false, transparent: true, opacity: 0.38 });
+for (let m = 0; m < 7; m++) {
+  const mg = new THREE.Group();
+  mg.add(new THREE.Mesh(new THREE.RingGeometry(0.95, 1.0, 32), mirrorCursorMat));
+  mg.add(new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), mirrorDotMat));
+  mg.add(new THREE.LineSegments(crossGeo, mirrorCrossMat));
+  mg.visible = false;
+  scene.add(mg);
+  mirrorCursorGroups.push(mg);
+}
+
+const hideMirrorCursors = () => {
+  for (let m = 0; m < mirrorCursorGroups.length; m++) {
+    mirrorCursorGroups[m].visible = false;
+  }
+};
+
+const _mirrorLocalPt = new THREE.Vector3();
+const _mirrorLocalNorm = new THREE.Vector3();
+const _mirrorWorldPt = new THREE.Vector3();
+const _mirrorWorldNorm = new THREE.Vector3();
+const _mirrorLookTarget = new THREE.Vector3();
+const _mirrorNormalMat = new THREE.Matrix3();
+
+const updateMirrorCursors = (worldPoint, worldNormal, radius, mesh) => {
+  const sx = Boolean(state.symmetryX);
+  const sy = Boolean(state.symmetryY);
+  const sz = Boolean(state.symmetryZ);
+  if (!mesh || (!sx && !sy && !sz)) {
+    hideMirrorCursors();
+    return;
+  }
+
+  mesh.updateWorldMatrix(true, false);
+  _mirrorLocalPt.copy(worldPoint);
+  mesh.worldToLocal(_mirrorLocalPt);
+
+  _mirrorNormalMat.getNormalMatrix(mesh.matrixWorld);
+  _mirrorLocalNorm.copy(worldNormal).applyMatrix3(_mirrorNormalMat).normalize();
+
+  const mirroredLocals = [];
+  if (sx) {
+    mirroredLocals.push({
+      pt: new THREE.Vector3(-_mirrorLocalPt.x, _mirrorLocalPt.y, _mirrorLocalPt.z),
+      norm: new THREE.Vector3(-_mirrorLocalNorm.x, _mirrorLocalNorm.y, _mirrorLocalNorm.z),
+    });
+  }
+  if (sy) {
+    const base = [{ pt: _mirrorLocalPt.clone(), norm: _mirrorLocalNorm.clone() }, ...mirroredLocals];
+    for (const item of base) {
+      mirroredLocals.push({
+        pt: new THREE.Vector3(item.pt.x, -item.pt.y, item.pt.z),
+        norm: new THREE.Vector3(item.norm.x, -item.norm.y, item.norm.z),
+      });
+    }
+  }
+  if (sz) {
+    const base = [{ pt: _mirrorLocalPt.clone(), norm: _mirrorLocalNorm.clone() }, ...mirroredLocals];
+    for (const item of base) {
+      mirroredLocals.push({
+        pt: new THREE.Vector3(item.pt.x, item.pt.y, -item.pt.z),
+        norm: new THREE.Vector3(item.norm.x, item.norm.y, -item.norm.z),
+      });
+    }
+  }
+
+  for (let i = 0; i < mirrorCursorGroups.length; i++) {
+    const mg = mirrorCursorGroups[i];
+    if (i >= mirroredLocals.length) {
+      mg.visible = false;
+      continue;
+    }
+    const entry = mirroredLocals[i];
+    _mirrorWorldPt.copy(entry.pt).applyMatrix4(mesh.matrixWorld);
+    _mirrorWorldNorm.copy(entry.norm).transformDirection(mesh.matrixWorld).normalize();
+    _mirrorLookTarget.copy(_mirrorWorldPt).addScaledVector(_mirrorWorldNorm, 1);
+
+    mg.visible = true;
+    mg.position.copy(_mirrorWorldPt).addScaledVector(_mirrorWorldNorm, 0.02);
+    mg.lookAt(_mirrorLookTarget);
+    mg.scale.setScalar(radius);
+  }
+};
+
+
 const transform = new TransformControls(camera, renderer.domElement);
 transform.setMode('translate');
 transform.setSpace('local');
@@ -816,6 +904,7 @@ const state = {
     this.paintColor.set(hex);
     if (this.brush) this.brush.setPaintColor(this.paintColor);
     cursorMat.color.set(hex); dotMat.color.set(hex); crossMat.color.set(hex);
+    mirrorCursorMat.color.set(hex); mirrorDotMat.color.set(hex); mirrorCrossMat.color.set(hex);
     const btn = document.getElementById("color-picker-btn");
     if (btn) btn.style.background = hex;
   },
@@ -1651,7 +1740,8 @@ const state = {
     action.play();
   },
 
-  setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r); },
+  setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r);
+    for (let m = 0; m < mirrorCursorGroups.length; m++) { if (mirrorCursorGroups[m].visible) mirrorCursorGroups[m].scale.setScalar(r); } },
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },
 
   saveProject() {
@@ -2408,10 +2498,12 @@ if (trackpadSurface) {
       cursorGroup.position.copy(smoothedHitPoint).addScaledVector(smoothedNormal, 0.02);
       cursorGroup.lookAt(smoothedHitPoint.clone().addScaledVector(smoothedNormal, 1));
       cursorGroup.scale.setScalar(state.brush.radius);
+      updateMirrorCursors(smoothedHitPoint, smoothedNormal, state.brush.radius, state.activeMesh);
     } else {
       state.lastHit = null;
       hasSmoothedHit = false;
       cursorGroup.visible = false;
+      hideMirrorCursors();
     }
   });
 }

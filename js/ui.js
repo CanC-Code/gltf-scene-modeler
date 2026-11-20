@@ -492,6 +492,14 @@ export function initUI(state, viewGizmo) {
     }
     closeAllSculptPopups();
   });
+    window.addEventListener("resize", () => {
+      if (sizePop && sizePop.classList.contains("show") && sizeBtn) {
+        positionPopupUpward(sizePop, sizeBtn);
+      }
+      if (strengthPop && strengthPop.classList.contains("show") && strengthBtn) {
+        positionPopupUpward(strengthPop, strengthBtn);
+      }
+    });
 
   if (!window.__sculptSyncUIWrapped) {
     window.__sculptSyncUIWrapped = true;
