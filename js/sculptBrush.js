@@ -1,5 +1,5 @@
 import * as THREE from "../three/three.module.js";
-import { updateNormals, SpatialHash, buildAdjacencyMap } from "./topology.js";
+import { updateNormals, SpatialHash, buildAdjacencyMap, splitLongEdgesScoped } from "./topology.js?v=23";
 
 export class SculptBrush {
   constructor(mesh) {
@@ -10,6 +10,7 @@ export class SculptBrush {
     this.paintColor = new THREE.Color("#ff0000");
     this.activeBoneIndex = 0;
     this.lastGrabPoint = null; // Required for Grab tool
+    this.dynamicGrowth = true;
   }
 
   setMesh(mesh) {
@@ -22,6 +23,36 @@ export class SculptBrush {
   }
 
   updateMesh(mesh) { this.setMesh(mesh); }
+
+  growMeshInScope(localPoint, sym = { x: false, y: false, z: false }) {
+    if (!this.dynamicGrowth || !this.geometry || !this.geometry.index) return false;
+    if (this.tool === "paint" || this.tool === "weight") return false;
+
+    const centers = [localPoint.clone()];
+    if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.y) {
+      const yBatch = centers.map(pt => new THREE.Vector3(pt.x, -pt.y, pt.z));
+      centers.push(...yBatch);
+    }
+    if (sym.z) {
+      const zBatch = centers.map(pt => new THREE.Vector3(pt.x, pt.y, -pt.z));
+      centers.push(...zBatch);
+    }
+
+    const faceMats = this.mesh && this.mesh.userData ? this.mesh.userData.faceMaterialIndices : null;
+    const res = splitLongEdgesScoped(this.geometry, centers, this.radius, {
+      scopeMultiplier: 1.15,
+      edgeRatio: 0.45,
+      maxSplits: 48,
+      faceMaterialIndices: faceMats,
+    });
+
+    if (res.changed && this.mesh) {
+      this.setMesh(this.mesh);
+    }
+    return res.changed;
+  }
+
   rebuildGrid() { this.spatialHash.build(this.geometry); }
   setTool(tool) { this.tool = tool; }
   setRadius(r) { this.radius = r; }
@@ -32,10 +63,17 @@ export class SculptBrush {
   apply(localPoint, sym = { x: false, y: false }) {
     const pos = this.position;
     const norm = this.normal;
-    const centers = [localPoint.clone()];
-    if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
-    if (sym.y) centers.push(new THREE.Vector3(localPoint.x, -localPoint.y, localPoint.z));
-    if (sym.x && sym.y) centers.push(new THREE.Vector3(-localPoint.x, -localPoint.y, localPoint.z));
+    const baseCenters = [localPoint.clone()];
+    if (sym.x) baseCenters.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.y) {
+      const yBatch = baseCenters.map(pt => new THREE.Vector3(pt.x, -pt.y, pt.z));
+      baseCenters.push(...yBatch);
+    }
+    if (sym.z) {
+      const zBatch = baseCenters.map(pt => new THREE.Vector3(pt.x, pt.y, -pt.z));
+      baseCenters.push(...zBatch);
+    }
+    const centers = baseCenters;
 
     const affectedVertices = new Set();
     const v = new THREE.Vector3();

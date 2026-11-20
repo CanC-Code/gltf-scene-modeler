@@ -263,7 +263,7 @@ function captureState(mesh, stateObj) {
 
   const keyframesSnap = stateObj.keyframes ? JSON.parse(JSON.stringify(stateObj.keyframes)) : [];
 
-  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: mesh.material.color.getHex(), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, matOpacity: mesh.material.opacity, matTransparent: mesh.material.transparent, matFlatShading: mesh.material.flatShading, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone(), bonePoses, keyframesSnap };
+  return { position: pos.clone(), normal: norm ? norm.clone() : null, color: col ? col.clone() : null, skinWeight: sw ? sw.clone() : null, skinIndex: si ? si.clone() : null, canvasSnap, uv: uv ? uv.clone() : null, matColor: ((Array.isArray(mesh.material) ? mesh.material[0] : mesh.material)?.color?.getHex?.() ?? 0xffffff), matRough: mesh.material.roughness, matMetal: mesh.material.metalness, matMap: mesh.material.map || null, matNormalMap: mesh.material.normalMap || null, matOpacity: mesh.material.opacity, matTransparent: mesh.material.transparent, matFlatShading: mesh.material.flatShading, meshPos: mesh.position.clone(), meshQuat: mesh.quaternion.clone(), meshScale: mesh.scale.clone(), bonePoses, keyframesSnap };
 }
 function saveState(mesh) {
   if (!mesh) return;
@@ -440,6 +440,7 @@ const state = {
   wireframe: false,
   symmetryX: false,
   symmetryY: false,
+  symmetryZ: false,
   snapEnabled: false, // New Snap State
   scene,
   controls,
@@ -613,7 +614,7 @@ const state = {
     
     // Sync UI sliders + color swatch
     const cb = document.getElementById('mat-color-btn');
-    if (cb) cb.style.background = '#' + mat.color.getHexString();
+    if (cb && mat && mat.color) cb.style.background = '#' + mat.color.getHexString();
     const r = document.getElementById('mat-roughness');
     const mt = document.getElementById('mat-metalness');
     const a = document.getElementById('mat-alpha');
@@ -1635,7 +1636,7 @@ const state = {
         quat: obj.quaternion.toArray(),
         scale: obj.scale.toArray(),
         materialSlots: (obj.userData.materialSlots || [Array.isArray(obj.material) ? obj.material[0] : obj.material]).map(mat => ({
-          color: '#' + mat.color.getHexString(),
+          color: '#' + (mat && mat.color ? mat.color.getHexString() : 'ffffff'),
           roughness: mat.roughness,
           metalness: mat.metalness,
           opacity: mat.opacity !== undefined ? mat.opacity : 1.0,
@@ -1644,7 +1645,7 @@ const state = {
         })),
         activeSlot: obj.userData.activeSlot || 0,
         faceMaterialIndices: obj.userData.faceMaterialIndices || null,
-        color: '#' + (Array.isArray(obj.material) ? obj.material[0] : obj.material).color.getHexString(),
+        color: '#' + (((Array.isArray(obj.material) ? obj.material[0] : obj.material)?.color?.getHexString?.()) || 'ffffff'),
         roughness: (Array.isArray(obj.material) ? obj.material[0] : obj.material).roughness,
         metalness: (Array.isArray(obj.material) ? obj.material[0] : obj.material).metalness,
         opacity: (Array.isArray(obj.material) ? obj.material[0] : obj.material).opacity,
@@ -1930,7 +1931,7 @@ const state = {
     const m = document.getElementById('mat-metalness');
     const a = document.getElementById('mat-alpha');
     const f = document.getElementById('toggleFlatShading');
-    if (c) c.value = '#' + mat.color.getHexString();
+    if (c && mat && mat.color) c.value = '#' + mat.color.getHexString();
     if (r) r.value = mat.roughness;
     if (m) m.value = mat.metalness;
     if (a) a.value = mat.opacity;
@@ -2294,55 +2295,33 @@ function syncPointsCloud() {
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 let isActionActive = false;
+const smoothedHitPoint = new THREE.Vector3();
+const smoothedNormal = new THREE.Vector3(0, 1, 0);
+let hasSmoothedHit = false;
+let lastStrokeLocalPoint = null;
 
-if (trackpadSurface) {
-  trackpadSurface.addEventListener("pointermove", e => {
-    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush || (state.mode !== 'sculpt' && state.mode !== 'paint' && state.mode !== 'weight_paint')) return;
-    const rect = trackpadSurface.getBoundingClientRect();
-    const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-    mouse.x = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
-    mouse.y = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
-    raycaster.setFromCamera(mouse, camera);
-    const hit = raycaster.intersectObject(state.activeMesh)[0];
-    if (hit) {
-      state.lastHit = hit;
-      cursorGroup.visible = true;
-      const normal = hit.face ? hit.face.normal.clone().transformDirection(state.activeMesh.matrixWorld) : new THREE.Vector3(0,1,0);
-      cursorGroup.position.copy(hit.point).addScaledVector(normal, 0.02);
-      cursorGroup.lookAt(hit.point.clone().addScaledVector(normal, 1));
-      cursorGroup.scale.setScalar(state.brush.radius);
-    } else { state.lastHit = null; cursorGroup.visible = false; }
-  });
+function resetStrokeSmoothing() {
+  hasSmoothedHit = false;
+  lastStrokeLocalPoint = null;
 }
 
-if (actionArea) {
-  actionArea.addEventListener("pointerdown", e => {
-    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale" || state.mode === "rig" || state.mode === "edit") return;
-    e.preventDefault(); isActionActive = true; saveState(state.activeMesh); 
-    if (state.brush) state.brush.lastGrabPoint = null; // Reset grab state
-    handleAction();
-  });
-  actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
-  actionArea.addEventListener("pointerup", () => { 
-    isActionActive = false; 
-    if(state.brush) state.brush.rebuildGrid(); 
-    if (state.mode === 'weight_paint') state.updateWeightVisuals();
-    if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) viewGizmo.syncMesh(state.activeMesh);
-  });
-  actionArea.addEventListener("pointercancel", () => { isActionActive = false; if(state.brush) state.brush.rebuildGrid();  if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) viewGizmo.syncMesh(state.activeMesh); });
-}
-
-function handleAction() {
-  if (state.trackpadMode !== 'brush') return;
-  const hit = state.lastHit;
-  if (!hit) return;
-  const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
-  if (state.mode === "sculpt") state.brush.apply(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
-  else if (state.mode === "paint") {
+function applyBrushAtLocalPoint(localPoint) {
+  if (state.mode === "sculpt") {
+    const sym = { x: state.symmetryX, y: state.symmetryY, z: state.symmetryZ };
+    state.brush.apply(localPoint, sym);
+    if (state.brush.growMeshInScope && state.brush.growMeshInScope(localPoint, sym)) {
+      if (typeof wireframeLines !== "undefined" && wireframeLines && wireframeLines.visible && state.activeMesh) {
+        wireframeLines.geometry.dispose();
+        wireframeLines.geometry = new THREE.WireframeGeometry(state.activeMesh.geometry);
+      }
+      if (viewGizmo && state.activeMesh && typeof viewGizmo.updateMesh === "function") {
+        viewGizmo.updateMesh(state.activeMesh);
+      }
+    }
+  } else if (state.mode === "paint") {
     if (state.activeMesh.userData.paintCanvas) {
       state.brush.paintTexture(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
-      
+
       // GUI Alignment: Live update the 2D mini-texture viewer
       const miniTex = document.getElementById('mini-tex');
       if (miniTex) {
@@ -2356,8 +2335,105 @@ function handleAction() {
     } else {
       state.brush.paint(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
     }
+  } else if (state.mode === "weight_paint") {
+    state.brush.paintWeight(localPoint);
   }
-  else if (state.mode === "weight_paint") state.brush.paintWeight(localPoint); 
+}
+
+if (trackpadSurface) {
+  trackpadSurface.addEventListener("pointermove", e => {
+    if (state.trackpadMode !== 'brush' || !state.activeMesh || !state.brush || (state.mode !== 'sculpt' && state.mode !== 'paint' && state.mode !== 'weight_paint')) return;
+    const rect = trackpadSurface.getBoundingClientRect();
+    const rawX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const rawY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    const targetX = THREE.MathUtils.clamp(rawX * state.trackpadSensitivity, -1, 1);
+    const targetY = THREE.MathUtils.clamp(rawY * state.trackpadSensitivity, -1, 1);
+    mouse.x = THREE.MathUtils.lerp(mouse.x, targetX, 0.55);
+    mouse.y = THREE.MathUtils.lerp(mouse.y, targetY, 0.55);
+    raycaster.setFromCamera(mouse, camera);
+    const hit = raycaster.intersectObject(state.activeMesh)[0];
+    if (hit) {
+      const targetNormal = hit.face
+        ? hit.face.normal.clone().transformDirection(state.activeMesh.matrixWorld).normalize()
+        : new THREE.Vector3(0, 1, 0);
+
+      if (!hasSmoothedHit) {
+        smoothedHitPoint.copy(hit.point);
+        smoothedNormal.copy(targetNormal);
+        hasSmoothedHit = true;
+      } else {
+        const jumpDist = smoothedHitPoint.distanceTo(hit.point);
+        const alpha = jumpDist > (state.brush.radius || 0.2) * 1.5 ? 0.85 : 0.42;
+        smoothedHitPoint.lerp(hit.point, alpha);
+        smoothedNormal.lerp(targetNormal, alpha).normalize();
+      }
+
+      state.lastHit = {
+        ...hit,
+        point: smoothedHitPoint.clone(),
+        face: hit.face ? { ...hit.face, normal: smoothedNormal.clone() } : hit.face
+      };
+
+      cursorGroup.visible = true;
+      cursorGroup.position.copy(smoothedHitPoint).addScaledVector(smoothedNormal, 0.02);
+      cursorGroup.lookAt(smoothedHitPoint.clone().addScaledVector(smoothedNormal, 1));
+      cursorGroup.scale.setScalar(state.brush.radius);
+    } else {
+      state.lastHit = null;
+      hasSmoothedHit = false;
+      cursorGroup.visible = false;
+    }
+  });
+}
+
+if (actionArea) {
+  actionArea.addEventListener("pointerdown", e => {
+    if (!state.activeMesh || state.mode === "camera" || state.mode === "move" || state.mode === "rotate" || state.mode === "scale" || state.mode === "rig" || state.mode === "edit") return;
+    e.preventDefault();
+    isActionActive = true;
+    lastStrokeLocalPoint = null;
+    saveState(state.activeMesh);
+    if (state.brush) state.brush.lastGrabPoint = null; // Reset grab state
+    handleAction();
+  });
+  actionArea.addEventListener("pointermove", e => { if (isActionActive) { e.preventDefault(); handleAction(); } });
+  actionArea.addEventListener("pointerup", () => {
+    isActionActive = false;
+    lastStrokeLocalPoint = null;
+    if (state.brush) state.brush.rebuildGrid();
+    if (state.mode === 'weight_paint') state.updateWeightVisuals();
+    if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) viewGizmo.syncMesh(state.activeMesh);
+  });
+  actionArea.addEventListener("pointercancel", () => {
+    isActionActive = false;
+    resetStrokeSmoothing();
+    if (state.brush) state.brush.rebuildGrid();
+    if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) viewGizmo.syncMesh(state.activeMesh);
+  });
+}
+
+function handleAction() {
+  if (state.trackpadMode !== 'brush') return;
+  const hit = state.lastHit;
+  if (!hit || !state.activeMesh || !state.brush) return;
+  const localPoint = state.activeMesh.worldToLocal(hit.point.clone());
+
+  if (lastStrokeLocalPoint && state.mode === "sculpt" && state.brush.tool !== "grab") {
+    const segDist = lastStrokeLocalPoint.distanceTo(localPoint);
+    const stepSize = Math.max((state.brush.radius || 0.2) * 0.25, 0.01);
+    const steps = Math.min(12, Math.floor(segDist / stepSize));
+    if (steps > 1) {
+      const interp = new THREE.Vector3();
+      for (let s = 1; s < steps; s++) {
+        interp.lerpVectors(lastStrokeLocalPoint, localPoint, s / steps);
+        applyBrushAtLocalPoint(interp);
+      }
+    }
+  }
+
+  applyBrushAtLocalPoint(localPoint);
+  lastStrokeLocalPoint = localPoint.clone();
+
   if (viewGizmo && state.activeMesh && (state.mode === "sculpt" || state.mode === "paint")) {
     viewGizmo.syncMesh(state.activeMesh);
   }

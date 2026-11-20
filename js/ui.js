@@ -37,7 +37,7 @@ export function initUI(state, viewGizmo) {
   const bottomPanel = document.getElementById("bottom-panel"), panelHandle = document.getElementById("panel-handle");
   if (bottomPanel && panelHandle) {
     panelHandle.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("#tool-selector-container") || e.target.closest("#color-picker-btn") || e.target.closest("#focus-camera-btn")) return;
+      if (e.target.closest("#tool-selector-container") || e.target.closest("#color-picker-btn") || e.target.closest("#focus-camera-btn") || e.target.closest("#sculpt-mirror-bar") || e.target.closest("#sculpt-right-popups")) return;
       bottomPanel.classList.toggle("expanded");
     });
   }
@@ -256,6 +256,190 @@ export function initUI(state, viewGizmo) {
 
   // --- Unified Custom Color Picker UI ---
   const colorBtn = document.getElementById("color-picker-btn");
+
+  // Sculpt-mode inline Mirror (X, Y, Z) on left/center + right-side vertical Size & Strength popups
+  const toolContainer = document.getElementById("tool-selector-container");
+  const toolbarParent = toolContainer ? toolContainer.parentElement : null;
+
+  let sculptMirrorBar = document.getElementById("sculpt-mirror-bar");
+  if (!sculptMirrorBar && toolContainer) {
+    sculptMirrorBar = document.createElement("div");
+    sculptMirrorBar.id = "sculpt-mirror-bar";
+    sculptMirrorBar.style.cssText = "display:none;align-items:center;gap:3px;margin-left:4px;font-size:11px;flex-shrink:0;position:relative;z-index:45;";
+    sculptMirrorBar.innerHTML = `
+      <span style="opacity:0.75;margin-right:1px;">M:</span>
+      <button type="button" id="mirrorBtnX" style="padding:4px 7px;border-radius:4px;border:1px solid #555;background:#3a3a3a;color:#ddd;font-size:11px;font-weight:bold;cursor:pointer;touch-action:manipulation;">X</button>
+      <button type="button" id="mirrorBtnY" style="padding:4px 7px;border-radius:4px;border:1px solid #555;background:#3a3a3a;color:#ddd;font-size:11px;font-weight:bold;cursor:pointer;touch-action:manipulation;">Y</button>
+      <button type="button" id="mirrorBtnZ" style="padding:4px 7px;border-radius:4px;border:1px solid #555;background:#3a3a3a;color:#ddd;font-size:11px;font-weight:bold;cursor:pointer;touch-action:manipulation;">Z</button>
+    `;
+    toolContainer.insertAdjacentElement("afterend", sculptMirrorBar);
+  }
+
+  const sizeInput = document.getElementById("brushSize");
+  const strengthInput = document.getElementById("brushStrength");
+  const sizeRow = sizeInput ? (sizeInput.closest("div") || sizeInput.parentElement) : null;
+  const strengthRow = strengthInput ? (strengthInput.closest("div") || strengthInput.parentElement) : null;
+
+  if (colorBtn && sculptMirrorBar) {
+    colorBtn.style.cssText = "width:22px;height:22px;border-radius:4px;border:1.5px solid #fff;cursor:pointer;flex-shrink:0;margin:0 auto;";
+    sculptMirrorBar.insertAdjacentElement("afterend", colorBtn);
+  }
+
+  let sculptRightPopups = document.getElementById("sculpt-right-popups");
+  let sizePop = document.getElementById("sculpt-size-popup");
+  let strengthPop = document.getElementById("sculpt-strength-popup");
+
+  if (!sculptRightPopups && toolbarParent && sizeInput && strengthInput) {
+    sculptRightPopups = document.createElement("div");
+    sculptRightPopups.id = "sculpt-right-popups";
+    sculptRightPopups.style.cssText = "display:none;align-items:center;gap:4px;margin-left:auto;flex-shrink:0;position:relative;z-index:45;";
+    sculptRightPopups.innerHTML = `
+      <button type="button" id="sculptSizeBtn" class="sculpt-vslider-btn">R ▴</button>
+      <button type="button" id="sculptStrengthBtn" class="sculpt-vslider-btn">S ▴</button>
+    `;
+    toolbarParent.appendChild(sculptRightPopups);
+
+    sizePop = document.createElement("div");
+    sizePop.id = "sculpt-size-popup";
+    sizePop.className = "sculpt-vslider-pop";
+    sizePop.innerHTML = `<span id="sculptSizeVal" class="sculpt-vslider-val"></span>`;
+    sizePop.insertBefore(sizeInput, sizePop.firstChild);
+
+    strengthPop = document.createElement("div");
+    strengthPop.id = "sculpt-strength-popup";
+    strengthPop.className = "sculpt-vslider-pop";
+    strengthPop.innerHTML = `<span id="sculptStrengthVal" class="sculpt-vslider-val"></span>`;
+    strengthPop.insertBefore(strengthInput, strengthPop.firstChild);
+
+    document.body.appendChild(sizePop);
+    document.body.appendChild(strengthPop);
+  }
+
+  const positionPopupUpward = (pop, anchorBtn) => {
+    if (!pop || !anchorBtn) return;
+    const rect = anchorBtn.getBoundingClientRect();
+    const popHeight = pop.offsetHeight || 128;
+    const popWidth = pop.offsetWidth || 38;
+    pop.style.left = `${Math.max(6, Math.min(window.innerWidth - popWidth - 6, rect.right - popWidth))}px`;
+    pop.style.top = `${Math.max(6, rect.top - popHeight - 6)}px`;
+  };
+
+  const closeAllSculptPopups = () => {
+    if (sizePop) sizePop.classList.remove("show");
+    if (strengthPop) strengthPop.classList.remove("show");
+    const sb = document.getElementById("sculptSizeBtn");
+    const stb = document.getElementById("sculptStrengthBtn");
+    if (sb) sb.classList.remove("open");
+    if (stb) stb.classList.remove("open");
+  };
+
+  const syncSliderReadouts = () => {
+    const sv = document.getElementById("sculptSizeVal");
+    const stv = document.getElementById("sculptStrengthVal");
+    if (sv && sizeInput) sv.textContent = Number(sizeInput.value).toFixed(2);
+    if (stv && strengthInput) stv.textContent = Number(strengthInput.value).toFixed(2);
+  };
+
+  const styleMirrorBtn = (btn, active) => {
+    if (!btn) return;
+    btn.classList.toggle("active", !!active);
+    btn.style.background = active ? "#4a90e2" : "#3a3a3a";
+    btn.style.borderColor = active ? "#6aa8f0" : "#555";
+    btn.style.color = active ? "#ffffff" : "#cccccc";
+  };
+
+  const syncSculptBar = () => {
+    const isSculpt = state.mode === "sculpt";
+    if (colorBtn) {
+      colorBtn.style.display = "";
+      colorBtn.style.width = isSculpt ? "22px" : "";
+      colorBtn.style.height = isSculpt ? "22px" : "";
+      colorBtn.style.margin = isSculpt ? "0 auto" : "";
+    }
+    if (sculptMirrorBar) {
+      sculptMirrorBar.style.display = isSculpt ? "inline-flex" : "none";
+    }
+    if (sculptRightPopups) {
+      sculptRightPopups.style.display = isSculpt ? "inline-flex" : "none";
+    }
+    if (sizeRow) sizeRow.style.display = isSculpt ? "none" : "";
+    if (strengthRow) strengthRow.style.display = isSculpt ? "none" : "";
+    if (!isSculpt) closeAllSculptPopups();
+
+    styleMirrorBtn(document.getElementById("mirrorBtnX"), state.symmetryX);
+    styleMirrorBtn(document.getElementById("mirrorBtnY"), state.symmetryY);
+    styleMirrorBtn(document.getElementById("mirrorBtnZ"), state.symmetryZ);
+    syncSliderReadouts();
+  };
+
+  const bindAxisToggle = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state[key] = !state[key];
+      syncSculptBar();
+    };
+  };
+
+  bindAxisToggle("mirrorBtnX", "symmetryX");
+  bindAxisToggle("mirrorBtnY", "symmetryY");
+  bindAxisToggle("mirrorBtnZ", "symmetryZ");
+
+  const sizeBtn = document.getElementById("sculptSizeBtn");
+  const strengthBtn = document.getElementById("sculptStrengthBtn");
+  if (sizeBtn && sizePop) {
+    sizeBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = !sizePop.classList.contains("show");
+      closeAllSculptPopups();
+      if (willOpen) {
+        sizePop.classList.add("show");
+        sizeBtn.classList.add("open");
+        positionPopupUpward(sizePop, sizeBtn);
+      }
+    };
+  }
+  if (strengthBtn && strengthPop) {
+    strengthBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = !strengthPop.classList.contains("show");
+      closeAllSculptPopups();
+      if (willOpen) {
+        strengthPop.classList.add("show");
+        strengthBtn.classList.add("open");
+        positionPopupUpward(strengthPop, strengthBtn);
+      }
+    };
+  }
+  if (sizeInput) sizeInput.oninput = syncSliderReadouts;
+  if (strengthInput) strengthInput.oninput = syncSliderReadouts;
+
+  document.addEventListener("pointerdown", (e) => {
+    if (
+      (sizePop && sizePop.contains(e.target)) ||
+      (strengthPop && strengthPop.contains(e.target)) ||
+      (sizeBtn && sizeBtn.contains(e.target)) ||
+      (strengthBtn && strengthBtn.contains(e.target))
+    ) {
+      return;
+    }
+    closeAllSculptPopups();
+  });
+
+  if (!window.__sculptSyncUIWrapped) {
+    window.__sculptSyncUIWrapped = true;
+    const origSyncUI = state.syncUI.bind(state);
+    state.syncUI = () => {
+      origSyncUI();
+      syncSculptBar();
+    };
+  }
+  syncSculptBar();
+
   const bgBtn = document.getElementById("btn-bg-color");
   const colorModal = document.getElementById("color-picker-modal");
   const colorClose = document.getElementById("color-picker-close");
@@ -333,7 +517,7 @@ export function initUI(state, viewGizmo) {
           state.getActiveMaterial().color.set(hex);
           state.getActiveMaterial().needsUpdate = true;
           if (state.updateMaterialPreview) state.updateMaterialPreview(state.getActiveMaterial());
-          if (matColorBtn) matColorBtn.style.background = '#' + state.getActiveMaterial().color.getHexString();
+          const _am = state.getActiveMaterial && state.getActiveMaterial(); if (matColorBtn && _am && _am.color) matColorBtn.style.background = '#' + _am.color.getHexString();
           if (state.syncUI) state.syncUI();
         }
         colorModal.classList.remove("show");
@@ -452,7 +636,7 @@ export function initUI(state, viewGizmo) {
   const updateMaterialUI = (mesh) => {
     if (!mesh || !mesh.material) return;
     const m = mesh.material;
-    if (matColorBtn) matColorBtn.style.background = '#' + m.color.getHexString();
+    if (matColorBtn && m && m.color) matColorBtn.style.background = '#' + m.color.getHexString();
     if (matRough) matRough.value = m.roughness;
     if (matMetal) matMetal.value = m.metalness;
     if (document.getElementById('mat-alpha')) document.getElementById('mat-alpha').value = m.opacity;

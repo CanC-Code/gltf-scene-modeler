@@ -530,3 +530,194 @@ export function applyUVProjection(geometry, type) {
   
   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
 }
+
+export function splitLongEdgesScoped(geometry, centers, radius, options = {}) {
+  if (!geometry || !geometry.index || !geometry.attributes || !geometry.attributes.position) {
+    return { splitCount: 0, changed: false };
+  }
+
+  const posAttr = geometry.attributes.position;
+  const oldIndex = geometry.index.array;
+  const triCount = Math.floor(oldIndex.length / 3);
+  if (triCount === 0) return { splitCount: 0, changed: false };
+
+  const scopeRadius = Math.max((radius || 0.2) * (options.scopeMultiplier ?? 1.15), 0.02);
+  const maxEdgeLen = Math.max((radius || 0.2) * (options.edgeRatio ?? 0.45), 0.035);
+  const maxSplits = options.maxSplits ?? 48;
+  const centerList = Array.isArray(centers) && centers.length > 0 ? centers : [new THREE.Vector3()];
+
+  const vA = new THREE.Vector3();
+  const vB = new THREE.Vector3();
+  const mid = new THREE.Vector3();
+
+  const isNearBrush = (pt) => {
+    for (let i = 0; i < centerList.length; i++) {
+      if (pt.distanceTo(centerList[i]) <= scopeRadius) return true;
+    }
+    return false;
+  };
+
+  const edgeKey = (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+
+  // Identify qualifying long edges within the active brush scope
+  const candidateEdges = new Map(); // key -> { a, b, len, mid }
+  for (let t = 0; t < triCount; t++) {
+    const verts = [oldIndex[t * 3], oldIndex[t * 3 + 1], oldIndex[t * 3 + 2]];
+    for (let e = 0; e < 3; e++) {
+      const a = verts[e];
+      const b = verts[(e + 1) % 3];
+      vA.fromBufferAttribute(posAttr, a);
+      vB.fromBufferAttribute(posAttr, b);
+      const len = vA.distanceTo(vB);
+      if (len <= maxEdgeLen) continue;
+      mid.addVectors(vA, vB).multiplyScalar(0.5);
+      if (!isNearBrush(mid) && !isNearBrush(vA) && !isNearBrush(vB)) continue;
+      const key = edgeKey(a, b);
+      if (!candidateEdges.has(key)) {
+        candidateEdges.set(key, { a, b, len, mid: mid.clone() });
+      }
+    }
+  }
+
+  if (candidateEdges.size === 0) return { splitCount: 0, changed: false };
+
+  // Sort longest edges first and cap splits per brush step
+  const sortedEdges = Array.from(candidateEdges.entries())
+    .sort((x, y) => y[1].len - x[1].len)
+    .slice(0, maxSplits);
+
+  const splitEdgeMap = new Map(); // key -> newVertexIndex
+  const attrNames = Object.keys(geometry.attributes);
+  const baseCount = posAttr.count;
+  const newVertexRows = []; // array of per-attribute interpolated values
+
+  const allocMidpointVertex = (a, b) => {
+    const key = edgeKey(a, b);
+    if (splitEdgeMap.has(key)) return splitEdgeMap.get(key);
+
+    const newIdx = baseCount + newVertexRows.length;
+    const row = {};
+    for (const name of attrNames) {
+      const attr = geometry.attributes[name];
+      if (!attr || !attr.itemSize) continue;
+      const itemSize = attr.itemSize;
+      const vals = new Array(itemSize);
+      for (let k = 0; k < itemSize; k++) {
+        const va = attr.array[a * itemSize + k] ?? 0;
+        const vb = attr.array[b * itemSize + k] ?? 0;
+        vals[k] = (va + vb) * 0.5;
+      }
+      if (name === "normal") {
+        const nx = vals[0] ?? 0, ny = vals[1] ?? 0, nz = vals[2] ?? 0;
+        const nLen = Math.hypot(nx, ny, nz);
+        if (nLen > 1e-6) {
+          vals[0] = nx / nLen;
+          vals[1] = ny / nLen;
+          vals[2] = nz / nLen;
+        }
+      }
+      row[name] = vals;
+    }
+    newVertexRows.push(row);
+    splitEdgeMap.set(key, newIdx);
+    return newIdx;
+  };
+
+  for (const [, info] of sortedEdges) {
+    allocMidpointVertex(info.a, info.b);
+  }
+
+  // Grow each BufferAttribute cleanly to include midpoint vertices
+  if (newVertexRows.length > 0) {
+    const finalCount = baseCount + newVertexRows.length;
+    for (const name of attrNames) {
+      const attr = geometry.attributes[name];
+      if (!attr || !attr.array || !attr.itemSize) continue;
+      const itemSize = attr.itemSize;
+      const TypedArr = attr.array.constructor;
+      const grown = new TypedArr(finalCount * itemSize);
+      grown.set(attr.array);
+      for (let r = 0; r < newVertexRows.length; r++) {
+        const vIdx = baseCount + r;
+        const vals = newVertexRows[r][name];
+        if (!vals) continue;
+        for (let k = 0; k < itemSize; k++) {
+          grown[vIdx * itemSize + k] = vals[k];
+        }
+      }
+      const nextAttr = new THREE.BufferAttribute(grown, itemSize, attr.normalized);
+      nextAttr.needsUpdate = true;
+      geometry.setAttribute(name, nextAttr);
+    }
+  }
+
+  // Rebuild triangle index buffer (splitting triangles with 1+ split edges)
+  const newIndices = [];
+  const newFaceMats = Array.isArray(options.faceMaterialIndices) ? [] : null;
+  const oldFaceMats = newFaceMats ? options.faceMaterialIndices : null;
+
+  for (let t = 0; t < triCount; t++) {
+    const tri = [oldIndex[t * 3], oldIndex[t * 3 + 1], oldIndex[t * 3 + 2]];
+    const matIdx = oldFaceMats ? (oldFaceMats[t] ?? 0) : 0;
+    const edgeMids = [
+      splitEdgeMap.get(edgeKey(tri[0], tri[1])) ?? -1,
+      splitEdgeMap.get(edgeKey(tri[1], tri[2])) ?? -1,
+      splitEdgeMap.get(edgeKey(tri[2], tri[0])) ?? -1,
+    ];
+
+    const splitCountInTri = (edgeMids[0] !== -1 ? 1 : 0) + (edgeMids[1] !== -1 ? 1 : 0) + (edgeMids[2] !== -1 ? 1 : 0);
+
+    if (splitCountInTri === 0) {
+      newIndices.push(tri[0], tri[1], tri[2]);
+      if (newFaceMats) newFaceMats.push(matIdx);
+    } else if (splitCountInTri === 1) {
+      // Split at the single bisected edge (e), connecting opposite vertex (opp) to midpoint (m)
+      const e = edgeMids[0] !== -1 ? 0 : (edgeMids[1] !== -1 ? 1 : 2);
+      const a = tri[e];
+      const b = tri[(e + 1) % 3];
+      const opp = tri[(e + 2) % 3];
+      const m = edgeMids[e];
+      newIndices.push(opp, a, m);
+      newIndices.push(opp, m, b);
+      if (newFaceMats) newFaceMats.push(matIdx, matIdx);
+    } else {
+      // Split along the longest split edge first so multi-split triangles stay well-formed
+      let bestE = -1;
+      let bestLen = -1;
+      for (let e = 0; e < 3; e++) {
+        if (edgeMids[e] === -1) continue;
+        const a = tri[e];
+        const b = tri[(e + 1) % 3];
+        vA.fromBufferAttribute(geometry.attributes.position, a);
+        vB.fromBufferAttribute(geometry.attributes.position, b);
+        const l = vA.distanceTo(vB);
+        if (l > bestLen) {
+          bestLen = l;
+          bestE = e;
+        }
+      }
+      const a = tri[bestE];
+      const b = tri[(bestE + 1) % 3];
+      const opp = tri[(bestE + 2) % 3];
+      const m = edgeMids[bestE];
+      newIndices.push(opp, a, m);
+      newIndices.push(opp, m, b);
+      if (newFaceMats) newFaceMats.push(matIdx, matIdx);
+    }
+  }
+
+  const IndexArray = geometry.attributes.position.count > 65535 ? Uint32Array : Uint16Array;
+  const nextIndexAttr = new THREE.BufferAttribute(new IndexArray(newIndices), 1);
+  nextIndexAttr.needsUpdate = true;
+  geometry.setIndex(nextIndexAttr);
+
+  if (newFaceMats && oldFaceMats) {
+    oldFaceMats.length = 0;
+    oldFaceMats.push(...newFaceMats);
+  }
+
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+
+  return { splitCount: splitEdgeMap.size, changed: splitEdgeMap.size > 0 };
+}
