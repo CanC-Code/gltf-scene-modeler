@@ -98,7 +98,7 @@ export class SculptBrush {
     }
 
     let primaryGrabDelta = null;
-    if (this.tool === "grab") {
+    if (this.tool === "grab" || this.tool === "elastic") {
       if (!this.lastGrabPoint) {
         this.lastGrabPoint = localPoint.clone();
       }
@@ -136,7 +136,7 @@ export class SculptBrush {
 
       // Mirror grab delta accurately for each symmetric center
       let gx = 0, gy = 0, gz = 0;
-      if (this.tool === "grab" && primaryGrabDelta) {
+      if ((this.tool === "grab" || this.tool === "elastic") && primaryGrabDelta) {
         let signX = 1, signY = 1, signZ = 1;
         if (sx && Math.abs(c.x + localPoint.x) < 1e-5 && localPoint.x !== 0) signX = -1;
         if (sy && Math.abs(c.y + localPoint.y) < 1e-5 && localPoint.y !== 0) signY = -1;
@@ -239,6 +239,41 @@ export class SculptBrush {
             oz = -(v.z - c.z) * pinchFactor;
             break;
           }
+          case "scrape": {
+            const distToPlane =
+              (v.x - c.x) * avgNormal.x +
+              (v.y - c.y) * avgNormal.y +
+              (v.z - c.z) * avgNormal.z;
+            if (distToPlane > 0) {
+              const scrapeK = THREE.MathUtils.clamp(influence, 0, 0.95);
+              ox = -avgNormal.x * distToPlane * scrapeK;
+              oy = -avgNormal.y * distToPlane * scrapeK;
+              oz = -avgNormal.z * distToPlane * scrapeK;
+            }
+            break;
+          }
+          case "fill": {
+            const distToPlane =
+              (v.x - c.x) * avgNormal.x +
+              (v.y - c.y) * avgNormal.y +
+              (v.z - c.z) * avgNormal.z;
+            if (distToPlane < 0) {
+              const fillK = THREE.MathUtils.clamp(influence, 0, 0.95);
+              ox = -avgNormal.x * distToPlane * fillK;
+              oy = -avgNormal.y * distToPlane * fillK;
+              oz = -avgNormal.z * distToPlane * fillK;
+            }
+            break;
+          }
+          case "elastic": {
+            const normDist = dist / radiusSafe;
+            const gaussianFalloff = Math.exp(-3.2 * normDist * normDist);
+            const elasticK = THREE.MathUtils.clamp(gaussianFalloff * this.strength, 0, 1);
+            ox = gx * elasticK;
+            oy = gy * elasticK;
+            oz = gz * elasticK;
+            break;
+          }
         }
         const nxPos = v.x + ox;
         const nyPos = v.y + oy;
@@ -254,8 +289,8 @@ export class SculptBrush {
       updateNormals(this.geometry, Array.from(affectedVertices), this.adjacencyMap);
     }
 
-    // Update grab point for next frame
-    if (this.tool === "grab") {
+    // Update grab/elastic anchor point for next frame
+    if (this.tool === "grab" || this.tool === "elastic") {
       this.lastGrabPoint = localPoint.clone();
     }
   }
