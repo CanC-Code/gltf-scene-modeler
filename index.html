@@ -47,7 +47,8 @@
     .handle-left-group { display: flex; align-items: center; gap: 8px; z-index: 25; }
 
     #tool-selector-container { position: relative; flex-shrink: 0; }
-    #tool-selector-btn { padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    #tool-selector-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: #4a90e2; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
+    #tool-selector-btn svg { display: inline-block; width: 15px; height: 15px; min-width: 15px; min-height: 15px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     #tool-dropdown { display: none; position: absolute; bottom: 100%; left: 0; width: 148px; max-height: 280px; overflow-y: auto; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; z-index: 100; flex-direction: column; box-shadow: 0 -4px 10px rgba(0,0,0,0.5); }
     #tool-dropdown.show { display: flex; }
     #tool-dropdown button { display: flex; align-items: center; gap: 9px; padding: 10px 12px; background: transparent; color: #ddd; border: none; border-bottom: 1px solid #444; text-align: left; cursor: pointer; font-size: 13px; flex-shrink: 0; }

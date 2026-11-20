@@ -71,19 +71,82 @@ export function initUI(state, viewGizmo) {
   }
 
   const toolSelBtn = document.getElementById("tool-selector-btn"), toolDropdown = document.getElementById("tool-dropdown"), toolOpts = document.querySelectorAll(".tool-opt");
+  const TOOL_ICON_PRIMITIVES = {
+    inflate: [["path", { d: "M4 17c3-6 13-6 16 0" }], ["path", { d: "M12 4v8" }], ["path", { d: "M9 7l3-3 3 3" }]],
+    deflate: [["path", { d: "M4 12c3 5 13 5 16 0" }], ["path", { d: "M12 5v8" }], ["path", { d: "M9 10l3 3 3-3" }]],
+    smooth: [["path", { d: "M3 15c3-5 6 5 9 0s6 5 9 0" }], ["path", { d: "M5 19h14" }]],
+    flatten: [["path", { d: "M4 16l6-6 4 3 6-3" }], ["path", { d: "M4 19h16" }]],
+    pinch: [["path", { d: "M4 7l6 5-6 5" }], ["path", { d: "M20 7l-6 5 6 5" }], ["line", { x1: "12", y1: "5", x2: "12", y2: "19" }]],
+    grab: [["path", { d: "M18 11V6a2 2 0 0 0-4 0v5" }], ["path", { d: "M14 10V5a2 2 0 0 0-4 0v6" }], ["path", { d: "M10 10.5V7a2 2 0 0 0-4 0v8l3 4h6a4 4 0 0 0 4-4v-3a2 2 0 0 0-4 0" }]],
+    clay: [["path", { d: "M4 18c2-7 14-7 16 0z" }], ["path", { d: "M8 11c1-3 7-3 8 0" }]],
+    crease: [["path", { d: "M4 8l8 9 8-9" }], ["path", { d: "M12 17v4" }]],
+    scrape: [["path", { d: "M4 13l12-6 4 4-12 6z" }], ["path", { d: "M4 19h16" }]],
+    fill: [["path", { d: "M4 18h16" }], ["path", { d: "M5 12c2 4 12 4 14 0v6H5z" }], ["path", { d: "M12 5v6" }]],
+    elastic: [["path", { d: "M4 14c4-8 12 8 16 0" }], ["circle", { cx: "12", cy: "12", r: "2" }]]
+  };
+  const buildToolSvg = (toolName, sourceSvg) => {
+    const svgNs = "http://www.w3.org/2000/svg";
+    const freshSvg = document.createElementNS(svgNs, "svg");
+    const vb = (sourceSvg && sourceSvg.getAttribute("viewBox")) || "0 0 24 24";
+    freshSvg.setAttributeNS(null, "viewBox", vb);
+    freshSvg.setAttributeNS(null, "width", "15");
+    freshSvg.setAttributeNS(null, "height", "15");
+    freshSvg.setAttributeNS(null, "fill", "none");
+    freshSvg.setAttributeNS(null, "stroke", "#ffffff");
+    freshSvg.setAttributeNS(null, "stroke-width", "2");
+    freshSvg.setAttributeNS(null, "stroke-linecap", "round");
+    freshSvg.setAttributeNS(null, "stroke-linejoin", "round");
+    freshSvg.style.cssText = "display:inline-block;width:15px;height:15px;min-width:15px;min-height:15px;flex-shrink:0;overflow:visible;";
+    const prims = TOOL_ICON_PRIMITIVES[toolName];
+    if (prims) {
+      prims.forEach(([tag, attrs]) => {
+        const el = document.createElementNS(svgNs, tag);
+        Object.entries(attrs).forEach(([k, v]) => el.setAttributeNS(null, k, v));
+        freshSvg.appendChild(el);
+      });
+      return freshSvg;
+    }
+    if (!sourceSvg || !sourceSvg.children.length) return null;
+    Array.from(sourceSvg.children).forEach((child) => {
+      const tag = child.tagName.toLowerCase();
+      const el = document.createElementNS(svgNs, tag);
+      Array.from(child.attributes).forEach((attr) => {
+        el.setAttributeNS(null, attr.name, attr.value);
+      });
+      freshSvg.appendChild(el);
+    });
+    return freshSvg;
+  };
+  const syncToolSelectorButton = (opt) => {
+    if (!toolSelBtn || !opt) return;
+    const spanLabel = opt.querySelector("span");
+    const label = (spanLabel ? spanLabel.textContent : opt.textContent).trim();
+    const toolName = (opt.getAttribute("data-tool") || label).toLowerCase();
+    const iconSvg = buildToolSvg(toolName, opt.querySelector("svg"));
+    toolSelBtn.replaceChildren();
+    if (iconSvg) {
+      toolSelBtn.appendChild(iconSvg);
+    }
+    const textNode = document.createElement("span");
+    textNode.textContent = `Tool: ${label} ▼`;
+    toolSelBtn.appendChild(textNode);
+  };
   if (toolSelBtn && toolDropdown) {
+    const initialActive = toolDropdown.querySelector(".tool-opt.active") || toolOpts[0];
+    if (initialActive) syncToolSelectorButton(initialActive);
     toolSelBtn.onclick = (e) => { e.stopPropagation(); toolDropdown.classList.toggle("show"); };
     document.addEventListener('click', (e) => { if (!toolDropdown.contains(e.target) && e.target !== toolSelBtn) toolDropdown.classList.remove("show"); });
     toolOpts.forEach(opt => {
       opt.onclick = () => {
+        const label = opt.textContent.trim();
         const toolName = opt.getAttribute("data-tool");
         state.setTool(toolName);
         toolOpts.forEach(o => o.classList.remove("active"));
         opt.classList.add("active");
-        toolSelBtn.textContent = `Tool: ${opt.textContent} ▼`;
+        syncToolSelectorButton(opt);
         if (state.trackpadMode === 'brush') {
           const span = document.querySelector("#trackpad-surface span");
-          if (span) span.textContent = `Guide Brush: ${opt.textContent}`;
+          if (span) span.textContent = `Guide Brush: ${label}`;
         }
         toolDropdown.classList.remove("show");
       };
