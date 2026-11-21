@@ -2341,7 +2341,9 @@ const state = {
         if (!mesh.isSkinnedMesh && !mesh.geometry.attributes.skinIndex) {
           const hadUV = Boolean(mesh.geometry.attributes.uv);
           const hadNormal = Boolean(mesh.geometry.attributes.normal);
-          mesh.geometry = mergeVertices(mesh.geometry);
+          if (!mesh.geometry.index) {
+            mesh.geometry = mergeVertices(mesh.geometry);
+          }
           if (!hadNormal || !mesh.geometry.attributes.normal) {
             mesh.geometry.computeVertexNormals();
           }
