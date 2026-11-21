@@ -2331,24 +2331,28 @@ const state = {
   },
 
   importGLTF(e) {
+    const file = e.target && e.target.files && e.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
-      let mesh = null;
-      gltf.scene.traverse(o => { if (!mesh && o.isMesh) mesh = o; });
-      if (mesh) {
+      const meshes = [];
+      gltf.scene.traverse(o => { if (o.isMesh) meshes.push(o); });
+      meshes.forEach(mesh => {
         if (!mesh.isSkinnedMesh && !mesh.geometry.attributes.skinIndex) {
-          mesh.geometry.deleteAttribute('normal');
-
-          mesh.geometry.deleteAttribute('uv');
-
+          const hadUV = Boolean(mesh.geometry.attributes.uv);
+          const hadNormal = Boolean(mesh.geometry.attributes.normal);
           mesh.geometry = mergeVertices(mesh.geometry);
-
-          mesh.geometry.computeVertexNormals();
+          if (!hadNormal || !mesh.geometry.attributes.normal) {
+            mesh.geometry.computeVertexNormals();
+          }
+          if (!hadUV && typeof ensureUVs === "function") {
+            ensureUVs(mesh.geometry);
+          }
         }
         this.addObject(mesh);
-      }
+      });
     });
-    reader.readAsArrayBuffer(e.target.files[0]);
+    reader.readAsArrayBuffer(file);
   }
 };
 
