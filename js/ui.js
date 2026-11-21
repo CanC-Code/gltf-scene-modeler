@@ -673,6 +673,7 @@ export function initUI(state, viewGizmo) {
   if (document.getElementById("newCylinder")) document.getElementById("newCylinder").onclick = () => state.addCylinder();
   if (document.getElementById("newCone")) document.getElementById("newCone").onclick = () => state.addCone();
   if (document.getElementById("newTorus")) document.getElementById("newTorus").onclick = () => state.addTorus();
+  if (document.getElementById("newHumanoid")) document.getElementById("newHumanoid").onclick = () => state.addHumanoidBase();
 
   const exportGlb = document.getElementById("exportGLB"), exportGltf = document.getElementById("exportGLTF"), importGltf = document.getElementById("importGLTF");
   if (exportGlb) exportGlb.onclick = () => state.exportGLTF(true);

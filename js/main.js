@@ -1030,6 +1030,127 @@ const state = {
     this.addObject(mesh);
   },
 
+  addHumanoidBase() {
+    if (this.ikEnabled) this.disableIK();
+    if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
+
+    const partPositions = [];
+    const appendPart = (rawGeo, sx, sy, sz, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+      const g = rawGeo.index ? rawGeo.toNonIndexed() : rawGeo.clone();
+      g.scale(sx, sy, sz);
+      if (rx || ry || rz) g.rotateX(rx), g.rotateY(ry), g.rotateZ(rz);
+      g.translate(px, py, pz);
+      const arr = g.attributes.position.array;
+      for (let i = 0; i < arr.length; i++) partPositions.push(arr[i]);
+      rawGeo.dispose();
+      g.dispose();
+    };
+
+    // Pelvis, torso, neck & head with extra vertical joint loops for smooth bending
+    appendPart(new THREE.SphereGeometry(0.245, 18, 14), 1.16, 0.76, 0.88, 0, -0.05, 0);
+    appendPart(new THREE.CylinderGeometry(0.215, 0.185, 0.44, 18, 6), 1.14, 1.0, 0.84, 0, 0.24, 0);
+    appendPart(new THREE.CylinderGeometry(0.275, 0.215, 0.48, 18, 6), 1.20, 1.0, 0.90, 0, 0.62, 0);
+    appendPart(new THREE.CylinderGeometry(0.082, 0.102, 0.18, 14, 3), 1.0, 1.0, 1.0, 0, 0.90, 0);
+    appendPart(new THREE.SphereGeometry(0.185, 20, 16), 0.92, 1.16, 1.04, 0, 1.15, 0.02);
+
+    // Left & Right Arms (shoulder -> upper arm -> elbow -> forearm -> rounded palm/hand)
+    for (const side of [-1, 1]) {
+      appendPart(new THREE.SphereGeometry(0.108, 14, 12), 1.05, 1.05, 1.0, side * 0.34, 0.76, 0);
+      appendPart(new THREE.CylinderGeometry(0.078, 0.066, 0.42, 14, 5), 1.0, 1.0, 1.0, side * 0.555, 0.76, 0, 0, 0, -side * (Math.PI / 2));
+      appendPart(new THREE.SphereGeometry(0.070, 12, 12), 1.0, 1.0, 1.0, side * 0.77, 0.76, 0);
+      appendPart(new THREE.CylinderGeometry(0.064, 0.050, 0.38, 14, 5), 1.0, 1.0, 1.0, side * 0.96, 0.76, 0, 0, 0, -side * (Math.PI / 2));
+      appendPart(new THREE.SphereGeometry(0.056, 12, 10), 1.45, 0.52, 0.88, side * 1.19, 0.76, 0);
+    }
+
+    // Left & Right Legs (hip -> thigh -> knee -> shin -> contoured foot)
+    for (const side of [-1, 1]) {
+      appendPart(new THREE.SphereGeometry(0.118, 14, 12), 1.05, 1.05, 1.05, side * 0.14, -0.14, 0);
+      appendPart(new THREE.CylinderGeometry(0.108, 0.084, 0.46, 16, 6), 1.06, 1.0, 1.06, side * 0.14, -0.36, 0);
+      appendPart(new THREE.SphereGeometry(0.086, 14, 12), 1.0, 1.0, 1.0, side * 0.14, -0.58, 0);
+      appendPart(new THREE.CylinderGeometry(0.080, 0.058, 0.42, 16, 6), 1.06, 1.0, 1.06, side * 0.14, -0.78, 0);
+      appendPart(new THREE.SphereGeometry(0.068, 12, 10), 0.92, 0.56, 2.05, side * 0.14, -0.97, 0.06);
+    }
+
+    let geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(partPositions, 3));
+    geo = mergeVertices(geo);
+    geo.computeVertexNormals();
+    if (typeof ensureUVs === "function") ensureUVs(geo);
+
+    const makeBone = (name, x, y, z) => {
+      const b = new THREE.Bone();
+      b.name = name;
+      b.position.set(x, y, z);
+      return b;
+    };
+
+    const hips = makeBone("Hips", 0, -0.05, 0);
+    const spine = makeBone("Spine", 0, 0.28, 0);
+    const chest = makeBone("Chest", 0, 0.34, 0);
+    const neck = makeBone("Neck", 0, 0.22, 0);
+    const head = makeBone("Head", 0, 0.14, 0.02);
+
+    hips.add(spine);
+    spine.add(chest);
+    chest.add(neck);
+    neck.add(head);
+
+    const bones = [hips, spine, chest, neck, head];
+
+    for (const [label, side] of [["L", -1], ["R", 1]]) {
+      const upperArm = makeBone(`UpperArm_${label}`, side * 0.34, 0.14, 0);
+      const lowerArm = makeBone(`LowerArm_${label}`, side * 0.43, 0, 0);
+      const hand = makeBone(`Hand_${label}`, side * 0.37, 0, 0);
+      chest.add(upperArm);
+      upperArm.add(lowerArm);
+      lowerArm.add(hand);
+      bones.push(upperArm, lowerArm, hand);
+
+      const upperLeg = makeBone(`UpperLeg_${label}`, side * 0.14, -0.09, 0);
+      const lowerLeg = makeBone(`LowerLeg_${label}`, 0, -0.44, 0);
+      const foot = makeBone(`Foot_${label}`, 0, -0.40, 0.04);
+      hips.add(upperLeg);
+      upperLeg.add(lowerLeg);
+      lowerLeg.add(foot);
+      bones.push(upperLeg, lowerLeg, foot);
+    }
+
+    this.currentBones = bones;
+
+    const tempMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial());
+    tempMesh.updateMatrixWorld(true);
+    this._calculateSkinWeights(tempMesh);
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xd9a07b,
+      roughness: 0.55,
+      metalness: 0.05,
+      wireframe: this.wireframe
+    });
+
+    const skinnedMesh = new THREE.SkinnedMesh(geo, mat);
+    skinnedMesh.name = "HumanoidBase";
+    skinnedMesh.position.set(0, 1.0, 0);
+    skinnedMesh.add(hips);
+    if (typeof ensureMaterialSlots === "function") ensureMaterialSlots(skinnedMesh);
+
+    const skeleton = new THREE.Skeleton(bones);
+    skinnedMesh.bind(skeleton);
+
+    if (this.skeletonHelper) scene.remove(this.skeletonHelper);
+    this.skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
+    this.skeletonHelper.material.linewidth = 3;
+    scene.add(this.skeletonHelper);
+
+    undoStack.length = 0;
+    redoStack.length = 0;
+
+    this.addObject(skinnedMesh);
+    this.selectBone(0);
+    this.updateBoneList();
+    if (window.showToast) window.showToast("Added rigged Humanoid Base!");
+  },
+
   addObject(mesh) {
     this.objects.push(mesh);
     scene.add(mesh);
@@ -3354,7 +3475,7 @@ function animate() {
   if (state.activeMesh && selectionBox.visible && state.mode !== 'edit') {
     selectionBox.setFromObject(state.activeMesh);
   }
-  if (state.skeletonHelper) state.skeletonHelper.update();
+  if (state.skeletonHelper && typeof state.skeletonHelper.update === 'function') state.skeletonHelper.update();
   if (state.boneProxies && state.currentBones) {
     state.currentBones.forEach((bone, idx) => {
       bone.getWorldPosition(state.boneProxies.children[idx].position);
