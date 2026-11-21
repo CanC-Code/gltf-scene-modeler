@@ -1911,6 +1911,110 @@ const state = {
     action.play();
   },
 
+  mirrorPoseLR() {
+    if (!this.currentBones || !this.currentBones.length) return;
+    if (typeof saveState === "function" && this.activeMesh) saveState(this.activeMesh);
+
+    const byName = new Map();
+    this.currentBones.forEach(b => byName.set(b.name, b));
+
+    const mirrorQuatAcrossX = (q) => new THREE.Quaternion(q.x, -q.y, -q.z, q.w).normalize();
+
+    let mirroredCount = 0;
+    this.currentBones.forEach(bone => {
+      if (bone.name.endsWith("_L")) {
+        const opp = byName.get(bone.name.slice(0, -2) + "_R");
+        if (opp) {
+          opp.quaternion.copy(mirrorQuatAcrossX(bone.quaternion));
+          mirroredCount++;
+        }
+      }
+    });
+
+    if (this.activeMesh) this.activeMesh.updateMatrixWorld(true);
+    if (window.showToast) window.showToast(`Mirrored ${mirroredCount} L/R bone rotations.`);
+  },
+
+  generateWalkCycle() {
+    if (!this.currentBones || !this.currentBones.length) {
+      if (window.showToast) window.showToast("Create or add a rigged mesh first.");
+      return;
+    }
+    if (typeof saveState === "function" && this.activeMesh) saveState(this.activeMesh);
+
+    const rest = this.currentBones.map(b => ({
+      pos: b.position.clone(),
+      quat: b.quaternion.clone()
+    }));
+
+    const applyEulerOffsets = (offsetsByBone) => {
+      this.currentBones.forEach((b, idx) => {
+        b.position.copy(rest[idx].pos);
+        b.quaternion.copy(rest[idx].quat);
+        const off = offsetsByBone[b.name];
+        if (off) {
+          const dq = new THREE.Quaternion().setFromEuler(new THREE.Euler(off[0], off[1], off[2], "XYZ"));
+          b.quaternion.multiply(dq).normalize();
+        }
+      });
+    };
+
+    const phases = [
+      {
+        Hips: [0, 0.08, 0], Spine: [0.04, -0.04, 0], Chest: [0.04, -0.04, 0],
+        UpperLeg_R: [-0.52, 0, 0], LowerLeg_R: [0.22, 0, 0], Foot_R: [0.16, 0, 0],
+        UpperLeg_L: [0.42, 0, 0], LowerLeg_L: [0.52, 0, 0], Foot_L: [-0.12, 0, 0],
+        UpperArm_L: [-0.36, 0, -0.08], LowerArm_L: [-0.35, 0, 0],
+        UpperArm_R: [0.34, 0, 0.08], LowerArm_R: [-0.22, 0, 0]
+      },
+      {
+        Hips: [0, 0, 0], Spine: [0.02, 0, 0], Chest: [0.03, 0, 0],
+        UpperLeg_R: [-0.08, 0, 0], LowerLeg_R: [0.16, 0, 0], Foot_R: [-0.04, 0, 0],
+        UpperLeg_L: [0.05, 0, 0], LowerLeg_L: [0.78, 0, 0], Foot_L: [-0.20, 0, 0],
+        UpperArm_L: [0.04, 0, -0.08], LowerArm_L: [-0.25, 0, 0],
+        UpperArm_R: [-0.04, 0, 0.08], LowerArm_R: [-0.28, 0, 0]
+      },
+      {
+        Hips: [0, -0.08, 0], Spine: [0.04, 0.04, 0], Chest: [0.04, 0.04, 0],
+        UpperLeg_L: [-0.52, 0, 0], LowerLeg_L: [0.22, 0, 0], Foot_L: [0.16, 0, 0],
+        UpperLeg_R: [0.42, 0, 0], LowerLeg_R: [0.52, 0, 0], Foot_R: [-0.12, 0, 0],
+        UpperArm_R: [-0.36, 0, 0.08], LowerArm_R: [-0.35, 0, 0],
+        UpperArm_L: [0.34, 0, -0.08], LowerArm_L: [-0.22, 0, 0]
+      },
+      {
+        Hips: [0, 0, 0], Spine: [0.02, 0, 0], Chest: [0.03, 0, 0],
+        UpperLeg_L: [-0.08, 0, 0], LowerLeg_L: [0.16, 0, 0], Foot_L: [-0.04, 0, 0],
+        UpperLeg_R: [0.05, 0, 0], LowerLeg_R: [0.78, 0, 0], Foot_R: [-0.20, 0, 0],
+        UpperArm_R: [0.04, 0, 0.08], LowerArm_R: [-0.25, 0, 0],
+        UpperArm_L: [-0.04, 0, -0.08], LowerArm_L: [-0.28, 0, 0]
+      },
+      {
+        Hips: [0, 0.08, 0], Spine: [0.04, -0.04, 0], Chest: [0.04, -0.04, 0],
+        UpperLeg_R: [-0.52, 0, 0], LowerLeg_R: [0.22, 0, 0], Foot_R: [0.16, 0, 0],
+        UpperLeg_L: [0.42, 0, 0], LowerLeg_L: [0.52, 0, 0], Foot_L: [-0.12, 0, 0],
+        UpperArm_L: [-0.36, 0, -0.08], LowerArm_L: [-0.35, 0, 0],
+        UpperArm_R: [0.34, 0, 0.08], LowerArm_R: [-0.22, 0, 0]
+      }
+    ];
+
+    const fps = this.animationFPS || 24;
+    this.keyframes = phases.map((offsets, i) => {
+      applyEulerOffsets(offsets);
+      return {
+        time: i / fps,
+        bones: this.currentBones.map(b => ({
+          pos: b.position.clone(),
+          quat: b.quaternion.clone()
+        }))
+      };
+    });
+
+    applyEulerOffsets({});
+    if (typeof this._refreshTimeline === "function") this._refreshTimeline();
+    this.playAnimation();
+    if (window.showToast) window.showToast("Generated 5-keyframe walk cycle!");
+  },
+
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r);
     for (let m = 0; m < mirrorCursorGroups.length; m++) { if (mirrorCursorGroups[m].visible) mirrorCursorGroups[m].scale.setScalar(r); } },
   setStrength(s) { if (this.brush) this.brush.setStrength(s); },

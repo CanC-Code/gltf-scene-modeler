@@ -1121,3 +1121,8 @@ export function initUI(state, viewGizmo) {
   // Also sync on load
   updateMaterialUI(state.activeMesh);
 }
+
+const _mirrorBtn = document.getElementById("mirrorPoseBtn");
+if (_mirrorBtn) _mirrorBtn.onclick = () => state.mirrorPoseLR();
+const _walkBtn = document.getElementById("genWalkCycleBtn");
+if (_walkBtn) _walkBtn.onclick = () => state.generateWalkCycle();
