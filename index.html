@@ -553,63 +553,109 @@
     </div>
 
     <div id="rig-panel" class="panel-section">
-      <details open>
-        <summary>Armature</summary>
-        <div class="details-content">
-          <button id="addBoneChain" style="background: #4caf50; margin-bottom: 6px;">Create Armature</button>
-          <button id="addChildBone" style="background: #2e7d32; margin-bottom: 6px;">+ Add Child Bone</button>
-          <button id="renameBone" style="background: #1976d2; margin-bottom: 6px;">Rename Active Bone</button>
-          <button id="deleteBone" style="background: #b71c1c; margin-bottom: 6px;">Delete Active Bone</button>
-          <button id="bindSkin" style="background: #ff9800; margin-bottom: 6px;">Bind Skin to Bones</button>
-          <button id="bindMulti" style="background: #9c27b0; margin-bottom: 6px;">Bind Selected to Active Skeleton</button>
-          <button id="enableIKBtn" style="background: #ff4081;">Enable IK on Active Bone</button>
-          <button id="mirrorPoseBtn" style="background: #5c6bc0; margin-top: 6px;">Mirror Pose (L ↔ R)</button>
-        </div>
-      </details>
+        <details open>
+          <summary>Armature & Pose</summary>
+          <div class="details-content">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+              <button id="addBoneChain" style="background: #4caf50; margin: 0;">New Armature</button>
+              <button id="addChildBone" style="background: #2e7d32; margin: 0;">+ Child Bone</button>
+              <button id="renameBone" style="background: #1976d2; margin: 0;">Rename Bone</button>
+              <button id="deleteBone" style="background: #b71c1c; margin: 0;">Delete Bone</button>
+              <button id="bindSkin" style="background: #ff9800; margin: 0;">Bind Skin</button>
+              <button id="bindMulti" style="background: #9c27b0; margin: 0;">Bind Multi</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <button id="enableIKBtn" style="background: #ff4081; margin: 0;">Enable IK</button>
+              <button id="mirrorPoseBtn" style="background: #5c6bc0; margin: 0;">Mirror L ↔ R</button>
+            </div>
 
-      <details>
-        <summary>Select Bone</summary>
-        <div class="details-content">
-          <div id="bone-list">
-            <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
+            <label style="margin-top: 8px; display: flex; justify-content: space-between;">
+              <span>Hand / Finger Curl</span>
+              <span id="hand-curl-label" style="color: #aaa;">0%</span>
+            </label>
+            <input type="range" id="hand-curl-slider" min="0" max="1" step="0.02" value="0" style="width: 100%;">
           </div>
+        </details>
 
-          <label>Bone Roll (local Y-axis)</label>
-          <input type="range" id="bone-roll" min="-3.1416" max="3.1416" step="0.01" value="0" style="width: 100%; margin-bottom: 6px;">
-        </div>
-      </details>
+        <details>
+          <summary>Select Bone</summary>
+          <div class="details-content">
+            <div id="bone-list">
+              <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
+            </div>
 
-      <details>
-        <summary>Weight Paint</summary>
-        <div class="details-content">
-          <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 6px;">Active: None</p>
-          <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
-        </div>
-      </details>
+            <label>Bone Roll (local Y-axis)</label>
+            <input type="range" id="bone-roll" min="-3.1416" max="3.1416" step="0.01" value="0" style="width: 100%; margin-bottom: 6px;">
+          </div>
+        </details>
 
-      <details>
-        <summary>Animation</summary>
-        <div class="details-content">
-          <button id="addKeyframe" style="background: #03a9f4; margin-bottom: 6px;">Add Keyframe</button>
-          <button id="deleteKeyframe" style="background: #e53935; margin-bottom: 6px;">Delete Current Keyframe</button>
-          <button id="playAnim" style="background: #00bcd4; margin-bottom: 6px;">Play Animation</button>
-          <button id="resetAnim" style="margin-bottom: 10px;">Reset Pose</button>
-            <button id="genWalkCycleBtn" style="background: #7e57c2; margin-bottom: 10px;">Generate Walk Cycle</button>
+        <details>
+          <summary>Weight Paint</summary>
+          <div class="details-content">
+            <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 6px;">Active: None</p>
+            <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
+          </div>
+        </details>
 
-          <label>Timeline</label>
-          <input type="range" id="timeline-scrub" min="0" max="0" step="1" value="0" disabled>
-          <span id="timeline-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">Frame: 0</span>
+        <details open>
+          <summary>Animation & Timeline</summary>
+          <div class="details-content">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 6px;">
+              <button id="addKeyframe" style="background: #03a9f4; margin: 0; padding: 6px 4px;">+ Key</button>
+              <button id="updateKeyframe" style="background: #0288d1; margin: 0; padding: 6px 4px;">Update</button>
+              <button id="deleteKeyframe" style="background: #e53935; margin: 0; padding: 6px 4px;">Delete</button>
+            </div>
 
-          <label>FPS</label>
-          <input type="range" id="anim-fps" min="1" max="60" step="1" value="24">
-          <span id="fps-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">24 fps</span>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 6px;">
+              <button id="playAnim" style="background: #00bcd4; margin: 0; padding: 6px 4px;">▶ Play</button>
+              <button id="stopAnim" style="background: #455a64; margin: 0; padding: 6px 4px;">■ Stop</button>
+              <button id="resetAnim" style="margin: 0; padding: 6px 4px;">Reset</button>
+            </div>
 
-          <button id="toggleLoop" style="margin-top: 10px;">Loop Animation: OFF</button>
-        </div>
-      </details>
-    </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+              <button id="genWalkCycleBtn" style="background: #7e57c2; margin: 0;">Walk Cycle</button>
+              <button id="genWaveCycleBtn" style="background: #5e35b1; margin: 0;">Wave Pose</button>
+            </div>
 
-    <div id="sculpt-panel" class="panel-section">
+            <div style="background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px;">
+              <label style="margin: 0 0 2px 0; display: flex; justify-content: space-between; font-size: 11px;">
+                <span>Walk Step Frames</span>
+                <span id="walk-step-label" style="color: #aaa;">6f</span>
+              </label>
+              <input type="range" id="walk-step-slider" min="2" max="16" step="1" value="6" style="width: 100%; margin: 0 0 6px 0;">
+
+              <label style="margin: 0 0 2px 0; display: flex; justify-content: space-between; font-size: 11px;">
+                <span>Stride & Leg Swing</span>
+                <span id="walk-stride-label" style="color: #aaa;">100%</span>
+              </label>
+              <input type="range" id="walk-stride-slider" min="30" max="160" step="5" value="100" style="width: 100%; margin: 0 0 6px 0;">
+
+              <label style="margin: 0 0 2px 0; display: flex; justify-content: space-between; font-size: 11px;">
+                <span>Arm Swing</span>
+                <span id="walk-arm-label" style="color: #aaa;">100%</span>
+              </label>
+              <input type="range" id="walk-arm-slider" min="0" max="180" step="5" value="100" style="width: 100%; margin: 0;">
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 2px;">
+              <button id="prevKeyframe" style="width: 34px; padding: 4px 0; margin: 0;">◀</button>
+              <span id="timeline-label" style="font-size: 12px; text-align: center; color: #ddd; flex: 1;">Frame: 0 / 0 (0.00s)</span>
+              <button id="nextKeyframe" style="width: 34px; padding: 4px 0; margin: 0;">▶</button>
+            </div>
+            <input type="range" id="timeline-scrub" min="0" max="0" step="1" value="0" disabled style="width: 100%; margin-bottom: 6px;">
+
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <label style="margin: 0; white-space: nowrap;">FPS</label>
+              <input type="range" id="anim-fps" min="1" max="60" step="1" value="24" style="flex: 1; margin: 0;">
+              <span id="fps-label" style="font-size: 12px; color: #aaa; min-width: 44px; text-align: right;">24 fps</span>
+            </div>
+
+            <button id="toggleLoop" style="margin-top: 8px;">Loop Animation: OFF</button>
+          </div>
+        </details>
+      </div>
+
+      <div id="sculpt-panel" class="panel-section">
       
     </div>
   </div>

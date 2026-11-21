@@ -544,7 +544,7 @@ function validateGeometryForExport(geometry) {
 }
 
 const actionArea = document.getElementById("action-area");
-const state = {
+const state = window.state = {
   mode: "sculpt",
   activeTool: "inflate",
   trackpadMode: "camera",
@@ -573,6 +573,9 @@ const state = {
   faceSelectMode: false,
   mixer: null,
   keyframes: [],
+  walkCycleStepFrames: 6,
+  walkStrideScale: 1.0,
+  walkArmSwingScale: 1.0,
   undo,
   redo,
   envMap,
@@ -1712,7 +1715,9 @@ const state = {
     if (this.mixer) this.mixer.stopAllAction();
     
     const fps = this.animationFPS || 24;
-    const timeSec = frameIndex / fps;
+    const kfs = this.keyframes || [];
+    const idx = Math.max(0, Math.min(kfs.length - 1, Math.round(frameIndex)));
+    const timeSec = (kfs[idx] && typeof kfs[idx].time === "number") ? kfs[idx].time : (idx / fps);
     
     this.mixer = new THREE.AnimationMixer(this.activeMesh);
     this.mixer.timeScale = 0; // Pause mixer for scrubbing
@@ -1863,7 +1868,9 @@ const state = {
     let v = parseFloat(scrub.value);
     if (isNaN(v) || v > maxFrame) v = maxFrame;
     scrub.value = v;
-    if (label) label.textContent = `Frame: ${Math.round(v)} / ${maxFrame}`;
+    const fps = this.animationFPS || 24;
+    const sec = (Math.round(v) / fps).toFixed(2);
+    if (label) label.textContent = `Frame: ${Math.round(v)} / ${maxFrame} (${sec}s)`;
   },
 
   deleteKeyframe() {
@@ -1935,7 +1942,7 @@ const state = {
     if (window.showToast) window.showToast(`Mirrored ${mirroredCount} L/R bone rotations.`);
   },
 
-  generateWalkCycle() {
+  generateWalkCycle(opts = {}) {
     if (!this.currentBones || !this.currentBones.length) {
       if (window.showToast) window.showToast("Create or add a rigged mesh first.");
       return;
@@ -1959,7 +1966,23 @@ const state = {
       });
     };
 
-    const phases = [
+    const stepFrames = Math.max(1, parseInt(opts.stepFrames ?? this.walkCycleStepFrames ?? 6, 10) || 6);
+    const strideS = Math.max(0.1, Math.min(2.0, parseFloat(opts.strideScale ?? this.walkStrideScale ?? 1.0) || 1.0));
+    const armS = Math.max(0.0, Math.min(2.0, parseFloat(opts.armSwingScale ?? this.walkArmSwingScale ?? 1.0) || 1.0));
+    this.walkCycleStepFrames = stepFrames;
+    this.walkStrideScale = strideS;
+    this.walkArmSwingScale = armS;
+
+    const scaleAngles = (frameObj) => {
+      const out = {};
+      for (const [k, v] of Object.entries(frameObj)) {
+        const s = (k.startsWith("UpperArm_") || k.startsWith("LowerArm_")) ? armS : strideS;
+        out[k] = [v[0] * s, v[1] * strideS, v[2] * s];
+      }
+      return out;
+    };
+
+    const rawPhases = [
       {
         Hips: [0, 0.08, 0], Spine: [0.04, -0.04, 0], Chest: [0.04, -0.04, 0],
         UpperLeg_R: [-0.52, 0, 0], LowerLeg_R: [0.22, 0, 0], Foot_R: [0.16, 0, 0],
@@ -1998,10 +2021,11 @@ const state = {
     ];
 
     const fps = this.animationFPS || 24;
+    const phases = rawPhases.map(scaleAngles);
     this.keyframes = phases.map((offsets, i) => {
       applyEulerOffsets(offsets);
       return {
-        time: i / fps,
+        time: (i * stepFrames) / fps,
         bones: this.currentBones.map(b => ({
           pos: b.position.clone(),
           quat: b.quaternion.clone()
@@ -2012,7 +2036,122 @@ const state = {
     applyEulerOffsets({});
     if (typeof this._refreshTimeline === "function") this._refreshTimeline();
     this.playAnimation();
-    if (window.showToast) window.showToast("Generated 5-keyframe walk cycle!");
+    if (window.showToast) window.showToast(`Walk cycle (${(4 * stepFrames / fps).toFixed(2)}s @ ${fps}fps) ready!`);
+  },
+
+  updateKeyframe() {
+    if (!this.currentBones || !this.currentBones.length) return;
+    if (!this.keyframes.length) {
+      this.addKeyframe();
+      return;
+    }
+    const scrub = document.getElementById('timeline-scrub');
+    const idx = scrub ? Math.min(this.keyframes.length - 1, Math.max(0, Math.round(parseFloat(scrub.value) || 0))) : this.keyframes.length - 1;
+    const fps = this.animationFPS || 24;
+    this.keyframes[idx] = {
+      time: idx / fps,
+      bones: this.currentBones.map(b => ({
+        pos: b.position.clone(),
+        quat: b.quaternion.clone()
+      }))
+    };
+    this._refreshTimeline();
+    if (window.showToast) window.showToast(`Updated keyframe ${idx}.`);
+  },
+
+  stepKeyframe(delta) {
+    if (!this.keyframes.length) return;
+    const scrub = document.getElementById('timeline-scrub');
+    const cur = scrub ? Math.round(parseFloat(scrub.value) || 0) : 0;
+    const next = Math.min(this.keyframes.length - 1, Math.max(0, cur + delta));
+    if (scrub) scrub.value = next;
+    this.scrubToTime(next);
+    this._refreshTimeline();
+  },
+
+  stopAnimation() {
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.mixer.timeScale = 0;
+    }
+    if (window.showToast) window.showToast("Animation stopped.");
+  },
+
+  setHandCurl(amount) {
+    if (!this.currentBones || !this.currentBones.length) return;
+    const t = Math.max(0, Math.min(1, parseFloat(amount) || 0));
+    let updated = 0;
+    this.currentBones.forEach(b => {
+      const n = b.name;
+      const side = n.endsWith("_L") ? -1 : (n.endsWith("_R") ? 1 : 0);
+      if (!side) return;
+      if (n.startsWith("Thumb_")) {
+        b.quaternion.setFromEuler(new THREE.Euler(0.35 * t, -side * 0.45 * t, side * 0.55 * t, "XYZ"));
+        updated++;
+      } else if (
+        n.startsWith("Index_") ||
+        n.startsWith("Middle_") ||
+        n.startsWith("Ring_") ||
+        n.startsWith("Pinky_")
+      ) {
+        // Curl fingers downward toward palm (-Z for L, +Z for R in T-pose)
+        b.quaternion.setFromEuler(new THREE.Euler(0, 0, side * 1.25 * t, "XYZ"));
+        updated++;
+      }
+    });
+    if (updated > 0 && this.activeMesh) {
+      this.activeMesh.updateMatrixWorld(true);
+    }
+  },
+
+  generateWaveCycle() {
+    if (!this.currentBones || !this.currentBones.length) {
+      if (window.showToast) window.showToast("Create or add a rigged mesh first.");
+      return;
+    }
+    if (typeof saveState === "function" && this.activeMesh) saveState(this.activeMesh);
+
+    const rest = this.currentBones.map(b => ({
+      pos: b.position.clone(),
+      quat: b.quaternion.clone()
+    }));
+
+    const applyOffsets = (offsets) => {
+      this.currentBones.forEach((b, idx) => {
+        b.position.copy(rest[idx].pos);
+        b.quaternion.copy(rest[idx].quat);
+        const off = offsets[b.name];
+        if (off) {
+          const dq = new THREE.Quaternion().setFromEuler(new THREE.Euler(off[0], off[1], off[2], "XYZ"));
+          b.quaternion.multiply(dq).normalize();
+        }
+      });
+    };
+
+    const phases = [
+      { Chest: [0, 0, 0], Head: [0, 0.05, 0], UpperArm_R: [0, 0, -0.75], LowerArm_R: [0, 0, -0.65], Hand_R: [0, 0, -0.15] },
+      { Chest: [0, 0.04, -0.04], Head: [-0.04, 0.08, -0.05], UpperArm_R: [0, 0, -0.85], LowerArm_R: [0, 0, -0.95], Hand_R: [0, 0, -0.35] },
+      { Chest: [0, -0.02, 0.03], Head: [0.02, 0.04, 0.04], UpperArm_R: [0, 0, -0.78], LowerArm_R: [0, 0, -0.45], Hand_R: [0, 0, 0.25] },
+      { Chest: [0, 0.04, -0.04], Head: [-0.04, 0.08, -0.05], UpperArm_R: [0, 0, -0.85], LowerArm_R: [0, 0, -0.95], Hand_R: [0, 0, -0.35] },
+      { Chest: [0, 0, 0], Head: [0, 0.05, 0], UpperArm_R: [0, 0, -0.75], LowerArm_R: [0, 0, -0.65], Hand_R: [0, 0, -0.15] }
+    ];
+
+    const fps = this.animationFPS || 24;
+    this.keyframes = phases.map((offsets, i) => {
+      applyOffsets(offsets);
+      return {
+        time: i / fps,
+        bones: this.currentBones.map(b => ({
+          pos: b.position.clone(),
+          quat: b.quaternion.clone()
+        }))
+      };
+    });
+
+    applyOffsets({});
+    if (typeof this._refreshTimeline === "function") this._refreshTimeline();
+    this.playAnimation();
+    if (window.showToast) window.showToast("Generated 5-keyframe wave animation!");
   },
 
   setRadius(r) { if (this.brush) this.brush.setRadius(r); if (cursorGroup.visible) cursorGroup.scale.setScalar(r);

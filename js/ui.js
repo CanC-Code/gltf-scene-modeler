@@ -1122,13 +1122,64 @@ export function initUI(state, viewGizmo) {
   updateMaterialUI(state.activeMesh);
 }
 
-const _mirrorBtn = document.getElementById("mirrorPoseBtn");
-if (_mirrorBtn) _mirrorBtn.onclick = () => {
-  const s = window.state;
-  if (s && typeof s.mirrorPoseLR === "function") s.mirrorPoseLR();
+const _bindRigBtn = (id, fn) => {
+  const el = document.getElementById(id);
+  if (el) el.onclick = (e) => {
+    const s = window.state;
+    if (s) fn(s, e);
+  };
 };
-const _walkBtn = document.getElementById("genWalkCycleBtn");
-if (_walkBtn) _walkBtn.onclick = () => {
-  const s = window.state;
-  if (s && typeof s.generateWalkCycle === "function") s.generateWalkCycle();
-};
+
+_bindRigBtn("mirrorPoseBtn", (s) => s.mirrorPoseLR && s.mirrorPoseLR());
+_bindRigBtn("genWalkCycleBtn", (s) => s.generateWalkCycle && s.generateWalkCycle());
+_bindRigBtn("genWaveCycleBtn", (s) => s.generateWaveCycle && s.generateWaveCycle());
+_bindRigBtn("updateKeyframe", (s) => s.updateKeyframe && s.updateKeyframe());
+_bindRigBtn("stopAnim", (s) => s.stopAnimation && s.stopAnimation());
+_bindRigBtn("prevKeyframe", (s) => s.stepKeyframe && s.stepKeyframe(-1));
+_bindRigBtn("nextKeyframe", (s) => s.stepKeyframe && s.stepKeyframe(1));
+
+const _handCurlEl = document.getElementById("hand-curl-slider");
+if (_handCurlEl) {
+  _handCurlEl.oninput = (e) => {
+    const val = parseFloat(e.target.value) || 0;
+    const lbl = document.getElementById("hand-curl-label");
+    if (lbl) lbl.textContent = `${Math.round(val * 100)}%`;
+    const s = window.state;
+    if (s && typeof s.setHandCurl === "function") s.setHandCurl(val);
+  };
+}
+
+const _readWalkOpts = () => ({
+  stepFrames: parseInt(document.getElementById("walk-step-slider")?.value || "6", 10),
+  strideScale: (parseFloat(document.getElementById("walk-stride-slider")?.value || "100") / 100),
+  armSwingScale: (parseFloat(document.getElementById("walk-arm-slider")?.value || "100") / 100)
+});
+
+const _stepSlider = document.getElementById("walk-step-slider");
+if (_stepSlider) {
+  _stepSlider.oninput = (e) => {
+    const lbl = document.getElementById("walk-step-label");
+    if (lbl) lbl.textContent = `${e.target.value}f`;
+  };
+}
+const _strideSlider = document.getElementById("walk-stride-slider");
+if (_strideSlider) {
+  _strideSlider.oninput = (e) => {
+    const lbl = document.getElementById("walk-stride-label");
+    if (lbl) lbl.textContent = `${e.target.value}%`;
+  };
+}
+const _armSlider = document.getElementById("walk-arm-slider");
+if (_armSlider) {
+  _armSlider.oninput = (e) => {
+    const lbl = document.getElementById("walk-arm-label");
+    if (lbl) lbl.textContent = `${e.target.value}%`;
+  };
+}
+const _walkCycleBtnEl = document.getElementById("genWalkCycleBtn");
+if (_walkCycleBtnEl) {
+  _walkCycleBtnEl.onclick = () => {
+    const s = window.state;
+    if (s && typeof s.generateWalkCycle === "function") s.generateWalkCycle(_readWalkOpts());
+  };
+}
