@@ -399,18 +399,32 @@ export class SculptBrush {
     texture.needsUpdate = true;
   }
 
-  paintWeight(localPoint) {
+  paintWeight(localPoint, sym = { x: false, y: false, z: false }) {
     if (!this.geometry.attributes.skinWeight || !this.geometry.attributes.skinIndex) return;
-    
+
     const pos = this.position;
     const weightAttr = this.geometry.attributes.skinWeight;
     const indexAttr = this.geometry.attributes.skinIndex;
+    const centers = [localPoint.clone()];
+    if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
+    if (sym.y) {
+      const yBatch = centers.map(pt => new THREE.Vector3(pt.x, -pt.y, pt.z));
+      centers.push(...yBatch);
+    }
+    if (sym.z) {
+      const zBatch = centers.map(pt => new THREE.Vector3(pt.x, pt.y, -pt.z));
+      centers.push(...zBatch);
+    }
+
     const v = new THREE.Vector3();
-    
-    const region = this.spatialHash.query(localPoint, this.radius);
-    for (const i of region) {
-      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
-      const dist = v.distanceTo(localPoint);
+    const visited = new Set();
+    for (const c of centers) {
+      const region = this.spatialHash.query(c, this.radius);
+      for (const i of region) {
+        if (visited.has(i)) continue;
+        visited.add(i);
+        v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+        const dist = v.distanceTo(c);
       if (dist <= this.radius) {
         const falloff = Math.pow(1 - dist / this.radius, 2) * this.strength;
         

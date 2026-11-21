@@ -2451,7 +2451,7 @@ function applyBrushAtLocalPoint(localPoint) {
       state.brush.paint(localPoint, ({ x: state.symmetryX, y: state.symmetryY }));
     }
   } else if (state.mode === "weight_paint") {
-    state.brush.paintWeight(localPoint);
+    state.brush.paintWeight(localPoint, { x: state.symmetryX, y: state.symmetryY, z: state.symmetryZ });
   }
 }
 
