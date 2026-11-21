@@ -512,12 +512,18 @@
       <details open>
         <summary>File</summary>
         <div class="details-content">
+          <div style="font-size: 11px; opacity: 0.75; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em;">3D Scene (glTF / GLB)</div>
           <button id="exportGLB" style="background: #2e7d32; margin-bottom: 6px; font-weight: bold;">Export Scene (GLB)</button>
-          <button id="exportGLTF" style="background: #388e3c; margin-bottom: 6px;">Export Scene (GLTF)</button>
-          <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-bottom: 10px;" />
-          
-          <button id="saveProject" style="background: #0288d1; margin-bottom: 6px;">💾 Save Project</button>
-          <input type="file" id="loadProject" accept=".json" style="color: #fff; margin-top: 5px;" />
+          <button id="exportGLTF" style="background: #388e3c; margin-bottom: 8px;">Export Scene (GLTF)</button>
+          <label for="importGLTF" style="display: block; font-size: 12px; margin-bottom: 3px;">Import GLB / GLTF Model</label>
+          <input type="file" id="importGLTF" accept=".gltf,.glb" style="color: #fff; margin-bottom: 12px;" />
+
+          <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.12); margin: 8px 0 10px;" />
+
+          <div style="font-size: 11px; opacity: 0.75; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em;">Workspace Project</div>
+          <button id="saveProject" style="background: #0288d1; margin-bottom: 8px;">💾 Save Project</button>
+          <label for="loadProject" style="display: block; font-size: 12px; margin-bottom: 3px;">Load Project (.json)</label>
+          <input type="file" id="loadProject" accept=".json" style="color: #fff;" />
         </div>
       </details>
     </div>
@@ -546,42 +552,58 @@
     </div>
 
     <div id="rig-panel" class="panel-section">
-      <h3>Armature</h3>
-      <button id="addBoneChain" style="background: #4caf50; margin-bottom: 6px;">Create Armature</button>
-      <button id="addChildBone" style="background: #2e7d32; margin-bottom: 6px;">+ Add Child Bone</button>
-      <button id="renameBone" style="background: #1976d2; margin-bottom: 6px;">Rename Active Bone</button>
-      <button id="deleteBone" style="background: #b71c1c; margin-bottom: 6px;">Delete Active Bone</button>
-      <button id="bindSkin" style="background: #ff9800; margin-bottom: 6px;">Bind Skin to Bones</button>
-      <button id="bindMulti" style="background: #9c27b0; margin-bottom: 6px;">Bind Selected to Active Skeleton</button>
-      <button id="enableIKBtn" style="background: #ff4081;">Enable IK on Active Bone</button>
+      <details open>
+        <summary>Armature</summary>
+        <div class="details-content">
+          <button id="addBoneChain" style="background: #4caf50; margin-bottom: 6px;">Create Armature</button>
+          <button id="addChildBone" style="background: #2e7d32; margin-bottom: 6px;">+ Add Child Bone</button>
+          <button id="renameBone" style="background: #1976d2; margin-bottom: 6px;">Rename Active Bone</button>
+          <button id="deleteBone" style="background: #b71c1c; margin-bottom: 6px;">Delete Active Bone</button>
+          <button id="bindSkin" style="background: #ff9800; margin-bottom: 6px;">Bind Skin to Bones</button>
+          <button id="bindMulti" style="background: #9c27b0; margin-bottom: 6px;">Bind Selected to Active Skeleton</button>
+          <button id="enableIKBtn" style="background: #ff4081;">Enable IK on Active Bone</button>
+        </div>
+      </details>
 
-      <h3>Select Bone</h3>
-      <div id="bone-list">
-        <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
-      </div>
+      <details>
+        <summary>Select Bone</summary>
+        <div class="details-content">
+          <div id="bone-list">
+            <p style="font-size: 12px; color: #888; text-align: center;">No bones found</p>
+          </div>
 
-      <label>Bone Roll (local Y-axis)</label>
-      <input type="range" id="bone-roll" min="-3.1416" max="3.1416" step="0.01" value="0" style="width: 100%; margin-bottom: 15px;">
-      
-      <h3>Weight Paint</h3>
-      <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 5px;">Active: None</p>
-      <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
+          <label>Bone Roll (local Y-axis)</label>
+          <input type="range" id="bone-roll" min="-3.1416" max="3.1416" step="0.01" value="0" style="width: 100%; margin-bottom: 6px;">
+        </div>
+      </details>
 
-      <h3>Animation</h3>
-      <button id="addKeyframe" style="background: #03a9f4; margin-bottom: 6px;">Add Keyframe</button>
-      <button id="deleteKeyframe" style="background: #e53935; margin-bottom: 6px;">Delete Current Keyframe</button>
-      <button id="playAnim" style="background: #00bcd4; margin-bottom: 6px;">Play Animation</button>
-      <button id="resetAnim" style="margin-bottom: 10px;">Reset Pose</button>
-      
-      <label>Timeline</label>
-      <input type="range" id="timeline-scrub" min="0" max="0" step="1" value="0" disabled>
-      <span id="timeline-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">Frame: 0</span>
-      
-      <label>FPS</label>
-      <input type="range" id="anim-fps" min="1" max="60" step="1" value="24">
-      <span id="fps-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">24 fps</span>
-      
-      <button id="toggleLoop" style="margin-top: 10px;">Loop Animation: OFF</button>
+      <details>
+        <summary>Weight Paint</summary>
+        <div class="details-content">
+          <p id="active-bone-label" style="font-size: 12px; color: #4a90e2; font-weight: bold; margin-bottom: 6px;">Active: None</p>
+          <button id="toggleWeightPaint" style="background: #e91e63;">Toggle Weight Paint Mode</button>
+        </div>
+      </details>
+
+      <details>
+        <summary>Animation</summary>
+        <div class="details-content">
+          <button id="addKeyframe" style="background: #03a9f4; margin-bottom: 6px;">Add Keyframe</button>
+          <button id="deleteKeyframe" style="background: #e53935; margin-bottom: 6px;">Delete Current Keyframe</button>
+          <button id="playAnim" style="background: #00bcd4; margin-bottom: 6px;">Play Animation</button>
+          <button id="resetAnim" style="margin-bottom: 10px;">Reset Pose</button>
+
+          <label>Timeline</label>
+          <input type="range" id="timeline-scrub" min="0" max="0" step="1" value="0" disabled>
+          <span id="timeline-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">Frame: 0</span>
+
+          <label>FPS</label>
+          <input type="range" id="anim-fps" min="1" max="60" step="1" value="24">
+          <span id="fps-label" style="font-size: 12px; text-align: center; display: block; color: #aaa;">24 fps</span>
+
+          <button id="toggleLoop" style="margin-top: 10px;">Loop Animation: OFF</button>
+        </div>
+      </details>
     </div>
 
     <div id="sculpt-panel" class="panel-section">
