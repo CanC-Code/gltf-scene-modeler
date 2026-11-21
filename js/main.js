@@ -789,7 +789,7 @@ const state = window.state = {
   setMode(mode) {
     const bp = document.getElementById("bottom-panel");
     if (bp) {
-      if (mode === "sculpt" || mode === "paint" || mode === "weight_paint") {
+      if (mode === "sculpt" || mode === "paint" || mode === "weight_paint" || mode === "rig") {
         bp.style.display = "flex";
       } else {
         bp.style.display = "none";
@@ -2048,10 +2048,20 @@ const state = window.state = {
   _setRigDockVisible(showRigDock) {
     const padDefault = document.getElementById("trackpad-default-ui");
     const rigDock = document.getElementById("rig-quick-dock");
+    const actionWrap = document.getElementById("action-area-wrapper");
+    const toolSel = document.getElementById("tool-selector-container");
+    const colorBtn = document.getElementById("color-picker-btn");
+    const mirrorBar = document.getElementById("sculpt-mirror-bar");
+    const rightPopups = document.getElementById("sculpt-right-popups");
     if (!padDefault || !rigDock) return;
     const useDock = !!showRigDock && this.mode === "rig";
     padDefault.style.display = useDock ? "none" : "flex";
     rigDock.style.display = useDock ? "flex" : "none";
+    if (actionWrap) actionWrap.style.display = useDock ? "none" : "flex";
+    if (toolSel) toolSel.style.display = useDock ? "none" : "";
+    if (colorBtn) colorBtn.style.display = useDock ? "none" : "";
+    if (mirrorBar) mirrorBar.style.display = useDock ? "none" : "";
+    if (rightPopups) rightPopups.style.display = useDock ? "none" : "";
     this._syncRigDockBoneLabel();
   },
 
