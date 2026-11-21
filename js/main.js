@@ -1324,6 +1324,7 @@ const state = window.state = {
     skinnedMesh.add(hips);
     if (typeof ensureMaterialSlots === "function") ensureMaterialSlots(skinnedMesh);
 
+    skinnedMesh.updateMatrixWorld(true);
     const skeleton = new THREE.Skeleton(bones);
     skinnedMesh.bind(skeleton);
 
@@ -1526,6 +1527,9 @@ const state = window.state = {
     const posCount = pos.count;
 
     mesh.updateMatrixWorld(true);
+    this.currentBones.forEach((b) => {
+      if (!b.parent || !b.parent.isBone) b.updateMatrixWorld(true);
+    });
     const meshMatrixInv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
     const segments = this.currentBones.map((bone) => {
       const head = new THREE.Vector3();
