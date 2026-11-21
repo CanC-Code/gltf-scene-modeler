@@ -2767,23 +2767,9 @@ const state = window.state = {
     });
     
     const options = { binary: isBinary };
-    if (this.keyframes.length >= 2 && this.currentBones) {
-        const tracks = [];
-        for (let i = 0; i < this.currentBones.length; i++) {
-          const posValues = [];
-          const quatValues = [];
-          const times = [];
-          
-          this.keyframes.forEach(frame => {
-            times.push(frame.time);
-            posValues.push(frame.bones[i].pos.x, frame.bones[i].pos.y, frame.bones[i].pos.z);
-            quatValues.push(frame.bones[i].quat.x, frame.bones[i].quat.y, frame.bones[i].quat.z, frame.bones[i].quat.w);
-          });
-          
-          tracks.push(new THREE.VectorKeyframeTrack(`${this.currentBones[i].name}.position`, times, posValues));
-          tracks.push(new THREE.QuaternionKeyframeTrack(`${this.currentBones[i].name}.quaternion`, times, quatValues));
-        }
-        options.animations = [new THREE.AnimationClip('Action', -1, tracks)];
+    const builtClip = typeof this._buildAnimationClip === "function" ? this._buildAnimationClip() : null;
+    if (builtClip) {
+      options.animations = [builtClip];
     }
 
     new GLTFExporter().parse(
@@ -2869,7 +2855,22 @@ const state = window.state = {
           this.addObject(mesh);
         });
         if (window.showToast && meshes.length > 0) {
-          window.showToast(`Imported ${meshes.length} mesh${meshes.length === 1 ? "" : "es"}`);
+        if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
+          const animRoot = meshes.find(m => m.isSkinnedMesh) || meshes[0] || gltf.scene;
+          if (animRoot) {
+            if (this.mixer) this.mixer.stopAllAction();
+            this.mixer = new THREE.AnimationMixer(animRoot);
+            this.mixer.timeScale = 1;
+            const action = this.mixer.clipAction(gltf.animations[0]);
+            action.setLoop(this.loopAnim ? THREE.LoopRepeat : THREE.LoopOnce);
+            action.clampWhenFinished = !this.loopAnim;
+            action.play();
+          }
+        }
+          const animNote = (Array.isArray(gltf.animations) && gltf.animations.length > 0)
+            ? ` + ${gltf.animations.length} anim${gltf.animations.length === 1 ? "" : "s"}`
+            : "";
+          window.showToast(`Imported ${meshes.length} mesh${meshes.length === 1 ? "" : "es"}${animNote}`);
         }
       });
       reader.readAsArrayBuffer(file);
