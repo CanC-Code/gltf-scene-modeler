@@ -1631,6 +1631,7 @@ const state = window.state = {
 
     const mesh = this.activeMesh;
     this._calculateSkinWeights(mesh);
+    if (typeof this._isolateHeadWeights === 'function') this._isolateHeadWeights(mesh.geometry);
 
     const skinnedMesh = new THREE.SkinnedMesh(mesh.geometry, mesh.material);
     skinnedMesh.position.copy(mesh.position);
@@ -1738,6 +1739,8 @@ const state = window.state = {
     this.rebuildBoneProxies();
     this.updateBoneList();
       this._syncRigDockBoneSelect();
+
+    if (typeof this._syncRigDockBoneSelect === 'function') this._syncRigDockBoneSelect();
 
     // Sync bone roll slider
     const rollInput = document.getElementById('bone-roll');
@@ -3781,6 +3784,36 @@ function extrudeSelected() {
 }
 
 window.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "z") undo(); if (e.ctrlKey && e.key === "y") redo(); });
+// --- 3D Bone Proxy Tap Selection ---
+const _boneRaycaster = new THREE.Raycaster();
+const _bonePointer = new THREE.Vector2();
+let _boneTapDown = null;
+renderer.domElement.addEventListener("pointerdown", (e) => {
+  if (!e.isPrimary) return;
+  _boneTapDown = { x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!e.isPrimary || !_boneTapDown) return;
+  const dist = Math.hypot(e.clientX - _boneTapDown.x, e.clientY - _boneTapDown.y);
+  _boneTapDown = null;
+  if (dist > 10) return;
+  if (state.mode !== "rig" || !state.boneProxies || !state.currentBones) return;
+  if (typeof transform !== "undefined" && transform && transform.dragging) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  _bonePointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  _bonePointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  _boneRaycaster.setFromCamera(_bonePointer, camera);
+  const hits = _boneRaycaster.intersectObjects(state.boneProxies.children, false);
+  for (const h of hits) {
+    const bIdx = h.object && h.object.userData ? h.object.userData.boneIndex : undefined;
+    if (typeof bIdx === "number" && bIdx >= 0 && bIdx < state.currentBones.length && bIdx !== state.activeBoneIndex) {
+      state.selectBone(bIdx);
+      break;
+    }
+  }
+});
+
 window.addEventListener("resize", () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
 let viewGizmo = null;
