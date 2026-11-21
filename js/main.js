@@ -862,6 +862,8 @@ const state = window.state = {
       transform.detach();
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (mode === "rig") {
+      const bp = document.getElementById("bottom-panel");
+      if (bp) bp.classList.add("expanded");
       if (typeof this._setRigDockVisible === "function") this._setRigDockVisible(true);
       this.selectBone(this.activeBoneIndex);
       controls.enabled = true;
