@@ -862,7 +862,7 @@ const state = window.state = {
       transform.detach();
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (mode === "rig") {
-      this._setRigDockVisible(true);
+      if (typeof this._setRigDockVisible === "function") this._setRigDockVisible(true);
       this.selectBone(this.activeBoneIndex);
       controls.enabled = true;
       pointsCloud.visible = false;
@@ -2041,6 +2041,36 @@ const state = window.state = {
     if (typeof this._refreshTimeline === "function") this._refreshTimeline();
     this.playAnimation();
     if (window.showToast) window.showToast(`Walk cycle (${(4 * stepFrames / fps).toFixed(2)}s @ ${fps}fps) ready!`);
+  },
+
+  _setRigDockVisible(showRigDock) {
+    const padDefault = document.getElementById("trackpad-default-ui");
+    const rigDock = document.getElementById("rig-quick-dock");
+    if (!padDefault || !rigDock) return;
+    const useDock = !!showRigDock && this.mode === "rig";
+    padDefault.style.display = useDock ? "none" : "flex";
+    rigDock.style.display = useDock ? "flex" : "none";
+    this._syncRigDockBoneLabel();
+  },
+
+  _syncRigDockBoneLabel() {
+    const lbl = document.getElementById("rig-dock-bone-name");
+    if (!lbl) return;
+    const bones = this.currentBones || [];
+    const b = bones[this.activeBoneIndex];
+    lbl.textContent = b ? `${this.activeBoneIndex + 1}/${bones.length}: ${b.name}` : "Bone: None";
+  },
+
+  stepBone(delta) {
+    const bones = this.currentBones || [];
+    if (!bones.length) return;
+    const nextIdx = (this.activeBoneIndex + delta + bones.length) % bones.length;
+    if (typeof this.selectBone === "function") {
+      this.selectBone(nextIdx);
+    } else {
+      this.activeBoneIndex = nextIdx;
+    }
+    this._syncRigDockBoneLabel();
   },
 
   updateKeyframe() {
