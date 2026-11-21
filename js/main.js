@@ -1866,8 +1866,11 @@ const state = {
               const bone = new THREE.Bone();
               bone.name = b.name;
               bone.position.fromArray(b.pos);
-              bone.quaternion.fromArray(b.quat);
-              bone.rotation.y = b.roll || 0;
+              if (Array.isArray(b.quat) && b.quat.length === 4) {
+                bone.quaternion.fromArray(b.quat);
+              } else if (b.roll) {
+                bone.rotation.y = b.roll;
+              }
               return bone;
             });
             // Rebuild hierarchy from saved parentIndex (fixes branched rigs)
@@ -1938,8 +1941,13 @@ const state = {
               const tex = new THREE.CanvasTexture(canvas);
               tex.colorSpace = THREE.SRGBColorSpace;
               tex.flipY = false;
-              mesh.material.map = tex;
-              mesh.material.needsUpdate = true;
+              const targetMat = Array.isArray(mesh.material)
+                ? (mesh.material[mesh.userData.activeSlot || 0] || mesh.material[0])
+                : mesh.material;
+              if (targetMat) {
+                targetMat.map = tex;
+                targetMat.needsUpdate = true;
+              }
               mesh.userData.paintCanvas = canvas;
               mesh.userData.paintTexture = tex;
             };
