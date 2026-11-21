@@ -819,6 +819,9 @@ const state = window.state = {
     }
 
     this.mode = mode;
+    if (mode !== "rig" && typeof this._setRigDockVisible === "function") {
+      this._setRigDockVisible(false);
+    }
     const isBoneTarget = transform.object && transform.object.isBone;
 
     // UI Panel Toggles
@@ -859,6 +862,7 @@ const state = window.state = {
       transform.detach();
       if (actionArea) actionArea.style.pointerEvents = "none";
     } else if (mode === "rig") {
+      this._setRigDockVisible(true);
       this.selectBone(this.activeBoneIndex);
       controls.enabled = true;
       pointsCloud.visible = false;

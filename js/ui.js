@@ -1183,3 +1183,41 @@ if (_walkCycleBtnEl) {
     if (s && typeof s.generateWalkCycle === "function") s.generateWalkCycle(_readWalkOpts());
   };
 }
+
+_bindRigBtn("dockPrevBone", (s) => s.stepBone && s.stepBone(-1));
+_bindRigBtn("dockNextBone", (s) => s.stepBone && s.stepBone(1));
+_bindRigBtn("dockAddKeyBtn", (s) => s.addKeyframe && s.addKeyframe());
+_bindRigBtn("dockUpdateKeyBtn", (s) => s.updateKeyframe && s.updateKeyframe());
+_bindRigBtn("dockPlayBtn", (s) => s.playAnimation && s.playAnimation());
+_bindRigBtn("dockMirrorBtn", (s) => s.mirrorPoseLR && s.mirrorPoseLR());
+_bindRigBtn("dockWalkBtn", (s) => {
+  const opts = typeof _readWalkOpts === "function" ? _readWalkOpts() : {};
+  if (s.generateWalkCycle) s.generateWalkCycle(opts);
+});
+
+const _dockPadBtn = document.getElementById("dockTogglePadBtn");
+if (_dockPadBtn) {
+  _dockPadBtn.onclick = () => {
+    const padDefault = document.getElementById("trackpad-default-ui");
+    const rigDock = document.getElementById("rig-quick-dock");
+    if (!padDefault || !rigDock) return;
+    const showingDock = rigDock.style.display !== "none";
+    rigDock.style.display = showingDock ? "none" : "flex";
+    padDefault.style.display = showingDock ? "flex" : "none";
+  };
+}
+
+const _dockCurl = document.getElementById("dock-hand-curl");
+if (_dockCurl) {
+  _dockCurl.oninput = (e) => {
+    const val = parseFloat(e.target.value) || 0;
+    const lbl = document.getElementById("dock-hand-curl-val");
+    if (lbl) lbl.textContent = `${Math.round(val * 100)}%`;
+    const mainSlider = document.getElementById("hand-curl-slider");
+    const mainLbl = document.getElementById("hand-curl-label");
+    if (mainSlider) mainSlider.value = String(val);
+    if (mainLbl) mainLbl.textContent = `${Math.round(val * 100)}%`;
+    const s = window.state;
+    if (s && typeof s.setHandCurl === "function") s.setHandCurl(val);
+  };
+}
