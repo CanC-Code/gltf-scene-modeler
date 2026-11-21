@@ -1109,9 +1109,9 @@ const state = window.state = {
     }
   },
 
-  _isolateHeadWeights() {
-    if (!this.activeMesh || !this.activeMesh.geometry || !this.currentBones) return;
-    const geo = this.activeMesh.geometry;
+  _isolateHeadWeights(targetGeo) {
+    const geo = targetGeo || (this.activeMesh && this.activeMesh.geometry);
+    if (!geo || !this.currentBones) return;
     const pos = geo.attributes.position;
     const si = geo.attributes.skinIndex;
     const sw = geo.attributes.skinWeight;
@@ -1280,7 +1280,7 @@ const state = window.state = {
     const tempMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial());
     tempMesh.updateMatrixWorld(true);
     this._calculateSkinWeights(tempMesh);
-    this._isolateHeadWeights();
+    this._isolateHeadWeights(geo);
 
     const mat = new THREE.MeshStandardMaterial({
       color: 0xd9a07b,
