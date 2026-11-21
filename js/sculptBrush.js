@@ -473,6 +473,7 @@ export class SculptBrush {
         weightAttr.setXYZW(i, influences[0].weight, influences[1].weight, influences[2].weight, influences[3].weight);
         indexAttr.setXYZW(i, influences[0].index, influences[1].index, influences[2].index, influences[3].index);
       }
+      }
     }
     weightAttr.needsUpdate = true;
     indexAttr.needsUpdate = true;
