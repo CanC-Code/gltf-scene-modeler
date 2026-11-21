@@ -2330,32 +2330,73 @@ const state = {
     );
   },
 
-  importGLTF(e) {
-    const file = e.target && e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
-      const meshes = [];
-      gltf.scene.traverse(o => { if (o.isMesh) meshes.push(o); });
-      meshes.forEach(mesh => {
-        if (!mesh.isSkinnedMesh && !mesh.geometry.attributes.skinIndex) {
-          const hadUV = Boolean(mesh.geometry.attributes.uv);
-          const hadNormal = Boolean(mesh.geometry.attributes.normal);
-          if (!mesh.geometry.index) {
-            mesh.geometry = mergeVertices(mesh.geometry);
+    importGLTF(e) {
+      const file = e.target && e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => new GLTFLoader().parse(reader.result, "", gltf => {
+        const meshes = [];
+        gltf.scene.traverse(o => { if (o.isMesh) meshes.push(o); });
+        meshes.forEach(mesh => {
+          if (!mesh.isSkinnedMesh && !mesh.geometry.attributes.skinIndex) {
+            const hadUV = Boolean(mesh.geometry.attributes.uv);
+            const hadNormal = Boolean(mesh.geometry.attributes.normal);
+            if (!mesh.geometry.index) {
+              mesh.geometry = mergeVertices(mesh.geometry);
+            }
+            if (!hadNormal || !mesh.geometry.attributes.normal) {
+              mesh.geometry.computeVertexNormals();
+            }
+            if (!hadUV && typeof ensureUVs === "function") {
+              ensureUVs(mesh.geometry);
+            }
           }
-          if (!hadNormal || !mesh.geometry.attributes.normal) {
-            mesh.geometry.computeVertexNormals();
+
+          const slots = Array.isArray(mesh.material)
+            ? mesh.material.slice()
+            : (mesh.material ? [mesh.material] : []);
+          if (slots.length > 0) {
+            mesh.userData.materialSlots = slots;
+            mesh.userData.activeSlot = 0;
+            if (mesh.geometry && mesh.geometry.index) {
+              const triCount = mesh.geometry.index.count / 3;
+              const fmi = new Array(triCount).fill(0);
+              if (Array.isArray(mesh.geometry.groups) && mesh.geometry.groups.length > 0) {
+                for (const g of mesh.geometry.groups) {
+                  const startTri = Math.max(0, Math.floor(g.start / 3));
+                  const endTri = Math.min(triCount, Math.floor((g.start + g.count) / 3));
+                  const matIdx = Math.max(0, Math.min(slots.length - 1, g.materialIndex || 0));
+                  for (let t = startTri; t < endTri; t++) {
+                    fmi[t] = matIdx;
+                  }
+                }
+              }
+              mesh.userData.faceMaterialIndices = fmi;
+              if (slots.length > 1 && typeof rebuildMaterialGroups === "function") {
+                rebuildMaterialGroups(mesh);
+              }
+            }
           }
-          if (!hadUV && typeof ensureUVs === "function") {
-            ensureUVs(mesh.geometry);
+
+          if (mesh.isSkinnedMesh && mesh.skeleton && Array.isArray(mesh.skeleton.bones) && mesh.skeleton.bones.length > 0) {
+            this.currentBones = mesh.skeleton.bones.slice();
+            if (this.skeletonHelper) scene.remove(this.skeletonHelper);
+            this.skeletonHelper = new THREE.SkeletonHelper(mesh);
+            scene.add(this.skeletonHelper);
+            if (typeof this.updateBoneList === "function") {
+              this.updateBoneList();
+            }
           }
+
+          this.addObject(mesh);
+        });
+        if (window.showToast && meshes.length > 0) {
+          window.showToast(`Imported ${meshes.length} mesh${meshes.length === 1 ? "" : "es"}`);
         }
-        this.addObject(mesh);
       });
-    });
-    reader.readAsArrayBuffer(file);
-  }
+      reader.readAsArrayBuffer(file);
+      if (e.target) e.target.value = "";
+    }
 };
 
 function rebuildMaterialGroups(mesh) {
