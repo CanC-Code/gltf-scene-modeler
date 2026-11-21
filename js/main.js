@@ -1306,11 +1306,6 @@ const state = window.state = {
 
     this.currentBones = bones;
 
-    const tempMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial());
-    tempMesh.updateMatrixWorld(true);
-    this._calculateSkinWeights(tempMesh);
-    this._isolateHeadWeights(geo);
-
     const mat = new THREE.MeshStandardMaterial({
       color: 0xd9a07b,
       roughness: 0.55,
@@ -1322,9 +1317,12 @@ const state = window.state = {
     skinnedMesh.name = "HumanoidBase";
     skinnedMesh.position.set(0, 1.0, 0);
     skinnedMesh.add(hips);
+    skinnedMesh.updateMatrixWorld(true);
+
+    this._calculateSkinWeights(skinnedMesh);
+    this._isolateHeadWeights(geo);
     if (typeof ensureMaterialSlots === "function") ensureMaterialSlots(skinnedMesh);
 
-    skinnedMesh.updateMatrixWorld(true);
     const skeleton = new THREE.Skeleton(bones);
     skinnedMesh.bind(skeleton);
 
