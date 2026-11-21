@@ -879,6 +879,19 @@ const state = window.state = {
       if (actionArea) actionArea.style.pointerEvents = "none";
 
       if (isBoneTarget) {
+          if (bp) {
+            bp.style.display = "flex";
+            bp.classList.add("expanded");
+            if (typeof this._setRigDockVisible === "function") {
+              const padDefault = document.getElementById("trackpad-default-ui");
+              const rigDock = document.getElementById("rig-quick-dock");
+              const actionWrap = document.getElementById("action-area-wrapper");
+              if (padDefault) padDefault.style.display = "none";
+              if (rigDock) rigDock.style.display = "flex";
+              if (actionWrap) actionWrap.style.display = "none";
+              this._syncRigDockBoneLabel();
+            }
+          }
         // Keep gizmo on the bone, just swap tool
         if (mode === "move") transform.setMode("translate");
         else if (mode === "rotate") transform.setMode("rotate");
