@@ -1123,6 +1123,12 @@ export function initUI(state, viewGizmo) {
 }
 
 const _mirrorBtn = document.getElementById("mirrorPoseBtn");
-if (_mirrorBtn) _mirrorBtn.onclick = () => state.mirrorPoseLR();
+if (_mirrorBtn) _mirrorBtn.onclick = () => {
+  const s = window.state;
+  if (s && typeof s.mirrorPoseLR === "function") s.mirrorPoseLR();
+};
 const _walkBtn = document.getElementById("genWalkCycleBtn");
-if (_walkBtn) _walkBtn.onclick = () => state.generateWalkCycle();
+if (_walkBtn) _walkBtn.onclick = () => {
+  const s = window.state;
+  if (s && typeof s.generateWalkCycle === "function") s.generateWalkCycle();
+};
