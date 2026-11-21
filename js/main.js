@@ -1046,29 +1046,76 @@ const state = {
       g.dispose();
     };
 
-    // Pelvis, torso, neck & head with extra vertical joint loops for smooth bending
-    appendPart(new THREE.SphereGeometry(0.245, 18, 14), 1.16, 0.76, 0.88, 0, -0.05, 0);
-    appendPart(new THREE.CylinderGeometry(0.215, 0.185, 0.44, 18, 6), 1.14, 1.0, 0.84, 0, 0.24, 0);
-    appendPart(new THREE.CylinderGeometry(0.275, 0.215, 0.48, 18, 6), 1.20, 1.0, 0.90, 0, 0.62, 0);
-    appendPart(new THREE.CylinderGeometry(0.082, 0.102, 0.18, 14, 3), 1.0, 1.0, 1.0, 0, 0.90, 0);
-    appendPart(new THREE.SphereGeometry(0.185, 20, 16), 0.92, 1.16, 1.04, 0, 1.15, 0.02);
+    // Pelvis, abdomen, ribcage/chest, neck & cranium/jaw base
+    appendPart(new THREE.SphereGeometry(0.245, 20, 16), 1.16, 0.78, 0.88, 0, -0.05, 0);
+    appendPart(new THREE.CylinderGeometry(0.212, 0.188, 0.44, 20, 6), 1.14, 1.0, 0.84, 0, 0.24, 0);
+    appendPart(new THREE.CylinderGeometry(0.278, 0.212, 0.48, 20, 6), 1.22, 1.0, 0.92, 0, 0.62, 0);
+    appendPart(new THREE.CylinderGeometry(0.078, 0.098, 0.18, 16, 3), 0.96, 1.0, 1.0, 0, 0.90, 0.01);
+    appendPart(new THREE.SphereGeometry(0.185, 22, 18), 0.90, 1.18, 1.06, 0, 1.15, 0.025);
 
-    // Left & Right Arms (shoulder -> upper arm -> elbow -> forearm -> rounded palm/hand)
+    // Left & Right Arms, Contoured Palms & Articulated Digits
     for (const side of [-1, 1]) {
-      appendPart(new THREE.SphereGeometry(0.108, 14, 12), 1.05, 1.05, 1.0, side * 0.34, 0.76, 0);
-      appendPart(new THREE.CylinderGeometry(0.078, 0.066, 0.42, 14, 5), 1.0, 1.0, 1.0, side * 0.555, 0.76, 0, 0, 0, -side * (Math.PI / 2));
-      appendPart(new THREE.SphereGeometry(0.070, 12, 12), 1.0, 1.0, 1.0, side * 0.77, 0.76, 0);
-      appendPart(new THREE.CylinderGeometry(0.064, 0.050, 0.38, 14, 5), 1.0, 1.0, 1.0, side * 0.96, 0.76, 0, 0, 0, -side * (Math.PI / 2));
-      appendPart(new THREE.SphereGeometry(0.056, 12, 10), 1.45, 0.52, 0.88, side * 1.19, 0.76, 0);
+      const wristX = side * 1.15;
+      const armY = 0.76;
+
+      // Shoulder, upper arm, elbow & tapered forearm
+      appendPart(new THREE.SphereGeometry(0.108, 16, 14), 1.06, 1.06, 1.02, side * 0.34, armY, 0);
+      appendPart(new THREE.CylinderGeometry(0.078, 0.065, 0.42, 16, 5), 1.0, 1.0, 1.0, side * 0.555, armY, 0, 0, 0, -side * (Math.PI / 2));
+      appendPart(new THREE.SphereGeometry(0.070, 14, 12), 1.0, 1.0, 1.0, side * 0.77, armY, 0);
+      appendPart(new THREE.CylinderGeometry(0.064, 0.048, 0.38, 16, 5), 1.0, 1.0, 1.0, side * 0.96, armY, 0, 0, 0, -side * (Math.PI / 2));
+
+      // Palm (slightly flattened & widened across knuckles)
+      appendPart(new THREE.SphereGeometry(0.052, 14, 12), 1.15, 0.46, 0.96, side * 1.195, armY, 0.005);
+
+      // Opposable Thumb (seated cleanly into palm/thenar side, angled forward & outward)
+      appendPart(new THREE.SphereGeometry(0.022, 12, 10), 1.15, 0.85, 1.15, wristX + side * 0.016, armY - 0.003, 0.036);
+      appendPart(
+        new THREE.CylinderGeometry(0.0145, 0.0195, 0.068, 12, 3),
+        1.0, 1.0, 1.0,
+        wristX + side * 0.034, armY - 0.005, 0.058,
+        Math.PI / 2 - 0.42, 0, -side * 0.36
+      );
+      appendPart(new THREE.SphereGeometry(0.014, 10, 8), 1.1, 0.9, 1.1, wristX + side * 0.050, armY - 0.008, 0.084);
+
+      // Four Fingers: Index, Middle, Ring, Pinky (knuckle, proximal, PIP joint, distal & fingertip)
+      const fingers = [
+        { len: 0.088, zOff: -0.036, rBase: 0.0142, rMid: 0.0124, rTip: 0.0105 },
+        { len: 0.098, zOff: -0.012, rBase: 0.0152, rMid: 0.0132, rTip: 0.0112 },
+        { len: 0.090, zOff:  0.012, rBase: 0.0142, rMid: 0.0124, rTip: 0.0105 },
+        { len: 0.070, zOff:  0.034, rBase: 0.0122, rMid: 0.0108, rTip: 0.0092 }
+      ];
+      for (const f of fingers) {
+        const startX = wristX + side * 0.084;
+        const halfLen = f.len * 0.52;
+        const midJointX = startX + side * halfLen;
+        const endX = startX + side * f.len;
+        const q1X = startX + side * (halfLen * 0.5);
+        const q2X = midJointX + side * ((f.len - halfLen) * 0.5);
+        appendPart(new THREE.SphereGeometry(f.rBase * 1.06, 12, 10), 1.0, 0.95, 1.0, startX, armY, f.zOff);
+        appendPart(
+          new THREE.CylinderGeometry(f.rMid, f.rBase, halfLen, 12, 3),
+          1.0, 1.0, 1.0,
+          q1X, armY - 0.001, f.zOff,
+          0, 0, -side * (Math.PI / 2)
+        );
+        appendPart(new THREE.SphereGeometry(f.rMid * 1.04, 10, 8), 1.0, 0.94, 1.0, midJointX, armY - 0.002, f.zOff);
+        appendPart(
+          new THREE.CylinderGeometry(f.rTip, f.rMid, f.len - halfLen, 12, 3),
+          1.0, 1.0, 1.0,
+          q2X, armY - 0.0025, f.zOff,
+          0, 0, -side * (Math.PI / 2)
+        );
+        appendPart(new THREE.SphereGeometry(f.rTip, 10, 8), 1.05, 0.90, 1.0, endX, armY - 0.003, f.zOff);
+      }
     }
 
     // Left & Right Legs (hip -> thigh -> knee -> shin -> contoured foot)
     for (const side of [-1, 1]) {
-      appendPart(new THREE.SphereGeometry(0.118, 14, 12), 1.05, 1.05, 1.05, side * 0.14, -0.14, 0);
-      appendPart(new THREE.CylinderGeometry(0.108, 0.084, 0.46, 16, 6), 1.06, 1.0, 1.06, side * 0.14, -0.36, 0);
-      appendPart(new THREE.SphereGeometry(0.086, 14, 12), 1.0, 1.0, 1.0, side * 0.14, -0.58, 0);
-      appendPart(new THREE.CylinderGeometry(0.080, 0.058, 0.42, 16, 6), 1.06, 1.0, 1.06, side * 0.14, -0.78, 0);
-      appendPart(new THREE.SphereGeometry(0.068, 12, 10), 0.92, 0.56, 2.05, side * 0.14, -0.97, 0.06);
+      appendPart(new THREE.SphereGeometry(0.118, 16, 14), 1.05, 1.05, 1.05, side * 0.14, -0.14, 0);
+      appendPart(new THREE.CylinderGeometry(0.108, 0.084, 0.46, 18, 6), 1.06, 1.0, 1.06, side * 0.14, -0.36, 0);
+      appendPart(new THREE.SphereGeometry(0.086, 16, 14), 1.0, 1.0, 1.0, side * 0.14, -0.58, 0);
+      appendPart(new THREE.CylinderGeometry(0.080, 0.058, 0.42, 18, 6), 1.06, 1.0, 1.06, side * 0.14, -0.78, 0);
+      appendPart(new THREE.SphereGeometry(0.068, 14, 12), 0.92, 0.56, 2.05, side * 0.14, -0.97, 0.06);
     }
 
     let geo = new THREE.BufferGeometry();
@@ -1100,11 +1147,19 @@ const state = {
     for (const [label, side] of [["L", -1], ["R", 1]]) {
       const upperArm = makeBone(`UpperArm_${label}`, side * 0.34, 0.14, 0);
       const lowerArm = makeBone(`LowerArm_${label}`, side * 0.43, 0, 0);
-      const hand = makeBone(`Hand_${label}`, side * 0.37, 0, 0);
+      const hand = makeBone(`Hand_${label}`, side * 0.38, 0, 0);
       chest.add(upperArm);
       upperArm.add(lowerArm);
       lowerArm.add(hand);
       bones.push(upperArm, lowerArm, hand);
+
+      const thumb = makeBone(`Thumb_${label}`, side * 0.03, -0.004, 0.045);
+      const indexFinger = makeBone(`Index_${label}`, side * 0.095, 0, -0.036);
+      const middleFinger = makeBone(`Middle_${label}`, side * 0.10, 0, -0.012);
+      const ringFinger = makeBone(`Ring_${label}`, side * 0.095, 0, 0.012);
+      const pinkyFinger = makeBone(`Pinky_${label}`, side * 0.088, 0, 0.034);
+      hand.add(thumb, indexFinger, middleFinger, ringFinger, pinkyFinger);
+      bones.push(thumb, indexFinger, middleFinger, ringFinger, pinkyFinger);
 
       const upperLeg = makeBone(`UpperLeg_${label}`, side * 0.14, -0.09, 0);
       const lowerLeg = makeBone(`LowerLeg_${label}`, 0, -0.44, 0);
@@ -1148,7 +1203,7 @@ const state = {
     this.addObject(skinnedMesh);
     this.selectBone(0);
     this.updateBoneList();
-    if (window.showToast) window.showToast("Added rigged Humanoid Base!");
+    if (window.showToast) window.showToast("Added detailed rigged Humanoid Base!");
   },
 
   addObject(mesh) {
