@@ -311,8 +311,14 @@ export class SculptBrush {
     const colorAttr = geometry.attributes.color;
     const centers = [localPoint.clone()];
     if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
-    if (sym.y) centers.push(new THREE.Vector3(localPoint.x, -localPoint.y, localPoint.z));
-    if (sym.x && sym.y) centers.push(new THREE.Vector3(-localPoint.x, -localPoint.y, localPoint.z));
+    if (sym.y) {
+      const yBatch = centers.map(pt => new THREE.Vector3(pt.x, -pt.y, pt.z));
+      centers.push(...yBatch);
+    }
+    if (sym.z) {
+      const zBatch = centers.map(pt => new THREE.Vector3(pt.x, pt.y, -pt.z));
+      centers.push(...zBatch);
+    }
 
     const v = new THREE.Vector3();
     for (const c of centers) {
@@ -348,8 +354,14 @@ export class SculptBrush {
     const uv = this.geometry.attributes.uv;
     const centers = [localPoint.clone()];
     if (sym.x) centers.push(new THREE.Vector3(-localPoint.x, localPoint.y, localPoint.z));
-    if (sym.y) centers.push(new THREE.Vector3(localPoint.x, -localPoint.y, localPoint.z));
-    if (sym.x && sym.y) centers.push(new THREE.Vector3(-localPoint.x, -localPoint.y, localPoint.z));
+    if (sym.y) {
+      const yBatch = centers.map(pt => new THREE.Vector3(pt.x, -pt.y, pt.z));
+      centers.push(...yBatch);
+    }
+    if (sym.z) {
+      const zBatch = centers.map(pt => new THREE.Vector3(pt.x, pt.y, -pt.z));
+      centers.push(...zBatch);
+    }
 
     const v = new THREE.Vector3();
     const colorHex = '#' + this.paintColor.getHexString();

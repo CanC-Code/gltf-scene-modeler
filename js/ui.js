@@ -811,10 +811,16 @@ export function initUI(state, viewGizmo) {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     
+    const activeMat = state.getActiveMaterial();
+    if (activeMat && activeMat.color) {
+      activeMat.color.setHex(0xffffff);
+    }
     state.activeMesh.userData.paintCanvas = canvas;
     state.activeMesh.userData.paintTexture = texture;
-    state.getActiveMaterial().map = texture;
-    state.getActiveMaterial().needsUpdate = true;
+    if (activeMat) {
+      activeMat.map = texture;
+      activeMat.needsUpdate = true;
+    }
     
     if (window.showToast) window.showToast('Canvas ready! Switch to Paint mode.');
   };
