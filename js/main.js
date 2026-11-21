@@ -1324,7 +1324,17 @@ const state = window.state = {
     if (typeof ensureMaterialSlots === "function") ensureMaterialSlots(skinnedMesh);
 
     const skeleton = new THREE.Skeleton(bones);
-    skinnedMesh.bind(skeleton);
+    skinnedMesh.bind(skeleton, skinnedMesh.matrixWorld);
+    skeleton.pose();
+    skeleton.update();
+    console.log("[HumanoidBase skin check]", {
+      isSkinnedMesh: skinnedMesh.isSkinnedMesh,
+      posCount: geo.attributes.position?.count || 0,
+      hasSkinIndex: !!geo.attributes.skinIndex,
+      hasSkinWeight: !!geo.attributes.skinWeight,
+      boneCount: skeleton.bones.length,
+      hasBoneTexture: !!skeleton.boneTexture
+    });
 
     if (this.skeletonHelper) scene.remove(this.skeletonHelper);
     this.skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
