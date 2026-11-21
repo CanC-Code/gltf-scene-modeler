@@ -435,6 +435,7 @@ function undo() {
         state.currentBones[i].updateMatrixWorld(true);
       }
     });
+    if (state.skeletonHelper) state.skeletonHelper.update();
   }
   if (prev.keyframesSnap) {
     state.keyframes = prev.keyframesSnap;
@@ -495,6 +496,7 @@ function redo() {
         state.currentBones[i].updateMatrixWorld(true);
       }
     });
+    if (state.skeletonHelper) state.skeletonHelper.update();
   }
   if (next.keyframesSnap) {
     state.keyframes = next.keyframesSnap;
@@ -2040,6 +2042,7 @@ const state = window.state = {
     ];
 
     const fps = this.animationFPS || 24;
+      if (typeof saveState === "function" && this.activeMesh) saveState(this.activeMesh);
     const phases = rawPhases.map(scaleAngles);
     this.keyframes = phases.map((offsets, i) => {
       applyEulerOffsets(offsets);
