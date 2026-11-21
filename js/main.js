@@ -210,6 +210,9 @@ transform.addEventListener('dragging-changed', e => {
 });
 
 transform.addEventListener('objectChange', () => {
+  if (transform.object && transform.object.isBone && typeof state._applyDynamicLimbCoupling === 'function') {
+    state._applyDynamicLimbCoupling(transform.object);
+  }
   // If we're rotating a bone, sync the roll slider
   if (transform.object && transform.object.isBone) {
     const rollInput = document.getElementById('bone-roll');
@@ -587,6 +590,7 @@ const state = window.state = {
   animationFPS: 24,
   loopAnim: false,
   ikEnabled: false,
+  autoLimbBend: true,
   ikTarget: null,
   _baseUVs: null,
 
@@ -1054,6 +1058,83 @@ const state = window.state = {
     this.addObject(mesh);
   },
 
+  _syncRigDockBoneSelect() {
+    const sel = document.getElementById("rigDockBoneSelect");
+    const lbl = document.getElementById("rig-dock-bone-name");
+    const bones = this.currentBones || [];
+    if (sel) {
+      sel.innerHTML = "";
+      bones.forEach((b, i) => {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `${i + 1}/${bones.length}: ${b.name || "Bone_" + i}`;
+        if (i === this.activeBoneIndex) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.disabled = bones.length === 0;
+    }
+    if (lbl && bones[this.activeBoneIndex]) {
+      lbl.textContent = `${this.activeBoneIndex + 1}/${bones.length}: ${bones[this.activeBoneIndex].name}`;
+    }
+  },
+
+  _applyDynamicLimbCoupling(bone) {
+    if (!this.autoLimbBend || !bone || !bone.isBone || !this.currentBones) return;
+    const byName = new Map(this.currentBones.map(b => [b.name, b]));
+    const name = bone.name || "";
+
+    if (name === "UpperLeg_L" || name === "UpperLeg_R") {
+      const side = name.endsWith("_L") ? "L" : "R";
+      const lowerLeg = byName.get(`LowerLeg_${side}`);
+      const foot = byName.get(`Foot_${side}`);
+      // Lifting thigh forward (negative X in local space) bends knee backward (positive X) and levels foot
+      const lift = Math.max(0, -bone.rotation.x);
+      if (lowerLeg) {
+        lowerLeg.rotation.x = Math.min(1.85, lift * 1.15);
+        lowerLeg.updateMatrixWorld(true);
+      }
+      if (foot) {
+        const kneeRotX = lowerLeg ? lowerLeg.rotation.x : 0;
+        foot.rotation.x = -(bone.rotation.x + kneeRotX) * 0.75;
+        foot.updateMatrixWorld(true);
+      }
+    } else if (name === "UpperArm_L" || name === "UpperArm_R") {
+      const side = name.endsWith("_L") ? "L" : "R";
+      const lowerArm = byName.get(`LowerArm_${side}`);
+      if (lowerArm) {
+        const raiseAmt = Math.min(1, Math.hypot(bone.rotation.x, bone.rotation.z));
+        lowerArm.rotation.x = -raiseAmt * 0.45;
+        lowerArm.updateMatrixWorld(true);
+      }
+    }
+  },
+
+  _isolateHeadWeights() {
+    if (!this.activeMesh || !this.activeMesh.geometry || !this.currentBones) return;
+    const geo = this.activeMesh.geometry;
+    const pos = geo.attributes.position;
+    const si = geo.attributes.skinIndex;
+    const sw = geo.attributes.skinWeight;
+    if (!pos || !si || !sw) return;
+
+    const headIdx = this.currentBones.findIndex(b => b.name === "Head");
+    const neckIdx = this.currentBones.findIndex(b => b.name === "Neck");
+    if (headIdx === -1) return;
+
+    const meshPos = new THREE.Vector3();
+    for (let v = 0; v < pos.count; v++) {
+      meshPos.fromBufferAttribute(pos, v);
+      // HumanoidBase head sits above y ~ 0.62 in local mesh space
+      if (meshPos.y > 0.64) {
+        const targetBone = (meshPos.y < 0.71 && neckIdx !== -1) ? neckIdx : headIdx;
+        si.setXYZW(v, targetBone, 0, 0, 0);
+        sw.setXYZW(v, 1, 0, 0, 0);
+      }
+    }
+    si.needsUpdate = true;
+    sw.needsUpdate = true;
+  },
+
   addHumanoidBase() {
     if (this.ikEnabled) this.disableIK();
     if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
@@ -1199,6 +1280,7 @@ const state = window.state = {
     const tempMesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial());
     tempMesh.updateMatrixWorld(true);
     this._calculateSkinWeights(tempMesh);
+    this._isolateHeadWeights();
 
     const mat = new THREE.MeshStandardMaterial({
       color: 0xd9a07b,
@@ -1227,6 +1309,7 @@ const state = window.state = {
     this.addObject(skinnedMesh);
     this.selectBone(0);
     this.updateBoneList();
+      this._syncRigDockBoneSelect();
     if (window.showToast) window.showToast("Added detailed rigged Humanoid Base!");
   },
 
@@ -1317,6 +1400,7 @@ const state = window.state = {
     this.activeMesh = null;
     this.brush = null;
     this.updateBoneList();
+      this._syncRigDockBoneSelect();
 
     if (this.objects.length > 0) this.selectObject(this.objects[0]);
     else {
@@ -1402,6 +1486,7 @@ const state = window.state = {
     scene.add(this.skeletonHelper);
 
     this.updateBoneList();
+      this._syncRigDockBoneSelect();
     this.selectBone(0);
     if (window.showToast) window.showToast("Armature created! Now click 'Bind Skin to Bones'.");
   },
@@ -1505,6 +1590,7 @@ const state = window.state = {
     this.rebuildBoneProxies();
     this.selectBone(this.currentBones.length - 1);
     this.updateBoneList();
+      this._syncRigDockBoneSelect();
     
     if (window.showToast) window.showToast(`Added ${newBone.name} (undo cleared)`);
   },
@@ -1622,6 +1708,7 @@ const state = window.state = {
     transform.setMode('rotate');
     this.rebuildBoneProxies();
     this.updateBoneList();
+      this._syncRigDockBoneSelect();
 
     // Sync bone roll slider
     const rollInput = document.getElementById('bone-roll');
@@ -1641,6 +1728,7 @@ const state = window.state = {
       undoStack.length = 0;
       redoStack.length = 0;
       this.updateBoneList();
+      this._syncRigDockBoneSelect();
       if (window.showToast) window.showToast(`Renamed to ${bone.name}`);
     }
   },
@@ -1677,6 +1765,7 @@ const state = window.state = {
 
     this.rebuildBoneProxies();
     this.updateBoneList();
+      this._syncRigDockBoneSelect();
     if (this.currentBones.length > 0) this.selectBone(this.activeBoneIndex);
     else transform.detach();
 
@@ -2398,6 +2487,7 @@ const state = window.state = {
             this.skeletonHelper = new THREE.SkeletonHelper(mesh);
             scene.add(this.skeletonHelper);
             this.updateBoneList();
+      this._syncRigDockBoneSelect();
           } else {
             mesh = new THREE.Mesh(geo, mat);
           }
@@ -2852,6 +2942,7 @@ const state = window.state = {
             scene.add(this.skeletonHelper);
             if (typeof this.updateBoneList === "function") {
               this.updateBoneList();
+      this._syncRigDockBoneSelect();
             }
           }
 

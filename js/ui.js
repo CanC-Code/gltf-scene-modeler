@@ -1195,6 +1195,29 @@ _bindRigBtn("dockWalkBtn", (s) => {
   if (s.generateWalkCycle) s.generateWalkCycle(opts);
 });
 
+const _boneSel = document.getElementById("rigDockBoneSelect");
+if (_boneSel) {
+  _boneSel.onchange = (e) => {
+    const s = window.state;
+    const idx = parseInt(e.target.value, 10);
+    if (s && !Number.isNaN(idx) && typeof s.selectBone === "function") {
+      s.selectBone(idx);
+    }
+  };
+}
+
+const _autoBendBtn = document.getElementById("dockAutoBendBtn");
+if (_autoBendBtn) {
+  _autoBendBtn.onclick = () => {
+    const s = window.state;
+    if (!s) return;
+    s.autoLimbBend = !s.autoLimbBend;
+    _autoBendBtn.textContent = s.autoLimbBend ? "AutoBend: ON" : "AutoBend: OFF";
+    _autoBendBtn.style.background = s.autoLimbBend ? "#2e7d32" : "#546e7a";
+    if (window.showToast) window.showToast(`Auto-Bend ${s.autoLimbBend ? "enabled" : "disabled"}`);
+  };
+}
+
 const _dockPadBtn = document.getElementById("dockTogglePadBtn");
 if (_dockPadBtn) {
   _dockPadBtn.onclick = () => {

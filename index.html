@@ -656,11 +656,13 @@
 
           <div id="rig-quick-dock" style="display: none; flex-direction: column; flex: 1; min-height: 0; gap: 3px; overflow-y: auto; padding: 0 4px 4px 2px; font-size: 11px;">
             <div style="display: flex; align-items: center; gap: 4px; padding: 2px 0;">
-              <button id="dockPrevBone" style="width: 30px; min-width: 30px; padding: 3px 0; margin: 0; font-size: 10px;">◀</button>
-              <span id="rig-dock-bone-name" style="flex: 1; text-align: center; font-size: 11px; font-weight: 600; color: #90caf9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Bone: None</span>
-              <button id="dockNextBone" style="width: 30px; min-width: 30px; padding: 3px 0; margin: 0; font-size: 10px;">▶</button>
-              <button id="dockMirrorBtn" style="width: auto; padding: 3px 7px; margin: 0; background: #5c6bc0; font-size: 10px;">Mirror</button>
-              <button id="dockTogglePadBtn" style="width: auto; padding: 3px 7px; margin: 0; background: #37474f; font-size: 10px;">Pad</button>
+              <div style="display: flex; align-items: center; gap: 3px; padding: 2px 0;">
+              <button id="dockPrevBone" style="width: 26px; min-width: 26px; padding: 3px 0; margin: 0; font-size: 10px;">◀</button>
+              <select id="rigDockBoneSelect" style="flex: 1; min-width: 0; height: 24px; padding: 1px 4px; margin: 0; font-size: 10px; font-weight: 600; color: #90caf9; background: #1e242b; border: 1px solid #3a4654; border-radius: 4px;"></select>
+              <button id="dockNextBone" style="width: 26px; min-width: 26px; padding: 3px 0; margin: 0; font-size: 10px;">▶</button>
+              <button id="dockAutoBendBtn" style="width: auto; padding: 3px 6px; margin: 0; background: #2e7d32; font-size: 10px;">AutoBend: ON</button>
+              <button id="dockMirrorBtn" style="width: auto; padding: 3px 6px; margin: 0; background: #5c6bc0; font-size: 10px;">Mirror</button>
+              <button id="dockTogglePadBtn" style="width: auto; padding: 3px 6px; margin: 0; background: #37474f; font-size: 10px;">Pad</button>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px;">
