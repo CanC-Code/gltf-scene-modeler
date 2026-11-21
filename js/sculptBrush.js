@@ -298,7 +298,7 @@ export class SculptBrush {
     }
   }
 
-  paint(localPoint, sym = { x: false, y: false }) {
+  paint(localPoint, sym = { x: false, y: false, z: false }) {
     const geometry = this.mesh.geometry;
     const pos = geometry.attributes.position;
     if (!geometry.attributes.color) {
@@ -340,7 +340,7 @@ export class SculptBrush {
     colorAttr.needsUpdate = true;
   }
 
-  paintTexture(localPoint, sym = { x: false, y: false }) {
+  paintTexture(localPoint, sym = { x: false, y: false, z: false }) {
     if (!this.geometry.attributes.uv) {
       // Fallback to vertex colors if no UVs exist
       return this.paint(localPoint, sym);
