@@ -2416,6 +2416,16 @@ function syncPointsCloud() {
       new THREE.BufferAttribute(new Float32Array(meshGeo.attributes.position.count * 3), 3));
   }
 
+  if (meshGeo.attributes.position) {
+    meshGeo.attributes.position.needsUpdate = true;
+  }
+  if (pGeo.attributes.position) {
+    pGeo.attributes.position.needsUpdate = true;
+  }
+  if (typeof pGeo.computeBoundingSphere === 'function') {
+    pGeo.computeBoundingSphere();
+  }
+
   const colors = pGeo.attributes.color;
   for (let i = 0; i < colors.count; i++) colors.setXYZ(i, 1, 1, 1);
   state.selectedVertices.forEach(idx => colors.setXYZ(idx, 1, 0, 0));
