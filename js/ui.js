@@ -1244,3 +1244,11 @@ if (_dockCurl) {
     if (s && typeof s.setHandCurl === "function") s.setHandCurl(val);
   };
 }
+
+const _dockMirrorBtn = document.getElementById("dockMirrorBtn");
+if (_dockMirrorBtn) {
+  _dockMirrorBtn.onclick = () => {
+    const s = window.state;
+    if (s && typeof s.mirrorBonePose === "function") s.mirrorBonePose();
+  };
+}

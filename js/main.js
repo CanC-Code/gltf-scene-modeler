@@ -1135,6 +1135,35 @@ const state = window.state = {
     sw.needsUpdate = true;
   },
 
+  mirrorBonePose() {
+    if (!this.currentBones || !this.currentBones[this.activeBoneIndex]) return;
+    const src = this.currentBones[this.activeBoneIndex];
+    const name = src.name || "";
+    let targetName = null;
+    if (name.endsWith("_L")) targetName = name.slice(0, -2) + "_R";
+    else if (name.endsWith("_R")) targetName = name.slice(0, -2) + "_L";
+    if (!targetName) {
+      if (window.showToast) window.showToast("Select an _L or _R limb bone to mirror.");
+      return;
+    }
+    const dst = this.currentBones.find(b => b.name === targetName);
+    if (!dst) {
+      if (window.showToast) window.showToast(`Matching bone ${targetName} not found.`);
+      return;
+    }
+    if (typeof saveState === "function" && this.activeMesh) saveState(this.activeMesh);
+    dst.position.set(-src.position.x, src.position.y, src.position.z);
+    dst.rotation.set(src.rotation.x, -src.rotation.y, -src.rotation.z, src.rotation.order || "XYZ");
+    dst.updateMatrixWorld(true);
+    if (typeof this._applyDynamicLimbCoupling === "function") {
+      this._applyDynamicLimbCoupling(dst);
+    }
+    if (this.skeletonHelper && typeof this.skeletonHelper.update === "function") {
+      this.skeletonHelper.update();
+    }
+    if (window.showToast) window.showToast(`Mirrored ${name} -> ${targetName}`);
+  },
+
   addHumanoidBase() {
     if (this.ikEnabled) this.disableIK();
     if (this.tempSkin) { scene.remove(this.tempSkin); this.tempSkin = null; }
@@ -3906,6 +3935,7 @@ document.getElementById("resetAnim").onclick = () => {
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
+  try {
   const delta = clock.getDelta();
   if (state.mixer) {
     state.mixer.update(delta);
@@ -3935,6 +3965,9 @@ function animate() {
   }
   renderer.render(scene, camera);
   if (viewGizmo) viewGizmo.update();
+  } catch (err) {
+    console.warn("Animate loop error:", err);
+  }
   
 
 }
